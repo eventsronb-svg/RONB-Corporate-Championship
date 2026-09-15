@@ -4,11 +4,19 @@ import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
 import helmet from '@fastify/helmet';
 import staticPlugin from '@fastify/static';
+import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 import { z, ZodError } from 'zod';
-import { type Database, one } from './db.js';
-import type { Config } from './config.js';
-import { type GoogleProvider, type Storage, validateFile } from './providers.js';
+import { type Database, one, postgres } from './db.js';
+import { type Config, config } from './config.js';
+import {
+  type GoogleProvider,
+  type Storage,
+  googleProvider,
+  s3Storage,
+  validateFile,
+} from './providers.js';
 import { auth, registerAuth } from './auth.js';
 import { Orders, teamSelection, profileInput, uuid, detail, paid } from './orders.js';
 import { registerAdmin } from './admin.js';
@@ -286,9 +294,74 @@ export async function buildApp(deps: {
     return orders.profile(req.actor!.id, p.id, p.item_id, {}, true);
   });
   await registerAdmin(app, db, c, storage);
-  await app.register(staticPlugin, { root: resolve('public'), prefix: '/assets/' });
-  app.get('/admin', async (_req, reply) => reply.sendFile('admin.html'));
-  app.get('/', async (_req, reply) => reply.sendFile('index.html'));
-  app.get('/register', async (_req, reply) => reply.sendFile('index.html'));
+  const publicDir = resolve('public');
+  if (existsSync(publicDir)) {
+    await app.register(staticPlugin, { root: publicDir, prefix: '/assets/' });
+    app.get('/admin', async (_req, reply) => reply.sendFile('admin.html'));
+    app.get('/', async (_req, reply) => reply.sendFile('index.html'));
+    app.get('/register', async (_req, reply) => reply.sendFile('index.html'));
+  } else {
+    const landing =
+      '<!doctype html><html lang="en"><meta charset="utf-8"><title>Ronb Events API</title>' +
+      '<body style="font-family:system-ui,sans-serif;line-height:1.6"><h1>Ronb Events API</h1>' +
+      '<p>The event registration backend is running.</p></body></html>';
+    app.get('/', async (_req, reply) => reply.type('text/html').send(landing));
+    app.get('/register', async (_req, reply) => reply.type('text/html').send(landing));
+  }
   return app;
+}
+
+type HttpMethod = 'DELETE' | 'GET' | 'HEAD' | 'OPTIONS' | 'PATCH' | 'POST' | 'PUT';
+type ServerApp = Awaited<ReturnType<typeof buildApp>>;
+
+let serverApp: ServerApp | undefined;
+
+async function getServerApp(): Promise<ServerApp> {
+  if (!serverApp) {
+    const c = config();
+    serverApp = await buildApp({
+      db: postgres(c.DATABASE_URL),
+      config: c,
+      google: googleProvider(c),
+      storage: s3Storage(c),
+      logger: true,
+    });
+  }
+  return serverApp;
+}
+
+export default async function vercelHandler(req: IncomingMessage, res: ServerResponse) {
+  try {
+    const app = await getServerApp();
+    const chunks: Buffer[] = [];
+    for await (const chunk of req) chunks.push(Buffer.from(chunk));
+    const payload = Buffer.concat(chunks);
+    const url = new URL(req.url ?? '/', 'http://localhost');
+    const headers: Record<string, string> = {};
+    for (const [name, value] of Object.entries(req.headers)) {
+      if (
+        !value ||
+        ['connection', 'content-length', 'expect', 'host', 'transfer-encoding'].includes(name)
+      )
+        continue;
+      headers[name] = typeof value === 'string' ? value : value.join(', ');
+    }
+    const result = await app.inject({
+      method: (req.method ?? 'GET').toUpperCase() as HttpMethod,
+      url: url.pathname + url.search,
+      headers,
+      ...(payload.length > 0 ? { payload } : {}),
+    });
+    res.statusCode = result.statusCode;
+    for (const [name, value] of Object.entries(result.headers)) {
+      if (value !== undefined) res.setHeader(name, value);
+    }
+    res.end(result.rawPayload);
+  } catch (error) {
+    console.error('Vercel request failed', error);
+    if (!res.headersSent) {
+      res.statusCode = 500;
+      res.end('Internal Server Error');
+    }
+  }
 }
