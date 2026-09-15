@@ -5,7 +5,8 @@ import rateLimit from '@fastify/rate-limit';
 import helmet from '@fastify/helmet';
 import staticPlugin from '@fastify/static';
 import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { readFile } from 'node:fs/promises';
+import { relative, resolve, sep } from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { z, ZodError } from 'zod';
 import { type Database, one, postgres } from './db.js';
@@ -294,20 +295,10 @@ export async function buildApp(deps: {
     return orders.profile(req.actor!.id, p.id, p.item_id, {}, true);
   });
   await registerAdmin(app, db, c, storage);
-  const publicDir = resolve('public');
-  if (existsSync(publicDir)) {
-    await app.register(staticPlugin, { root: publicDir, prefix: '/assets/' });
-    app.get('/admin', async (_req, reply) => reply.sendFile('admin.html'));
-    app.get('/', async (_req, reply) => reply.sendFile('index.html'));
-    app.get('/register', async (_req, reply) => reply.sendFile('index.html'));
-  } else {
-    const landing =
-      '<!doctype html><html lang="en"><meta charset="utf-8"><title>Ronb Events API</title>' +
-      '<body style="font-family:system-ui,sans-serif;line-height:1.6"><h1>Ronb Events API</h1>' +
-      '<p>The event registration backend is running.</p></body></html>';
-    app.get('/', async (_req, reply) => reply.type('text/html').send(landing));
-    app.get('/register', async (_req, reply) => reply.type('text/html').send(landing));
-  }
+  await app.register(staticPlugin, { root: resolve('public'), prefix: '/assets/' });
+  app.get('/admin', async (_req, reply) => reply.sendFile('admin.html'));
+  app.get('/', async (_req, reply) => reply.sendFile('index.html'));
+  app.get('/register', async (_req, reply) => reply.sendFile('index.html'));
   return app;
 }
 
@@ -315,6 +306,55 @@ type HttpMethod = 'DELETE' | 'GET' | 'HEAD' | 'OPTIONS' | 'PATCH' | 'POST' | 'PU
 type ServerApp = Awaited<ReturnType<typeof buildApp>>;
 
 let serverApp: ServerApp | undefined;
+
+const publicRoot = resolve('public');
+const contentTypes: Record<string, string> = {
+  '.css': 'text/css; charset=utf-8',
+  '.html': 'text/html; charset=utf-8',
+  '.ico': 'image/x-icon',
+  '.js': 'text/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.png': 'image/png',
+  '.svg': 'image/svg+xml',
+  '.woff2': 'font/woff2',
+};
+
+function staticPath(pathname: string): string | undefined {
+  const relativePath =
+    pathname === '/' || pathname === '/register' ? 'index.html' : pathname.slice(1);
+  if (!relativePath || relativePath.includes('\0')) return undefined;
+  const candidate = resolve(
+    publicRoot,
+    relativePath === 'favicon.ico' ? 'favicon.svg' : relativePath,
+  );
+  const route = relative(publicRoot, candidate);
+  if (route.startsWith('..') || route.includes(`..${sep}`) || !existsSync(candidate))
+    return undefined;
+  return candidate;
+}
+
+async function servePublicFile(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
+  if (!['GET', 'HEAD'].includes(req.method ?? 'GET')) return false;
+  const pathname = new URL(req.url ?? '/', 'http://localhost').pathname;
+  const file = staticPath(pathname);
+  if (!file) return false;
+  const extension = file.slice(file.lastIndexOf('.'));
+  res.statusCode = 200;
+  res.setHeader('Content-Type', contentTypes[extension] ?? 'application/octet-stream');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader(
+    'Cache-Control',
+    extension === '.html'
+      ? 'public, max-age=0, must-revalidate'
+      : 'public, max-age=31536000, immutable',
+  );
+  if (req.method === 'HEAD') {
+    res.end();
+  } else {
+    res.end(await readFile(file));
+  }
+  return true;
+}
 
 async function getServerApp(): Promise<ServerApp> {
   if (!serverApp) {
@@ -332,6 +372,10 @@ async function getServerApp(): Promise<ServerApp> {
 
 export default async function vercelHandler(req: IncomingMessage, res: ServerResponse) {
   try {
+    // The public event site must remain available when Vercel has not yet been
+    // configured with database and provider credentials. Dynamic routes start
+    // Fastify below and therefore retain their existing configuration checks.
+    if (await servePublicFile(req, res)) return;
     const app = await getServerApp();
     const chunks: Buffer[] = [];
     for await (const chunk of req) chunks.push(Buffer.from(chunk));
