@@ -1,0 +1,30 @@
+{
+  "title": "RONB Corporate Championship",
+  "edition": "2026",
+  "start_date": "2026-10-01",
+  "end_date": "2026-10-04",
+  "timezone": "Asia/Kathmandu",
+  "venue": "Royal Sports Park",
+  "locality": "Chunikhel, Kathmandu",
+  "maps_url": "https://maps.app.goo.gl/5LA3r9CQJskT8jwW6",
+  "sports": [
+    {
+      "slug": "futsal",
+      "name": "Futsal",
+      "format": "5-a-side",
+      "description": "Small pitch. Big team energy. Take your office chemistry onto the futsal court."
+    },
+    {
+      "slug": "cricksul",
+      "name": "Cricksul",
+      "format": "Team sport",
+      "description": "Trade the meeting room for the crease. Bring your colleagues and play for your company."
+    },
+    {
+      "slug": "basketball",
+      "name": "Basketball",
+      "format": "3v3",
+      "description": "Three on court. Everyone in the game. Bring your best to the half court."
+    }
+  ]
+}

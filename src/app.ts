@@ -288,12 +288,7 @@ export async function buildApp(deps: {
   await registerAdmin(app, db, c, storage);
   await app.register(staticPlugin, { root: resolve('public'), prefix: '/assets/' });
   app.get('/admin', async (_req, reply) => reply.sendFile('admin.html'));
-  app.get('/', async (_req, reply) =>
-    reply
-      .type('text/html')
-      .send(
-        '<!doctype html><html lang="en"><meta charset="utf-8"><title>Ronb Events API</title><h1>Ronb Events API</h1><p>The event registration backend is running.</p><p><a href="/admin">Open admin panel</a> · <a href="/auth/google">Captain sign in</a> · <a href="/sports">Sports</a> · <a href="/teams">Registered teams</a></p></html>',
-      ),
-  );
+  app.get('/', async (_req, reply) => reply.sendFile('index.html'));
+  app.get('/register', async (_req, reply) => reply.sendFile('index.html'));
   return app;
 }
