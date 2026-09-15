@@ -320,8 +320,14 @@ const contentTypes: Record<string, string> = {
 };
 
 function staticPath(pathname: string): string | undefined {
-  const relativePath =
-    pathname === '/' || pathname === '/register' ? 'index.html' : pathname.slice(1);
+  let relativePath: string;
+  if (pathname === '/' || pathname === '/register') {
+    relativePath = 'index.html';
+  } else if (pathname.startsWith('/assets/')) {
+    relativePath = pathname.slice('/assets/'.length);
+  } else {
+    relativePath = pathname.slice(1);
+  }
   if (!relativePath || relativePath.includes('\0')) return undefined;
   const candidate = resolve(
     publicRoot,
