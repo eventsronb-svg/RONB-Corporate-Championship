@@ -169,4 +169,4 @@ scripts/test-postgres.ts Disposable native PostgreSQL runner
 ### Still supplied by the event organizer
 
 Google/Neon/Resend credentials, the bank's merchant QR payload, real event/sport details and prices, and the final email copy. Live OAuth, storage access policies, bank QR acceptance, and Resend delivery must be checked against those real accounts before launch. Automated tests use controlled provider substitutes; the source adapters are implemented but are not a claim of live account verification.
-fff
+fffsdf
