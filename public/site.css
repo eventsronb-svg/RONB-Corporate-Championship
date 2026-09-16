@@ -676,14 +676,17 @@ h2 {
   }
   .reveal {
     opacity: 0;
-    transform: translateY(24px);
+    transform: translateY(34px) scale(0.985);
     transition:
-      opacity 0.65s,
-      transform 0.65s;
+      opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+      transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+    transition-delay: var(--reveal-delay, 0ms);
+    will-change: opacity, transform;
   }
   .reveal.revealed {
     opacity: 1;
     transform: none;
+    will-change: auto;
   }
   .faq details[open] p {
     animation: enter 0.3s both;
@@ -706,6 +709,38 @@ h2 {
     to {
       opacity: 1;
       transform: rotate(2deg);
+    }
+  }
+  @supports (animation-timeline: view()) {
+    .venue-map {
+      animation: map-arrival linear both;
+      animation-timeline: view();
+      animation-range: entry 0% cover 38%;
+    }
+    .sport-symbol {
+      animation: sport-symbol-arrival linear both;
+      animation-timeline: view();
+      animation-range: entry 10% cover 42%;
+    }
+    @keyframes map-arrival {
+      from {
+        opacity: 0.15;
+        transform: translateY(52px) scale(0.96);
+      }
+      to {
+        opacity: 1;
+        transform: none;
+      }
+    }
+    @keyframes sport-symbol-arrival {
+      from {
+        opacity: 0.2;
+        transform: translateY(28px) rotate(-22deg) scale(0.74);
+      }
+      to {
+        opacity: 1;
+        transform: none;
+      }
     }
   }
 }

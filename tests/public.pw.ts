@@ -42,6 +42,15 @@ test('reflows the championship page on a narrow screen', async ({ page }) => {
   );
 });
 
+test('reveals sections as the visitor scrolls', async ({ page }) => {
+  await page.goto('/');
+  const sport = page.getByRole('link', { name: /Futsal/ }).first();
+  await expect(sport).toHaveClass(/reveal/);
+  await sport.scrollIntoViewIfNeeded();
+  await expect(sport).toHaveClass(/revealed/);
+  await expect(page.locator('.venue-map')).toHaveClass(/venue-map/);
+});
+
 test('supports keyboard tabs and reduced motion with a dark system preference', async ({
   page,
 }) => {
@@ -62,6 +71,12 @@ test('supports keyboard tabs and reduced motion with a dark system preference', 
   expect(
     await page.locator('.hero-copy').evaluate((el) => getComputedStyle(el).animationName),
   ).toBe('none');
+  expect(
+    await page
+      .getByRole('link', { name: /Futsal/ })
+      .first()
+      .evaluate((el) => el.classList.contains('reveal')),
+  ).toBe(false);
   await page.getByText('Can a company enter more than one sport?', { exact: true }).click();
   await expect(
     page.getByText('Yes. A captain can select every available sport', { exact: false }),

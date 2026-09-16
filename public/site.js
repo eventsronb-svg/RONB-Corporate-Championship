@@ -64,6 +64,9 @@ function home() {
   bindTeamTabs();
   const motion = !matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (motion && 'IntersectionObserver' in window) {
+    const motionTargets = document.querySelectorAll(
+      '.event-strip, .section-header, .sport, .section-note, .team-story > *, .teams-shell, .venue-date, .venue-copy, .faq details, .closing > *',
+    );
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
@@ -73,11 +76,12 @@ function home() {
           }
         });
       },
-      { threshold: 0.08 },
+      { threshold: 0.08, rootMargin: '0px 0px -8% 0px' },
     );
-    document.querySelectorAll('.section').forEach((section) => {
-      section.classList.add('reveal');
-      observer.observe(section);
+    motionTargets.forEach((element, index) => {
+      element.classList.add('reveal');
+      element.style.setProperty('--reveal-delay', `${(index % 4) * 80}ms`);
+      observer.observe(element);
     });
   }
 }
