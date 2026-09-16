@@ -918,7 +918,13 @@ h2 {
   }
   .hero-actions {
     margin-top: 24px;
-    gap: 20px;
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+  .hero-actions .button {
+    min-height: 44px;
+    padding: 10px 12px;
+    font-size: 14px;
   }
   .hero-note {
     margin-top: 18px;
@@ -933,8 +939,8 @@ h2 {
     margin-right: 0;
   }
   .event-strip {
-    grid-template-columns: 1fr;
-    gap: 18px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
     padding: 24px clamp(28.6px, 4vw, 48px);
   }
   .event-strip strong {
