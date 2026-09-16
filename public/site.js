@@ -312,11 +312,22 @@ async function sportsStep(order) {
   const target = document.querySelector('#registration-content');
   const sports = await api('/sports');
   const selected = new Set(order.items.map((item) => item.sport_id));
-  target.innerHTML = `<p class="eyebrow">Step 01 / Company & sports</p><h2>Register your company</h2><p>Enter your company name, then choose the sports you want to enter. The same company name will appear for every selected sport.</p><form id="sports-form" class="form-stack"><label class="input-group">Company name<input name="company_name" aria-required="true" autocomplete="organization" value="${esc(order.company_name || '')}" placeholder="Your company name" maxlength="120"></label><h3>Select sports</h3><div class="choice-list">${sports.length ? sports.map((sport) => `<div class="sport-choice"><input type="checkbox" id="sport-${sport.id}" name="sport" value="${sport.id}" ${selected.has(sport.id) ? 'checked' : ''}><label class="sport-choice-label" for="sport-${sport.id}"><span class="sport-choice-copy"><strong>${esc(sport.name)}</strong><span>${money(sport.price)}</span></span>${sportIcon(sport, 'sport-choice-icon')}</label></div>`).join('') : '<p class="teams-state">No sports are open yet. Ask the organizer to add the championship formats.</p>'}</div><p class="error" id="form-error" hidden></p><div class="form-actions"><button class="button primary" ${sports.length ? '' : 'disabled'}>Continue to contact</button></div></form>`;
+  const isFull = (sport) =>
+    sport.max_teams !== null && Number(sport.filled_slots ?? 0) >= Number(sport.max_teams);
+  target.innerHTML = `<p class="eyebrow">Step 01 / Company & sports</p><h2>Register your company</h2><p>Enter your company name, then choose the sports you want to enter. The same company name will appear for every selected sport.</p><form id="sports-form" class="form-stack"><label class="input-group">Company name<input name="company_name" aria-required="true" autocomplete="organization" value="${esc(order.company_name || '')}" placeholder="Your company name" maxlength="120"></label><h3>Select sports</h3><div class="choice-list">${
+    sports.length
+      ? sports
+          .map((sport) => {
+            const full = isFull(sport);
+            return `<div class="sport-choice${full ? ' is-full' : ''}"><input type="checkbox" id="sport-${sport.id}" name="sport" value="${sport.id}" ${selected.has(sport.id) && !full ? 'checked' : ''} ${full ? 'disabled aria-disabled="true" title="No registration slots remaining"' : ''}><label class="sport-choice-label" for="sport-${sport.id}"><span class="sport-choice-copy"><strong>${esc(sport.name)}</strong><span class="${full ? 'slots-filled' : ''}">${full ? 'Slots filled' : money(sport.price)}</span></span>${sportIcon(sport, 'sport-choice-icon')}</label></div>`;
+          })
+          .join('')
+      : '<p class="teams-state">No sports are open yet. Ask the organizer to add the championship formats.</p>'
+  }</div><p class="error" id="form-error" hidden></p><div class="form-actions"><button class="button primary" ${sports.length ? '' : 'disabled'}>Continue to contact</button></div></form>`;
   const focus = new URLSearchParams(location.search).get('focus');
   if (!order.items.length && focus) {
     const sport = sports.find((item) => slugify(item.name) === focus);
-    if (sport) document.querySelector(`#sport-${sport.id}`).checked = true;
+    if (sport && !isFull(sport)) document.querySelector(`#sport-${sport.id}`).checked = true;
   }
   bindSubmission('#sports-form', async (event) => {
     event.preventDefault();

@@ -723,6 +723,24 @@ h2 {
   width: 20px;
   height: 20px;
 }
+.sport-choice.is-full {
+  background: var(--tint);
+  opacity: 0.55;
+}
+.sport-choice.is-full .sport-choice-label {
+  cursor: not-allowed;
+}
+.sport-choice.is-full input[type='checkbox'] {
+  accent-color: var(--muted);
+  cursor: not-allowed;
+}
+.sport-choice .slots-filled {
+  color: var(--muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 15.6px;
+}
 .sport-choice-label {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 48px;
