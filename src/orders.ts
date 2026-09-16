@@ -1,4 +1,3 @@
-import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import { type Database, type Queryable, type Row, one } from './db.js';
 import type { Config } from './config.js';
@@ -307,7 +306,7 @@ export class Orders {
         'payment_unconfigured',
         'The merchant bank details have not been configured',
       );
-      const code = `RONB-${randomBytes(8).toString('hex').toUpperCase()}`;
+      const code = `RONB-${String(Math.floor(Math.random() * 100000)).padStart(5, '0')}`;
       const p = await one(
         tx,
         `INSERT INTO payment_requests(order_id,unique_code,qr_payload,expires_at) VALUES($1,$2,$3,now()+($4*interval '1 minute')) RETURNING *`,
