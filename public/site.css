@@ -1,4 +1,10 @@
 @font-face {
+  font-family: FuturaMaxiCG;
+  src: url('/assets/fonts/FuturaMaxiCGBold.otf') format('opentype');
+  font-display: swap;
+  font-weight: 700;
+}
+@font-face {
   font-family: Ultimate;
   src: url('/assets/fonts/Ultimate.otf') format('opentype');
   font-display: swap;
@@ -24,7 +30,7 @@
   --input-rule: oklch(0.62 0.008 20);
   color: var(--ink);
   background: var(--paper);
-  font-family: Ultimate, Arial, sans-serif;
+  font-family: FuturaMaxiCG, Arial, sans-serif;
   font-size: 20.8px;
   font-synthesis: weight;
 }
@@ -172,7 +178,7 @@ a {
   color: var(--accent);
 }
 .hero-sub {
-  font-size: 24px;
+  font-size: 20.4px;
   max-width: 480px;
   margin: 0 auto 28px;
   color: var(--muted);
@@ -232,7 +238,7 @@ a {
   margin: 34px auto 0;
   font-family: VarsityTeam, Ultimate, sans-serif;
   font-weight: 700;
-  font-size: clamp(39px, 4vw, 67.6px);
+  font-size: clamp(33.2px, 3.4vw, 57.5px);
   line-height: 1.1;
   letter-spacing: 0;
   text-transform: uppercase;
@@ -244,8 +250,9 @@ a {
   margin: 0;
   display: grid;
   grid-template-columns: 1fr 1.25fr 1fr;
-  border-top: 1px solid var(--rule);
-  border-bottom: 1px solid var(--rule);
+  background: #E8233C;
+  border-top: 1px solid #E8233C;
+  border-bottom: 1px solid #E8233C;
   padding: 25px clamp(28.6px, 4vw, 48px);
   gap: 35px;
 }
@@ -255,11 +262,12 @@ a {
 }
 .event-strip span {
   font-size: 15.6px;
-  color: var(--muted);
+  color: rgba(255, 255, 255, 0.75);
 }
 .event-strip strong {
   font-size: 23.4px;
   font-weight: 600;
+  color: #fff;
 }
 .section {
   max-width: 1264px;
@@ -490,28 +498,11 @@ h2 {
 }
 .venue-date {
   border-radius: 24px;
-  background: var(--tint);
-  padding: 50px 35px;
-  text-align: center;
-}
-.venue-date > span {
-  font-size: 18.2px;
-  color: var(--muted);
-}
-.venue-date strong {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 24px;
-  font-size: 130px;
-  font-weight: 600;
-  letter-spacing: -5px;
-  margin: 15px 0;
-}
-.venue-date strong span {
-  font-size: 28.6px;
-  letter-spacing: 0;
-  font-weight: 400;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+  display: block;
 }
 .venue-copy > p:not(.eyebrow) {
   color: var(--muted);
@@ -944,10 +935,7 @@ h2 {
     padding-top: 0;
   }
   .venue-date {
-    padding: 30px 20px;
-  }
-  .venue-date strong {
-    font-size: 110.5px;
+    border-radius: 20px;
   }
   .faq-section {
     grid-template-columns: 1fr;
