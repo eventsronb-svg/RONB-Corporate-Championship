@@ -776,10 +776,14 @@ h2 {
   padding: 14px;
   border-radius: 10px;
 }
-.qr {
-  display: block;
-  max-width: 260px;
-  width: 100%;
+.bank-details {
+  background: var(--tint);
+  border-radius: 14px;
+  padding: 22px;
+  margin: 24px 0;
+  white-space: pre-line;
+  line-height: 1.8;
+  font-weight: 600;
 }
 .toast {
   position: fixed;

@@ -1,5 +1,4 @@
 import { randomBytes } from 'node:crypto';
-import QRCode from 'qrcode';
 import { z } from 'zod';
 import { type Database, type Queryable, type Row, one } from './db.js';
 import type { Config } from './config.js';
@@ -303,27 +302,23 @@ export class Orders {
       const existing = await one(tx, 'SELECT * FROM payment_requests WHERE order_id=$1', [id]);
       if (existing) return existing;
       assert(
-        this.config.PAYMENT_QR_TEMPLATE,
+        this.config.PAYMENT_BANK_DETAILS,
         503,
         'payment_unconfigured',
-        'The merchant payment QR has not been configured',
+        'The merchant bank details have not been configured',
       );
       const code = `RONB-${randomBytes(8).toString('hex').toUpperCase()}`;
-      const payload = this.config.PAYMENT_QR_TEMPLATE.replaceAll(
-        '{amount}',
-        o.total_amount,
-      ).replaceAll('{code}', code);
       const p = await one(
         tx,
         `INSERT INTO payment_requests(order_id,unique_code,qr_payload,expires_at) VALUES($1,$2,$3,now()+($4*interval '1 minute')) RETURNING *`,
-        [id, code, payload, this.config.PAYMENT_EXPIRY_MINUTES],
+        [id, code, this.config.PAYMENT_BANK_DETAILS, this.config.PAYMENT_EXPIRY_MINUTES],
       );
       await transition(tx, o, 'payment_pending');
       return p!;
     });
     return {
       ...result,
-      qr_data_url: await QRCode.toDataURL(result.qr_payload),
+      bank_details: this.config.PAYMENT_BANK_DETAILS,
       instructions: this.config.PAYMENT_INSTRUCTIONS,
     };
   }

@@ -18,8 +18,12 @@ const envSchema = z.object({
   S3_LOGOS_PUBLIC_URL: z.string().default(''),
   RESEND_API_KEY: z.string().default(''),
   EMAIL_FROM: z.string().default(''),
-  PAYMENT_QR_TEMPLATE: z.string().max(2000).default(''),
-  PAYMENT_INSTRUCTIONS: z.string().default('Enter your unique code in payment remarks.'),
+  PAYMENT_BANK_DETAILS: z.string().max(4000).default(''),
+  PAYMENT_INSTRUCTIONS: z
+    .string()
+    .default(
+      'Transfer the exact amount to the bank account below and enter the unique code in payment remarks.',
+    ),
   PAYMENT_EXPIRY_MINUTES: z.coerce.number().int().min(5).max(10080).default(1440),
 });
 export type Config = z.infer<typeof envSchema>;
@@ -43,7 +47,7 @@ export function config(env: NodeJS.ProcessEnv = process.env): Config {
       'S3_LOGOS_PUBLIC_URL',
       'RESEND_API_KEY',
       'EMAIL_FROM',
-      'PAYMENT_QR_TEMPLATE',
+      'PAYMENT_BANK_DETAILS',
     ] as const) {
       if (!c[key]) throw new Error(`${key} is required in production`);
     }

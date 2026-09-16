@@ -238,7 +238,9 @@ describe('authorization and validation', () => {
     const first = await h.call('POST', `/orders/${o.id}/payment-request`);
     const second = await h.call('POST', `/orders/${o.id}/payment-request`);
     expect(first.json().id).toBe(second.json().id);
-    expect(first.json().qr_data_url).toMatch(/^data:image\/png/);
+    expect(first.json().bank_details).toBe(
+      'Bank Name: Nabil Bank\nBranch: Teendhara\nAccount: 01701017503541',
+    );
     await h.db.query(
       "UPDATE payment_requests SET expires_at=now()-interval '1 second' WHERE order_id=$1",
       [o.id],

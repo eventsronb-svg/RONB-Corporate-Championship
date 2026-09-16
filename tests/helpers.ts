@@ -39,7 +39,7 @@ export async function setup() {
     APP_ORIGIN: appOrigin,
     DATABASE_URL: 'test',
     COOKIE_SECRET: 'a'.repeat(32),
-    PAYMENT_QR_TEMPLATE: 'merchant-test://pay?amount={amount}&remarks={code}',
+    PAYMENT_BANK_DETAILS: 'Bank Name: Nabil Bank\nBranch: Teendhara\nAccount: 01701017503541',
     ADMIN_LOGIN_USERNAME: passwordAdminCredentials.username,
     ADMIN_LOGIN_PASSWORD: passwordAdminCredentials.password,
   });

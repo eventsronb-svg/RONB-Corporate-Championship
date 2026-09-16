@@ -93,11 +93,11 @@ Set `S3_LOGOS_PUBLIC_URL` to the public base URL of the logos bucket, without th
 
 Uploads are limited to 5 MB. Logos accept PNG/JPEG/WebP; receipts also accept PDFs with a PDF signature. Images are decoded and re-encoded as PNG, stripping metadata and rejecting unsupported/malformed inputs. Logos fit within 1024×1024; decompression is limited to 20 million pixels. Files use generated keys. A failed database update deletes its newly uploaded object where storage is reachable. Replaced logos and crash-orphaned objects need a later storage-retention sweep; no unrelated files are deleted automatically.
 
-### Payment QR
+### Payment details
 
-Set `PAYMENT_QR_TEMPLATE` to the **actual merchant-provided bank/wallet payload**. It can be a static merchant QR payload. `{amount}` and `{code}` replacements are available only if the receiving provider supports that payload format. A real PNG QR data URL is returned with the stored payload, unique remarks code, and expiry.
+Set `PAYMENT_BANK_DETAILS` to the **exact merchant bank account details** shown to captains on the payment step. Enter each field on its own line; the block is rendered as-is. Each payment request stores a unique remarks code and expiry alongside the bank details.
 
-No bank-specific QR format is assumed. No fake payable QR is generated when configuration is missing. The captain must enter the unique code in transfer remarks and pay the exact invoice amount. The default code lifetime is 24 hours; adjust `PAYMENT_EXPIRY_MINUTES` and `PAYMENT_INSTRUCTIONS` as needed.
+No QR is generated. If `PAYMENT_BANK_DETAILS` is missing, the payment request is rejected rather than showing incomplete instructions. The captain must enter the unique code in transfer remarks and pay the exact invoice amount. The default code lifetime is 24 hours; adjust `PAYMENT_EXPIRY_MINUTES` and `PAYMENT_INSTRUCTIONS` as needed.
 
 ### Resend
 
