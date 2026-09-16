@@ -100,16 +100,20 @@ a {
 }
 .masthead {
   height: 80px;
-  max-width: 1360px;
-  margin: auto;
-  padding: 0 48px;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0 clamp(28.6px, 4vw, 48px);
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 24px;
+  justify-content: center;
+  gap: clamp(24px, 3.5vw, 48px);
+  background: var(--accent);
+  color: var(--on-accent);
 }
 .wordmark {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   gap: 9px;
   font-size: 29.9px;
@@ -121,41 +125,55 @@ a {
   place-items: center;
   width: 33px;
   height: 33px;
-  background: var(--accent);
-  color: var(--on-accent);
+  background: var(--on-accent);
+  color: var(--accent);
   border-radius: 9px;
   font-family: Ultimate, Arial, sans-serif;
   font-size: 31.2px;
 }
 .desktop-nav {
   display: flex;
-  gap: 30px;
+  align-items: center;
+  gap: clamp(20px, 2.2vw, 30px);
   font-size: 19.5px;
+  white-space: nowrap;
 }
 .desktop-nav a:hover,
 .text-link:hover {
-  color: var(--accent);
+  color: var(--on-accent);
   text-decoration: underline;
 }
 .masthead-link {
-  border: 1px solid var(--rule);
+  flex-shrink: 0;
+  white-space: nowrap;
+  border: 1px solid var(--on-accent);
   border-radius: 100px;
   padding: 12px 19px;
   font-weight: 600;
   font-size: 18.2px;
+  background: var(--on-accent);
+  color: var(--accent);
 }
 .masthead-link span {
   margin-left: 12px;
 }
 .hero {
-  max-width: 960px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: center;
+  gap: 48px;
+  max-width: 1360px;
   margin: 56px auto 40px;
   padding: 0 clamp(28.6px, 4vw, 48px);
   text-align: center;
   min-height: 0;
 }
 .hero-copy {
+  min-width: 0;
   text-align: center;
+}
+.hero-copy .eyebrow {
+  font-size: 23.4px;
 }
 .eyebrow {
   color: var(--accent);
@@ -168,7 +186,7 @@ a {
 .hero-title {
   font-family: VarsityTeam, Ultimate, sans-serif;
   font-weight: 700;
-  font-size: clamp(67.6px, 6.5vw, 137.8px);
+  font-size: clamp(38.4px, 5.4vw, 86.4px);
   letter-spacing: 0;
   text-transform: uppercase;
   line-height: 1.04;
@@ -179,16 +197,21 @@ a {
 }
 .hero-sub {
   font-size: 20.4px;
-  max-width: 480px;
+  max-width: 440px;
   margin: 0 auto 28px;
   color: var(--muted);
 }
 .hero-actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
   align-items: center;
   gap: 25px;
   margin-top: 30px;
+}
+.hero-actions .button,
+.hero-actions .text-link {
+  font-size: 19.5px;
 }
 .button {
   display: inline-flex;
@@ -238,7 +261,7 @@ a {
   margin: 34px auto 0;
   font-family: VarsityTeam, Ultimate, sans-serif;
   font-weight: 700;
-  font-size: clamp(33.2px, 3.4vw, 57.5px);
+  font-size: clamp(31.2px, 2.88vw, 53.04px);
   line-height: 1.1;
   letter-spacing: 0;
   text-transform: uppercase;
@@ -249,16 +272,22 @@ a {
   width: 100%;
   margin: 0;
   display: grid;
-  grid-template-columns: 1fr 1.25fr 1fr;
-  background: #E8233C;
-  border-top: 1px solid #E8233C;
-  border-bottom: 1px solid #E8233C;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  background: #e8233c;
+  border-top: 1px solid #e8233c;
+  border-bottom: 1px solid #e8233c;
   padding: 25px clamp(28.6px, 4vw, 48px);
   gap: 35px;
 }
 .event-strip div {
   display: grid;
+  width: fit-content;
+  max-width: 100%;
+  justify-self: center;
+  align-content: center;
+  justify-items: start;
   gap: 6px;
+  text-align: left;
 }
 .event-strip span {
   font-size: 15.6px;
@@ -367,7 +396,7 @@ h2 {
 }
 .sport-link {
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
   font-size: 16.1px;
   font-weight: 600;
@@ -376,7 +405,7 @@ h2 {
 }
 .section-note {
   color: var(--muted);
-  font-size: 16.9px;
+  font-size: 18.2px;
   margin: 22px 0 0;
 }
 .team-story {
@@ -459,6 +488,13 @@ h2 {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 20px;
   align-items: center;
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
+}
+.team-list.switching {
+  opacity: 0;
+  transform: translateY(6px);
 }
 .teams-state {
   grid-column: 1/-1;
@@ -577,14 +613,16 @@ h2 {
   border-color: hsl(0 0% 95%);
 }
 .site-footer {
-  max-width: 1264px;
-  margin: auto;
-  padding: 22px 0 35px;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 22px clamp(28.6px, 4vw, 48px) 35px;
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   gap: 20px;
-  font-size: 16.9px;
-  color: var(--muted);
+  font-size: 18.2px;
+  background: var(--accent);
+  color: var(--on-accent);
 }
 .site-footer p {
   margin: 0;
@@ -787,8 +825,24 @@ h2 {
     margin-left: 48px;
     margin-right: 48px;
   }
+  .site-footer {
+    margin-left: 0;
+    margin-right: 0;
+  }
 }
 @media (max-width: 1024px) {
+  .masthead {
+    padding: 0 24px;
+    gap: 24px;
+  }
+  .desktop-nav {
+    font-size: 16px;
+    gap: 20px;
+  }
+  .masthead-link {
+    font-size: 16px;
+    padding: 12px 16px;
+  }
   .hero {
     padding: 20px 32px;
   }
@@ -796,6 +850,10 @@ h2 {
   .site-footer {
     margin-left: 32px;
     margin-right: 32px;
+  }
+  .site-footer {
+    margin-left: 0;
+    margin-right: 0;
   }
   .hero-actions {
     gap: 16px;
@@ -817,10 +875,20 @@ h2 {
 @media (max-width: 767px) {
   .masthead {
     height: 72px;
-    padding: 0 22px;
+    padding: 0 16px;
+    gap: clamp(12px, 3vw, 24px);
   }
   .desktop-nav {
     display: none;
+  }
+  .wordmark {
+    font-size: 24px;
+    gap: 7px;
+  }
+  .wordmark-mark {
+    width: 28px;
+    height: 28px;
+    font-size: 26px;
   }
   .masthead-link {
     font-size: 15.6px;
@@ -837,11 +905,11 @@ h2 {
     min-height: 0;
   }
   .hero-title {
-    font-size: clamp(46.8px, 9.5vw, 75.4px);
+    font-size: clamp(44px, 9.5vw, 75.4px);
     letter-spacing: -1.7px;
   }
   .hero-copy .eyebrow {
-    font-size: 13px;
+    font-size: 23.4px;
     margin-bottom: 18px;
   }
   .hero-sub {
@@ -860,20 +928,17 @@ h2 {
     margin-left: 22px;
     margin-right: 22px;
   }
+  .site-footer {
+    margin-left: 0;
+    margin-right: 0;
+  }
   .event-strip {
     grid-template-columns: 1fr;
     gap: 18px;
     padding: 24px clamp(28.6px, 4vw, 48px);
   }
-  .event-strip div {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 15px;
-  }
   .event-strip strong {
     font-size: 18.2px;
-    text-align: right;
   }
   .event-strip span {
     font-size: 14.3px;
@@ -948,9 +1013,7 @@ h2 {
     padding: 40px 22px;
   }
   .site-footer {
-    flex-direction: column;
     padding-top: 0;
-    gap: 12px;
   }
   .registration-layout {
     grid-template-columns: 1fr;
@@ -979,6 +1042,15 @@ h2 {
   }
   .registration-content h2 {
     font-size: 37.7px;
+  }
+}
+@media (max-width: 380px) {
+  .masthead {
+    padding: 0 12px;
+  }
+  .masthead-link {
+    font-size: 12px;
+    padding: 10px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
