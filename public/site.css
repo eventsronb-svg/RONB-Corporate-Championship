@@ -310,17 +310,17 @@ h2 {
 .sport-symbol {
   position: absolute;
   z-index: 0;
-  bottom: -34px;
-  left: -28px;
-  font-size: 104px;
+  right: -34px;
+  bottom: -40px;
+  font-size: 125px;
   line-height: 1;
   pointer-events: none;
   transition: transform 0.55s cubic-bezier(0.2, 0.8, 0.3, 1.5);
 }
 .sport-cricksul .sport-symbol {
-  bottom: -26px;
-  left: -20px;
-  font-size: 88px;
+  right: -25px;
+  bottom: -31px;
+  font-size: 106px;
 }
 .sport > :not(.sport-symbol) {
   position: relative;
@@ -331,7 +331,7 @@ h2 {
   box-shadow: 0 14px 35px #8d202010;
 }
 .sport:hover .sport-symbol {
-  transform: translate(12px, -18px) rotate(18deg);
+  transform: translate(-12px, -18px) rotate(18deg);
 }
 .sport h3 {
   font-size: 28px;
@@ -351,14 +351,6 @@ h2 {
   font-size: 14px;
   font-weight: 600;
   margin-top: 26px;
-}
-.sport-arrow {
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  border: 1px solid var(--rule);
-  border-radius: 50%;
 }
 .section-note {
   color: var(--muted);
@@ -1030,11 +1022,6 @@ h2 {
 .wordmark-mark {
   background: var(--yellow);
   color: #65101d;
-}
-.sport-arrow {
-  background: var(--yellow);
-  color: #65101d;
-  border-color: transparent;
 }
 @media (max-width: 767px) {
   .venue-map iframe {
