@@ -318,38 +318,11 @@ h2 {
   transition: transform 0.55s cubic-bezier(0.2, 0.8, 0.3, 1.5);
 }
 .sport-cricksul .sport-symbol {
-  right: -25px;
-  bottom: -31px;
-  font-size: 106px;
-}
-.cricket-ball {
-  width: 106px;
-  height: 106px;
-  border: 2px solid rgb(255 250 240 / 0.42);
-  border-radius: 50%;
-  background: radial-gradient(circle at 31% 27%, #f05b5e 0 4%, #d72e39 30%, #9a1725 73%);
-  box-shadow: inset -13px -13px 18px rgb(81 9 18 / 0.32);
-}
-.cricket-ball::before,
-.cricket-ball::after {
-  position: absolute;
-  content: '';
-  width: 78px;
-  height: 112px;
-  border: 3px solid #fffaf0;
-  border-top-color: transparent;
-  border-bottom-color: transparent;
-  border-radius: 50%;
-  opacity: 0.95;
-  transform: rotate(32deg);
-}
-.cricket-ball::before {
-  top: -5px;
-  left: -15px;
-}
-.cricket-ball::after {
-  right: -15px;
-  bottom: -5px;
+  right: -34px;
+  bottom: -40px;
+  width: 127px;
+  height: 127px;
+  object-fit: contain;
 }
 .sport > :not(.sport-symbol) {
   position: relative;
