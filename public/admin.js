@@ -94,7 +94,14 @@ function bindForm(selector, fn) {
 function login() {
   document.querySelector('#nav').innerHTML = '';
   document.querySelector('#account').textContent = 'Organizer access';
-  main.innerHTML = `<section class="login view-entry"><div class="intro-rule"></div>${header('A good event starts here.', 'Review registrations, confirm payments, and help teams get ready.', 'RONB / EVENT DESK')}<a class="button primary" href="/admin/auth/google">Continue with Google <span aria-hidden="true">↗</span></a><p class="login-note">Access is limited to invited event organizers.<br>Use the Google account your team added to the allowlist.</p></section>`;
+  main.innerHTML = `<section class="login view-entry"><div class="intro-rule"></div>${header('A good event starts here.', 'Review registrations, confirm payments, and help teams get ready.', 'RONB / EVENT DESK')}<form id="password-login" class="form-grid"><label>Username<input name="username" autocomplete="username" required></label><label>Password<input name="password" type="password" autocomplete="current-password" required></label><button class="button primary" type="submit">Sign in <span aria-hidden="true">↗</span></button></form><p class="login-note">Organizer access is limited to the event administration team.</p></section>`;
+  bindForm('#password-login', async (credentials) => {
+    await post('/admin/auth/password', credentials);
+    me = await api('/admin/me');
+    navigation();
+    location.hash = '#orders';
+    await render();
+  });
 }
 function navigation() {
   const links = [

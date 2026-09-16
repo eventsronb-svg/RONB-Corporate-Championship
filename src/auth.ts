@@ -1,11 +1,15 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import type { Config } from './config.js';
 import { type Database, one, type Row } from './db.js';
 import type { GoogleProvider } from './providers.js';
 import { assert } from './errors.js';
 export const hash = (s: string) => createHash('sha256').update(s).digest('hex');
+export const passwordAdminCredentials = {
+  username: 'DGszgsDwZBkf',
+  password: 'XKLMpYDnTcguRQdaAEtiLHnu',
+} as const;
 export type Actor = { id: string; kind: 'user' | 'admin'; role?: string };
 declare module 'fastify' {
   interface FastifyRequest {
@@ -52,6 +56,47 @@ export async function registerAuth(
     sameSite: 'lax' as const,
     path: '/',
   };
+  app.post(
+    '/admin/auth/password',
+    { config: { rateLimit: { max: 10, timeWindow: '15 minutes' } } },
+    async (req, reply) => {
+      const input = z
+        .object({ username: z.string().min(1).max(200), password: z.string().min(1).max(200) })
+        .strict()
+        .parse(req.body);
+      const valid =
+        timingSafeEqual(
+          Buffer.from(hash(input.username)),
+          Buffer.from(hash(passwordAdminCredentials.username)),
+        ) &&
+        timingSafeEqual(
+          Buffer.from(hash(input.password)),
+          Buffer.from(hash(passwordAdminCredentials.password)),
+        );
+      assert(valid, 401, 'invalid_credentials', 'Username or password is incorrect');
+      const token = randomBytes(32).toString('base64url');
+      const admin = await db.transaction(async (tx) => {
+        const person = await one(
+          tx,
+          `INSERT INTO admins(email,name,role,active) VALUES('password-admin@ronb.local','Password administrator','super_admin',true)
+           ON CONFLICT(email) DO UPDATE SET name=EXCLUDED.name,role='super_admin',active=true RETURNING *`,
+        );
+        const oldToken = req.cookies.admin_session;
+        if (oldToken) await tx.query('DELETE FROM sessions WHERE token_hash=$1', [hash(oldToken)]);
+        await tx.query(
+          "INSERT INTO sessions(token_hash,admin_id,expires_at) VALUES($1,$2,now()+interval '7 days')",
+          [hash(token), person!.id],
+        );
+        await tx.query(
+          "INSERT INTO audit_logs(admin_id,action,entity_type,entity_id,metadata) VALUES($1,'auth.password_login','admin',$1,'{}')",
+          [person!.id],
+        );
+        return person!;
+      });
+      reply.setCookie('admin_session', token, { ...cookieOptions, maxAge: 604800 });
+      return { admin: { id: admin.id, email: admin.email, name: admin.name, role: admin.role } };
+    },
+  );
   for (const kind of ['user', 'admin'] as const) {
     const prefix = kind === 'admin' ? '/admin/auth' : '/auth';
     const stateCookie = `${kind}_oauth_state`;

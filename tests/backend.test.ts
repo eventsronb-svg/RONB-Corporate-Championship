@@ -3,6 +3,7 @@ import { setup } from './helpers.js';
 import { one, migrate } from '../src/db.js';
 import { deliverOne, expireOrders } from '../src/jobs.js';
 import { DeliveryError } from '../src/providers.js';
+import { passwordAdminCredentials } from '../src/auth.js';
 let h: Awaited<ReturnType<typeof setup>>;
 beforeEach(async () => {
   h = await setup();
@@ -366,6 +367,32 @@ describe('Google OAuth sessions', () => {
     const cookie = r.cookies.map((c) => `${c.name}=${c.value}`).join('; ');
     return { prefix, state, cookie };
   }
+  it('issues a super-admin session for the password administrator', async () => {
+    const rejected = await h.app.inject({
+      method: 'POST',
+      url: '/admin/auth/password',
+      headers: { origin: h.c.APP_ORIGIN },
+      payload: { username: passwordAdminCredentials.username, password: 'wrong-password' },
+    });
+    expect(rejected.statusCode).toBe(401);
+    const result = await h.app.inject({
+      method: 'POST',
+      url: '/admin/auth/password',
+      headers: { origin: h.c.APP_ORIGIN },
+      payload: passwordAdminCredentials,
+    });
+    expect(result.statusCode).toBe(200);
+    const cookie = result.cookies.find((entry) => entry.name === 'admin_session')!;
+    expect(cookie.httpOnly).toBe(true);
+    expect(
+      (
+        await h.app.inject({
+          url: '/admin/me',
+          headers: { cookie: `${cookie.name}=${cookie.value}` },
+        })
+      ).json().role,
+    ).toBe('super_admin');
+  });
   it('binds state to the browser, consumes it once, and creates a captain session', async () => {
     const s = await start();
     expect(

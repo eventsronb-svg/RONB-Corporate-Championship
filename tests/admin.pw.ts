@@ -1,21 +1,24 @@
 import { test, expect } from '@playwright/test';
+import { passwordAdminCredentials } from '../src/auth.js';
 test('shows the organizer login on desktop and mobile', async ({ page }) => {
   await page.goto('/admin');
   await expect(page.getByRole('heading', { name: 'A good event starts here.' })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Continue with Google' })).toHaveAttribute(
-    'href',
-    '/admin/auth/google',
-  );
+  await expect(page.getByRole('textbox', { name: 'Username' })).toBeVisible();
+  await expect(page.getByLabel('Password')).toBeVisible();
   await page.screenshot({
     path: 'test-results/admin-login-desktop.png',
     fullPage: true,
     animations: 'disabled',
   });
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(page.getByRole('link', { name: 'Continue with Google' })).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'Username' })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );
+  await page.getByRole('textbox', { name: 'Username' }).fill(passwordAdminCredentials.username);
+  await page.getByLabel('Password').fill(passwordAdminCredentials.password);
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await expect(page.getByRole('heading', { name: 'Registrations', exact: true })).toBeVisible();
 });
 test('reviews an order, changes settings, and manages organizer access', async ({
   page,
