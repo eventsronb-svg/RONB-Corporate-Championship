@@ -286,6 +286,9 @@ h2 {
   gap: 20px;
 }
 .sport {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
   padding: 28px;
   border: 1px solid var(--rule);
   border-radius: 20px;
@@ -297,24 +300,38 @@ h2 {
 .sport-top {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 34px;
+  justify-content: flex-start;
+  margin-bottom: 28px;
 }
 .sport-format {
   font-size: 13px;
   color: var(--muted);
 }
 .sport-symbol {
-  font-size: 53px;
-  display: inline-block;
+  position: absolute;
+  z-index: 0;
+  bottom: -34px;
+  left: -28px;
+  font-size: 104px;
+  line-height: 1;
+  pointer-events: none;
   transition: transform 0.55s cubic-bezier(0.2, 0.8, 0.3, 1.5);
+}
+.sport-cricksul .sport-symbol {
+  bottom: -26px;
+  left: -20px;
+  font-size: 88px;
+}
+.sport > :not(.sport-symbol) {
+  position: relative;
+  z-index: 1;
 }
 .sport:hover {
   transform: translateY(-7px);
   box-shadow: 0 14px 35px #8d202010;
 }
 .sport:hover .sport-symbol {
-  transform: translateY(-12px) rotate(18deg);
+  transform: translate(12px, -18px) rotate(18deg);
 }
 .sport h3 {
   font-size: 28px;
@@ -717,25 +734,10 @@ h2 {
       animation-timeline: view();
       animation-range: entry 0% cover 38%;
     }
-    .sport-symbol {
-      animation: sport-symbol-arrival linear both;
-      animation-timeline: view();
-      animation-range: entry 10% cover 42%;
-    }
     @keyframes map-arrival {
       from {
         opacity: 0.15;
         transform: translateY(52px) scale(0.96);
-      }
-      to {
-        opacity: 1;
-        transform: none;
-      }
-    }
-    @keyframes sport-symbol-arrival {
-      from {
-        opacity: 0.2;
-        transform: translateY(28px) rotate(-22deg) scale(0.74);
       }
       to {
         opacity: 1;
