@@ -6,7 +6,7 @@
   "timezone": "Asia/Kathmandu",
   "venue": "Royal Sports Park",
   "locality": "Chunikhel, Kathmandu",
-  "maps_url": "https://maps.app.goo.gl/5LA3r9CQJskT8jwW6",
+  "maps_url": "https://www.google.com/maps/place/royal+sports+park/data=!4m2!3m1!1s0x39eb1d0035469f7b:0x9a106e0556f62210?sa=X&ved=1t:242&ictx=111",
   "sports": [
     {
       "slug": "futsal",
@@ -26,5 +26,6 @@
       "format": "3v3",
       "description": "Three on court. Everyone in the game. Bring your best to the half court."
     }
-  ]
+  ],
+  "maps_embed_url": "https://www.google.com/maps?cid=11101494050681135632&output=embed"
 }

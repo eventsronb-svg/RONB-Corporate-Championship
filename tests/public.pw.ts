@@ -12,7 +12,11 @@ test('renders the championship landing page with its event facts and public inte
   await expect(page.getByRole('heading', { name: 'Royal Sports Park' })).toBeVisible();
   await expect(page.getByRole('link', { name: /Open directions/ })).toHaveAttribute(
     'href',
-    'https://maps.app.goo.gl/5LA3r9CQJskT8jwW6',
+    'https://www.google.com/maps/place/royal+sports+park/data=!4m2!3m1!1s0x39eb1d0035469f7b:0x9a106e0556f62210?sa=X&ved=1t:242&ictx=111',
+  );
+  await expect(page.getByTitle('Royal Sports Park location on Google Maps')).toHaveAttribute(
+    'src',
+    'https://www.google.com/maps?cid=11101494050681135632&output=embed',
   );
   await expect(page.getByRole('tab', { name: 'Futsal' })).toHaveAttribute('aria-selected', 'true');
   await page.getByRole('tab', { name: 'Basketball' }).click();
@@ -38,7 +42,9 @@ test('reflows the championship page on a narrow screen', async ({ page }) => {
   );
 });
 
-test('supports keyboard tabs and reduced motion in dark mode', async ({ page }) => {
+test('supports keyboard tabs and reduced motion with a dark system preference', async ({
+  page,
+}) => {
   await page.emulateMedia({ reducedMotion: 'reduce', colorScheme: 'dark' });
   await page.goto('/');
   const first = page.getByRole('tab', { name: 'Futsal' });
