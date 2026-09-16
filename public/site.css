@@ -11,14 +11,17 @@
   font-weight: 600 900;
 }
 :root {
-  --paper: #761321;
-  --white: #9d1c2b;
-  --ink: #fffaf0;
-  --muted: #ffd96a;
-  --accent: #ffd96a;
-  --tint: #b52535;
-  --rule: #e56557;
-  --yellow: #ffd96a;
+  color-scheme: light;
+  --paper: oklch(0.985 0.002 20);
+  --white: oklch(0.998 0.001 20);
+  --ink: oklch(0.25 0.008 20);
+  --muted: oklch(0.46 0.008 20);
+  --accent: oklch(0.52 0.2 25);
+  --accent-hover: oklch(0.46 0.18 25);
+  --on-accent: oklch(0.998 0.001 20);
+  --tint: oklch(0.95 0.004 20);
+  --rule: oklch(0.84 0.006 20);
+  --input-rule: oklch(0.62 0.008 20);
   color: var(--ink);
   background: var(--paper);
   font-family: Barlow, Arial, sans-serif;
@@ -81,8 +84,8 @@ a {
   top: -100px;
   left: 20px;
   padding: 12px;
-  background: var(--yellow);
-  color: #5f101c;
+  background: var(--accent);
+  color: var(--on-accent);
   z-index: 30;
 }
 .skip-link:focus {
@@ -111,8 +114,8 @@ a {
   place-items: center;
   width: 33px;
   height: 33px;
-  background: var(--yellow);
-  color: #5f101c;
+  background: var(--accent);
+  color: var(--on-accent);
   border-radius: 9px;
   font-family: Georgia, serif;
   font-size: 24px;
@@ -124,11 +127,11 @@ a {
 }
 .desktop-nav a:hover,
 .text-link:hover {
-  color: var(--yellow);
+  color: var(--accent);
   text-decoration: underline;
 }
 .masthead-link {
-  border-color: rgb(255 250 240 / 0.45);
+  border: 1px solid var(--rule);
   border-radius: 100px;
   padding: 12px 19px;
   font-weight: 600;
@@ -148,7 +151,7 @@ a {
   min-height: 445px;
 }
 .eyebrow {
-  color: var(--yellow);
+  color: var(--accent);
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 1.5px;
@@ -162,7 +165,7 @@ a {
   margin-bottom: 24px;
 }
 .hero-title span {
-  color: var(--yellow);
+  color: var(--accent);
 }
 .hero-sub {
   font-size: 19px;
@@ -185,7 +188,7 @@ a {
   border-radius: 100px;
   padding: 13px 23px;
   color: var(--ink);
-  background: #971b2a;
+  background: var(--white);
   font-size: 15px;
   font-weight: 600;
   transition:
@@ -193,13 +196,17 @@ a {
     box-shadow 0.25s;
 }
 .button.primary {
-  background: var(--yellow);
-  color: #65101d;
-  border-color: var(--yellow);
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--accent);
 }
 .button:hover {
   transform: translateY(-3px);
-  box-shadow: 0 7px 16px #8d202018;
+  box-shadow: 0 7px 16px rgb(35 30 31 / 0.1);
+}
+.button.primary:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
 }
 .button:active {
   transform: scale(0.97);
@@ -221,7 +228,7 @@ a {
   color: var(--muted);
 }
 .hero-image {
-  background: #a51f2e;
+  background: var(--tint);
   border-radius: 48% 48% 24px 24px;
   overflow: hidden;
   transform: rotate(2deg);
@@ -292,7 +299,7 @@ h2 {
   padding: 28px;
   border: 1px solid var(--rule);
   border-radius: 20px;
-  background: #951a29;
+  background: var(--white);
   transition:
     transform 0.3s,
     box-shadow 0.3s;
@@ -330,7 +337,7 @@ h2 {
 }
 .sport:hover {
   transform: translateY(-7px);
-  box-shadow: 0 14px 35px #8d202010;
+  box-shadow: 0 14px 35px rgb(35 30 31 / 0.08);
 }
 .sport:hover .sport-symbol {
   transform: translate(-12px, -18px) rotate(18deg);
@@ -360,7 +367,7 @@ h2 {
   margin: 22px 0 0;
 }
 .team-story {
-  background: linear-gradient(135deg, rgb(255 217 106 / 0.12), transparent 48%), #a72030;
+  background: var(--tint);
   border-radius: 24px;
   padding: 55px 64px;
   display: grid;
@@ -385,7 +392,7 @@ h2 {
   border: 1px solid var(--rule);
   border-radius: 20px;
   padding: 20px;
-  background: #941a29;
+  background: var(--white);
 }
 .team-tabs {
   display: flex;
@@ -403,8 +410,8 @@ h2 {
   min-height: 44px;
 }
 .team-tabs button[aria-selected='true'] {
-  background: var(--yellow);
-  color: #65101d;
+  background: var(--accent);
+  color: var(--on-accent);
   font-weight: 600;
 }
 .team-list {
@@ -449,7 +456,7 @@ h2 {
 }
 .venue-date {
   border-radius: 24px;
-  background: #a91f2f;
+  background: var(--tint);
   padding: 50px 35px;
   text-align: center;
 }
@@ -519,7 +526,7 @@ h2 {
   max-width: 60ch;
 }
 .closing {
-  background: radial-gradient(circle at 50% 10%, rgb(255 217 106 / 0.17), transparent 38%), #a91f2f;
+  background: var(--tint);
   text-align: center;
   border-radius: 24px;
   padding: 60px 24px;
@@ -559,14 +566,14 @@ h2 {
 .registration-layout {
   display: grid;
   grid-template-columns: 230px 1fr;
-  background: #921928;
+  background: var(--white);
   border: 1px solid var(--rule);
   border-radius: 20px;
   overflow: hidden;
 }
 .registration-aside {
   padding: 28px;
-  background: #aa2030;
+  background: var(--tint);
   font-size: 14px;
 }
 .steps {
@@ -613,16 +620,16 @@ h2 {
 .sport-choice input[data-team] {
   width: 100%;
   min-height: 48px;
-  border: 1px solid var(--rule);
+  border: 1px solid var(--input-rule);
   border-radius: 10px;
-  background: #741220;
+  background: var(--white);
   color: var(--ink);
   padding: 12px;
   font-size: 16px;
 }
 .sport-choice {
   padding: 20px;
-  background: #a31d2c;
+  background: var(--tint);
   border-radius: 14px;
   display: grid;
   grid-template-columns: auto 1fr;
@@ -640,14 +647,15 @@ h2 {
 }
 .info-box {
   padding: 20px;
-  background: #a31d2c;
+  background: var(--tint);
   border-radius: 14px;
   line-height: 1.6;
   margin: 24px 0;
 }
 .error {
-  color: #fffaf0;
-  border: 1px solid var(--yellow);
+  color: var(--accent);
+  background: var(--white);
+  border: 1px solid var(--accent);
   padding: 14px;
   border-radius: 10px;
 }
@@ -662,8 +670,8 @@ h2 {
   left: 50%;
   transform: translateX(-50%);
   max-width: calc(100% - 32px);
-  background: var(--yellow);
-  color: #65101d;
+  background: var(--accent);
+  color: var(--on-accent);
   padding: 16px 24px;
   border-radius: 14px;
   z-index: 30;
@@ -997,7 +1005,7 @@ h2 {
   border: 1px solid var(--rule);
   border-radius: 24px;
   overflow: hidden;
-  background: #a72030;
+  background: var(--tint);
 }
 .venue-map iframe {
   display: block;
@@ -1009,21 +1017,17 @@ h2 {
   margin: 0;
   padding: 16px 22px;
   font-size: 14px;
-  color: var(--yellow);
+  color: var(--accent);
 }
 .venue-map a {
-  color: var(--yellow);
+  color: var(--accent);
   text-decoration: underline;
 }
 .sport:nth-child(2) {
-  background: #a92131;
+  background: var(--tint);
 }
 .sport:nth-child(3) {
-  background: #851625;
-}
-.wordmark-mark {
-  background: var(--yellow);
-  color: #65101d;
+  background: var(--tint);
 }
 @media (max-width: 767px) {
   .venue-map iframe {

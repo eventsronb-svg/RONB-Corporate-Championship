@@ -2,7 +2,7 @@
 
 The public site is a full visual overhaul for company captains and colleagues: welcoming corporate event branding with playful sports interactions. Native CSS and the existing JavaScript frontend retain the API, registration routes and event facts.
 
-Design variance 6, motion intensity 5, visual density 3. The previous condensed uppercase, red-and-black poster layout is replaced by self-hosted Barlow, white, rich red and golden yellow, generous spacing, and rounded shapes. Cards use 20-24px radii; interactive controls use pill shapes. The requested white, red and yellow theme remains consistent regardless of system color preference.
+Design variance 6, motion intensity 5, visual density 3. The previous condensed uppercase, red-and-black poster layout is replaced by self-hosted Barlow, white and light-gray surfaces with rich red accents, generous spacing, and rounded shapes. Cards use 20-24px radii; interactive controls use pill shapes. The white, gray and red theme remains consistent regardless of system color preference. Former yellow highlights and primary controls use red with near-white text; former red UI surfaces use white or light gray. Headings and body copy use dark neutral text. The public landing page and registration flow share these semantic color tokens; the existing sports illustration retains its original colors.
 
 The hero introduces the event and registration. Sport cards link to the existing registration route. Team tabs retain live API data and now support arrow, Home, and End keys. Date and venue information use the supplied event facts. No invented pricing, sponsors, or attendance claims.
 
