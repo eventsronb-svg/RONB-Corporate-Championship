@@ -8,7 +8,7 @@ test('renders the championship landing page with its event facts and public inte
   await page.goto('/');
 
   await expect(page.getByRole('heading', { name: 'Corporate Championship' })).toBeVisible();
-  await expect(page.getByText('Oct 01—04', { exact: true })).toBeVisible();
+  await expect(page.getByText('October 1-4, 2026', { exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Royal Sports Park' })).toBeVisible();
   await expect(page.getByRole('link', { name: /Open directions/ })).toHaveAttribute(
     'href',
@@ -29,11 +29,35 @@ test('renders the championship landing page with its event facts and public inte
   expect(errors).toEqual([]);
 });
 
-test('reflows the event poster on a narrow screen', async ({ page }) => {
+test('reflows the championship page on a narrow screen', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Corporate Championship' })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );
+});
+
+test('supports keyboard tabs and reduced motion in dark mode', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce', colorScheme: 'dark' });
+  await page.goto('/');
+  const first = page.getByRole('tab', { name: 'Futsal' });
+  await first.focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByRole('tab', { name: 'Cricksul' })).toBeFocused();
+  await expect(page.getByRole('tab', { name: 'Cricksul' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await expect(page.getByRole('tabpanel')).toHaveAttribute('aria-labelledby', 'tab-cricksul');
+  await page.keyboard.press('End');
+  await expect(page.getByRole('tab', { name: 'Basketball' })).toBeFocused();
+  await expect(page.getByRole('heading', { name: 'Meet the teams' })).toBeVisible();
+  expect(
+    await page.locator('.hero-copy').evaluate((el) => getComputedStyle(el).animationName),
+  ).toBe('none');
+  await page.getByText('Can a company enter more than one sport?', { exact: true }).click();
+  await expect(
+    page.getByText('Yes. A captain can select every available sport', { exact: false }),
+  ).toBeVisible();
 });

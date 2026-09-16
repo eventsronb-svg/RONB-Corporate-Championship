@@ -1,27 +1,15 @@
-# RONB Corporate Championship: public website
+# Corporate championship visual direction
 
-## Direction
+The public site is a full visual overhaul for company captains and colleagues: welcoming corporate event branding with playful sports interactions. Native CSS and the existing JavaScript frontend retain the API, registration routes and event facts.
 
-Swiss industrial sports print. A corporate captain browses the event on a phone in daylight or at their office desk. The light paper canvas gives the event poster clarity in both settings. The requested brutalist style is expressed through condensed typography, unrounded geometry, visible divisions and bold red accents.
+Design variance 6, motion intensity 5, visual density 3. The previous condensed uppercase, red-and-black poster layout is replaced by self-hosted Barlow, warm white, forest green, generous spacing, and rounded shapes. Cards use 20-24px radii; interactive controls use pill shapes. Dark mode uses the same green palette and system preference.
 
-## Content
+The hero introduces the event and registration. Sport cards link to the existing registration route. Team tabs retain live API data and now support arrow, Home, and End keys. Date and venue information use the supplied event facts. No invented pricing, sponsors, or attendance claims.
 
-October 1–4, 2026. Royal Sports Park, Chunikhel, Kathmandu. Futsal (5-a-side), Cricksul (format not yet supplied), Basketball (3v3). The organizer-provided Google Maps link is authoritative. No invented fees, prize pools, match schedule, sponsors, capacity, or registration deadlines.
+Motion: one-shot hero entrance, IntersectionObserver section reveals, hover lift and sports-symbol bounce, button press feedback, FAQ entrance. Reduced motion disables all animations and smooth scrolling. Mobile sections explicitly collapse to one column.
 
-## Visual system
+## Generated asset
 
-- Paper: #f1f0e8. Ink: #171a17. Red: #df321e. Rules: #b9bab0.
-- Display: locally hosted Barlow Condensed, weight 800, uppercase, tight tracking and line height. It has the compact density of sports scoreboards and tournament posters.
-- Body: locally hosted Barlow, regular and semibold. Metadata: system monospace in small doses.
-- Buttons: square, 48px minimum height; red primary with dark text for contrast, clear focus rings.
-- Layout: wide bordered poster. Asymmetric hero, three equal sport choices for comparison, spacious venue spread, ruled FAQ rows. No shadows, gradient fills, floating cards or rounded surfaces.
-- Photography: original generated monochrome futsal campaign image, illustrative of the sport and not claimed to show the venue.
-- Motion: short image and title entrance, hover arrows; reduced-motion preference disables animation. Main content never starts hidden.
+Built-in image generation produced `public/images/team-spirit.webp` (197 KB, compressed from the original PNG). The original is retained in the local image-generation output folder.
 
-## Interaction
-
-Public sport tabs load only paid, profile-complete teams from the API. Registration is a separate full page, with steps derived from order status, not browser-local progress. Form inputs have persistent labels and inline feedback. Unknown registration prices are omitted until configured in the backend. Team logos and receipts are uploaded via the existing endpoints.
-
-## Accessibility
-
-Semantic landmarks and heading order, visible keyboard focus, 44px+ touch targets, named controls, meaningful loading/error/empty states, live form feedback, no automatic carousel, no color-only status indicators. All content reflows on narrow screens.
+Prompt: Create a premium editorial illustration for a corporate sports championship website. Landscape 3:2 composition. A playful sophisticated 3D clay and paper illustration of a diverse group of six adult South Asian office colleagues now in sports uniforms, enjoying a mini sports park: one playing football, one holding cricket bat, one throwing basketball, others cheering and high fiving. Minimal sculptural forms, friendly proportionate adult characters, forest green uniforms with off-white and muted golden yellow accents, warm cream background, soft ambient sunlight, architectural miniature green courts and white court markings. Large floating football and little basketball as part of composition. Modern high-end brand illustration, tactile matte materials, charming but professional for corporate audience. No text, no typography, no logos. Balanced composition, fill frame, clean warm off-white background.

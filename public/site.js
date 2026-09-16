@@ -29,7 +29,7 @@ const say = (message) => {
     toast.hidden = true;
   }, 4200);
 };
-const displayDate = () => 'OCT 01—04 / 2026';
+const displayDate = () => 'October 1-4, 2026';
 const e = (title, body) =>
   `<div class="error-view"><p class="eyebrow">System notice</p><h1>${esc(title)}</h1><p>${esc(body)}</p><a class="button primary" href="/">Return home</a></div>`;
 
@@ -46,18 +46,40 @@ function home() {
   main.innerHTML = `
     <section class="hero" aria-labelledby="hero-title">
       <div class="hero-copy">
-        <p class="kicker hero-kicker"><span class="pulse" aria-hidden="true"></span> Registration bulletin / ${esc(data.edition)}</p>
-        <h1 class="hero-title" id="hero-title">Corporate<span>Championship</span></h1>
-        <p class="hero-sub">Four days. One workplace rivalry. Three formats built for the teams you already trust.</p>
-        <div class="hero-meta"><div><span>Dates</span><strong>Oct 01—04</strong></div><div><span>Host ground</span><strong>Royal Sports Park</strong></div><div><span>Location</span><strong>Chunikhel</strong></div></div>
+        <p class="eyebrow">RONB presents · October 2026</p>
+        <h1 class="hero-title" id="hero-title">Corporate<br><span>Championship</span></h1>
+        <p class="hero-sub">Your colleagues. Your dream team. Four days of sport, connection, and a little friendly competition.</p>
+        <div class="hero-actions"><a class="button primary" href="/register">Bring your team <span aria-hidden="true">↗</span></a><a class="text-link" href="#sports">Find your sport <span aria-hidden="true">↓</span></a></div>
+        <p class="hero-note">Out of office. Into the game.</p>
       </div>
-      <div class="hero-image"><img src="/assets/images/futsal-hero.png" alt="Futsal players contesting a ball on an outdoor court" /><span class="image-stamp">Field report / Futsal</span></div>
+      <div class="hero-image"><img src="/assets/images/team-spirit.webp" width="1536" height="1024" fetchpriority="high" alt="Playful illustration of colleagues enjoying football, cricket and basketball together" /></div>
     </section>
-    <section class="section" id="sports">${sectionHeader('01 / Sport formats', 'Choose your court', 'Register one company team per format. Details that affect your registration, including fees, are shown once your organizer has configured them.')}<div class="sport-grid">${data.sports.map((sport, index) => `<a class="sport" href="/register?focus=${encodeURIComponent(sport.slug)}"><span class="sport-index">0${index + 1} / ${esc(sport.format)}</span><h3>${esc(sport.name)}</h3><span class="sport-format">${esc(sport.format)}</span><p>${esc(sport.description)}</p><span class="sport-arrow" aria-hidden="true">↘</span></a>`).join('')}</div></section>
-    <section class="section" id="teams">${sectionHeader('02 / Team register', 'Who is in', 'Payment-confirmed teams appear here after their captain has completed the team profile.')}<div class="teams-shell"><div class="team-tabs" role="tablist" aria-label="Team sports">${data.sports.map((sport, index) => `<button role="tab" id="tab-${sport.slug}" aria-controls="teams-panel" aria-selected="${index === 0}" data-sport="${esc(sport.name)}">${esc(sport.name)}</button>`).join('')}</div><div class="team-list" id="teams-panel" role="tabpanel" aria-live="polite"><p class="teams-state">Loading confirmed teams…</p></div></div></section>
-    <section class="section" id="venue">${sectionHeader('03 / Site coordinates', 'Play here', 'Royal Sports Park is the championship ground. Open the map for directions from wherever your team starts.')}<div class="venue"><div class="venue-copy"><p class="eyebrow">Venue / ${esc(data.locality)}</p><h2>${esc(data.venue)}</h2><p>${esc(data.locality)}, Kathmandu. Bring your team, arrive ready, and follow the organizer’s match instructions on the day.</p><a class="button primary" href="${esc(data.maps_url)}" target="_blank" rel="noreferrer">Open directions <span aria-hidden="true">↗</span></a></div><div class="venue-map"><p class="coordinates">Royal Sports Park<br>27.7541549 N / 85.363512 E<br>Championship ground</p><div class="map-mark" aria-hidden="true">+</div></div></div></section>
-    <section class="section" id="faq">${sectionHeader('04 / Field notes', 'Before you register', 'The information below covers the registration process. Sport-specific rules and fees are controlled by the organizer.')}<div class="faq"><details><summary>Can a company enter more than one sport?</summary><p>Yes. A captain can select every available sport in one registration, then supplies a separate team name and profile for each sport.</p></details><details><summary>When does a team show publicly?</summary><p>After payment is confirmed by the organizer and the captain completes the logo and roster for that sport.</p></details><details><summary>How does payment work?</summary><p>The registration flow issues the exact amount, a payment code, and instructions. Upload the receipt after transfer. An organizer verifies it before team profiles unlock.</p></details><details><summary>Where can I get directions?</summary><p>Use the Royal Sports Park directions link above. It opens the organizer-provided Google Maps location.</p></details></div></section>`;
+    <div class="event-strip"><div><span>Save the dates</span><strong>October 1-4, 2026</strong></div><div><span>Meet us at</span><strong>Royal Sports Park, Chunikhel</strong></div><div><span>Make it a team thing</span><strong>3 sports. Plenty of team spirit.</strong></div></div>
+    <section class="section" id="sports">${sectionHeader('A game for your team', 'Good colleagues. Great teammates.', 'Pick your sport, rally your people, and give the office something new to talk about.')}<div class="sport-grid">${data.sports.map((sport, index) => `<a class="sport sport-${sport.slug}" href="/register?focus=${encodeURIComponent(sport.slug)}"><div class="sport-top"><span class="sport-format">${esc(sport.format)}</span><span class="sport-symbol" aria-hidden="true">${['⚽', '🏏', '🏀'][index]}</span></div><h3>${esc(sport.name)}</h3><p>${esc(sport.description)}</p><span class="sport-link">Let's play <span class="sport-arrow" aria-hidden="true">↗</span></span></a>`).join('')}</div><p class="section-note">Registration fees and available places are shown when you sign in.</p></section>
+    <section class="team-story section"><p class="eyebrow">Better together</p><h2>A different kind<br>of team meeting.</h2><p>Swap the meeting room for the court. Cheer for your colleagues, meet other company teams, and make memories beyond the workday.</p><a class="text-link" href="/register">Make your company part of it ↗</a></section>
+    <section class="section" id="teams">${sectionHeader('The company we keep', 'Meet the teams', 'Your next friendly rivals. Confirmed teams appear here once their captain completes the team profile.')}<div class="teams-shell"><div class="team-tabs" role="tablist" aria-label="Team sports">${data.sports.map((sport, index) => `<button role="tab" id="tab-${sport.slug}" aria-controls="teams-panel" aria-selected="${index === 0}" tabindex="${index === 0 ? 0 : -1}" data-sport="${esc(sport.name)}">${esc(sport.name)}</button>`).join('')}</div><div class="team-list" id="teams-panel" role="tabpanel" aria-labelledby="tab-futsal" aria-live="polite"><p class="teams-state">Loading confirmed teams…</p></div></div></section>
+    <section class="section venue-section" id="venue"><div class="venue-date"><span>See you in October</span><strong>01<span>to</span>04</strong><span>2026 · Chunikhel, Kathmandu</span></div><div class="venue-copy"><p class="eyebrow">Room to play. Reasons to stay.</p><h2>${esc(data.venue)}</h2><p>Four days of team spirit at ${esc(data.locality)}. Get your colleagues together and meet us on the court.</p><a class="button primary" href="${esc(data.maps_url)}" target="_blank" rel="noreferrer">Open directions <span aria-hidden="true">↗</span></a></div></section>
+    <section class="section faq-section" id="faq">${sectionHeader('A little pre-game prep', 'Good questions', 'Everything you need to get your team started.')}<div class="faq"><details><summary>Can a company enter more than one sport?</summary><p>Yes. A captain can select every available sport in one registration, then supply a separate team name and profile for each sport.</p></details><details><summary>When does a team show publicly?</summary><p>After payment is confirmed by the organizer and the captain completes the logo and roster for that sport.</p></details><details><summary>How does payment work?</summary><p>Your registration includes the exact amount, a payment code, and instructions. Upload your receipt after transfer. An organizer verifies it before team profiles unlock.</p></details><details><summary>Where can I get directions?</summary><p>Use the Royal Sports Park directions link above. It opens the organizer-provided Google Maps location.</p></details></div></section>
+    <section class="closing section"><p class="eyebrow">The best teams play together</p><h2>Bring your people.<br>We'll bring the occasion.</h2><a class="button primary" href="/register">Register your team ↗</a></section>`;
   bindTeamTabs();
+  const motion = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (motion && 'IntersectionObserver' in window) {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('revealed');
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.08 },
+    );
+    document.querySelectorAll('.section').forEach((section) => {
+      section.classList.add('reveal');
+      observer.observe(section);
+    });
+  }
 }
 async function teamList(name) {
   const panel = document.querySelector('#teams-panel');
@@ -86,12 +108,28 @@ async function teamList(name) {
 function bindTeamTabs() {
   document.querySelectorAll('[role=tab]').forEach((tab) =>
     tab.addEventListener('click', () => {
-      document
-        .querySelectorAll('[role=tab]')
-        .forEach((item) => item.setAttribute('aria-selected', String(item === tab)));
+      document.querySelectorAll('[role=tab]').forEach((item) => {
+        item.setAttribute('aria-selected', String(item === tab));
+        item.tabIndex = item === tab ? 0 : -1;
+      });
+      document.querySelector('#teams-panel').setAttribute('aria-labelledby', tab.id);
       teamList(tab.dataset.sport);
     }),
   );
+  document.querySelector('.team-tabs').addEventListener('keydown', (event) => {
+    const tabs = [...document.querySelectorAll('[role=tab]')];
+    const index = tabs.indexOf(document.activeElement);
+    if (!['ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    const next =
+      event.key === 'Home'
+        ? 0
+        : event.key === 'End'
+          ? tabs.length - 1
+          : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+    tabs[next].focus();
+    tabs[next].click();
+  });
   teamList(data.sports[0].name);
 }
 function steps(active) {
@@ -100,7 +138,7 @@ function steps(active) {
 }
 async function register() {
   document.title = `Register · ${data.title}`;
-  main.innerHTML = `<div class="page-register"><header class="registration-header"><p class="eyebrow">Registration terminal / ${displayDate()}</p><h1>Build your<br>team</h1></header><div class="registration-layout"><aside class="registration-aside"><a href="/">← Back to championship</a>${steps('Sports')}</aside><section class="registration-content" id="registration-content"><p class="loading">Checking registration status…</p></section></div></div>`;
+  main.innerHTML = `<div class="page-register"><header class="registration-header"><p class="eyebrow">Team registration · ${displayDate()}</p><h1>Build your<br>team</h1></header><div class="registration-layout"><aside class="registration-aside"><a href="/">← Back to championship</a>${steps('Sports')}</aside><section class="registration-content" id="registration-content"><p class="loading">Checking registration status…</p></section></div></div>`;
   try {
     const order = await api('/orders/current');
     if (order) return resume(order);
