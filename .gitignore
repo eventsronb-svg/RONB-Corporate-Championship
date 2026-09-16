@@ -9,3 +9,4 @@ coverage/
 client_secret_*.json
 test-results/
 playwright-report/
+*.zip

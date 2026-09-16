@@ -61,12 +61,11 @@ function home() {
         <div class="hero-actions"><a class="button primary" href="/register">Bring your team <span aria-hidden="true">↗</span></a><a class="text-link" href="#sports">Find your sport <span aria-hidden="true">↓</span></a></div>
         <p class="hero-note">Out of office. Into the game.</p>
       </div>
-      <div class="hero-image"><img src="/assets/images/team-spirit-red.webp" width="1536" height="1024" fetchpriority="high" alt="Playful illustration of colleagues enjoying football, cricket and basketball together" /></div>
     </section>
     <div class="event-strip"><div><span>Save the dates</span><strong>October 1-4, 2026</strong></div><div><span>Meet us at</span><strong>Royal Sports Park, Chunikhel</strong></div><div><span>Make it a team thing</span><strong>3 sports. Plenty of team spirit.</strong></div></div>
-    <section class="section" id="sports">${sectionHeader('A game for your team', 'Good colleagues. Great teammates.', 'Pick your sport, rally your people, and give the office something new to talk about.')}<div class="sport-grid">${data.sports.map((sport) => `<a class="sport sport-${sport.slug}" href="/register?focus=${encodeURIComponent(sport.slug)}"><div class="sport-top"><span class="sport-format">${esc(sport.format)}</span></div><h3>${esc(sport.name)}</h3><p>${esc(sport.description)}</p><span class="sport-link">Let's play</span>${sport.slug === 'cricksul' ? '<img class="sport-symbol" src="/assets/images/crick.png" alt="" />' : `<span class="sport-symbol" aria-hidden="true">${sportSymbols[sport.slug]}</span>`}</a>`).join('')}</div><p class="section-note">Registration fees and available places are shown when you sign in.</p></section>
+    <section class="section" id="sports">${sectionHeader('A game for your team', 'Good colleagues. Great teammates.', 'Pick your sport, rally your people, and give the office something new to talk about.')}<div class="sport-grid">${data.sports.map((sport) => `<a class="sport sport-${sport.slug}" href="/register?focus=${encodeURIComponent(sport.slug)}"><div class="sport-top"><span class="sport-format">${esc(sport.format)}</span></div><h3>${esc(sport.name)}</h3><p>${esc(sport.description)}</p><span class="sport-link">Let's play</span>${sport.slug === 'crickshal' ? '<img class="sport-symbol" src="/assets/images/crick.png" alt="" />' : `<span class="sport-symbol" aria-hidden="true">${sportSymbols[sport.slug]}</span>`}</a>`).join('')}</div><p class="section-note">Registration fees and available places are shown when you sign in.</p></section>
     <section class="team-story section"><p class="eyebrow">Better together</p><h2>A different kind<br>of team meeting.</h2><p>Swap the meeting room for the court. Cheer for your colleagues, meet other company teams, and make memories beyond the workday.</p><a class="text-link" href="/register">Make your company part of it ↗</a></section>
-    <section class="section" id="teams">${sectionHeader('The company we keep', 'Meet the teams', 'Your next friendly rivals. Confirmed teams appear here once their captain completes the team profile.')}<div class="teams-shell"><div class="team-tabs" role="tablist" aria-label="Team sports">${data.sports.map((sport, index) => `<button role="tab" id="tab-${sport.slug}" aria-controls="teams-panel" aria-selected="${index === 0}" tabindex="${index === 0 ? 0 : -1}" data-sport="${esc(sport.name)}">${esc(sport.name)}</button>`).join('')}</div><div class="team-list" id="teams-panel" role="tabpanel" aria-labelledby="tab-futsal" aria-live="polite"><p class="teams-state">Loading confirmed teams…</p></div></div></section>
+    <section class="section" id="teams">${sectionHeader('The company we keep', 'Meet the teams', 'Your next friendly rivals. Confirmed teams appear here once their captain completes the team profile.')}<div class="teams-shell"><div class="team-tabs" role="tablist" aria-label="Team sports">${data.sports.map((sport, index) => `<button role="tab" id="tab-${sport.slug}" aria-controls="teams-panel" aria-selected="${index === 0}" tabindex="${index === 0 ? 0 : -1}" data-sport="${esc(sport.name)}" data-slug="${sport.slug}" data-max="${sport.maxTeams}">${esc(sport.name)}<span class="team-count">–/${sport.maxTeams}</span></button>`).join('')}</div><div class="team-list" id="teams-panel" role="tabpanel" aria-labelledby="tab-futsal" aria-live="polite"><p class="teams-state">Loading confirmed teams…</p></div></div></section>
     <section class="section venue-section" id="venue"><div class="venue-date"><span>See you in October</span><strong>01<span>to</span>04</strong><span>2026 · Chunikhel, Kathmandu</span></div><div class="venue-copy"><p class="eyebrow">Room to play. Reasons to stay.</p><h2>${esc(data.venue)}</h2><p>Four days of team spirit at ${esc(data.locality)}. Get your colleagues together and meet us on the court.</p><a class="button primary" href="${esc(data.maps_url)}" target="_blank" rel="noreferrer">Open directions <span aria-hidden="true">↗</span></a></div><div class="venue-map"><iframe title="Royal Sports Park location on Google Maps" src="${esc(data.maps_embed_url)}" loading="lazy" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe><p>Royal Sports Park, Chunikhel · <a href="${esc(data.maps_url)}" target="_blank" rel="noreferrer">View larger map and directions ↗</a></p></div></section>
     <section class="section faq-section" id="faq">${sectionHeader('A little pre-game prep', 'Good questions', 'Everything you need to get your team started.')}<div class="faq"><details><summary>Can a company enter more than one sport?</summary><p>Yes. A captain can select every available sport in one registration, then supply a separate team name and profile for each sport.</p></details><details><summary>When does a team show publicly?</summary><p>After payment is confirmed by the organizer and the captain completes the logo and roster for that sport.</p></details><details><summary>How does payment work?</summary><p>Your registration includes the exact amount, a payment code, and instructions. Upload your receipt after transfer. An organizer verifies it before team profiles unlock.</p></details><details><summary>Where can I get directions?</summary><p>Use the Royal Sports Park directions link above. It opens the organizer-provided Google Maps location.</p></details></div></section>
     <section class="closing section"><p class="eyebrow">The best teams play together</p><h2>Bring your people.<br>We'll bring the occasion.</h2><a class="button primary" href="/register">Register your team ↗</a></section>`;
@@ -105,6 +104,10 @@ async function teamList(name) {
       return;
     }
     const teams = await api(`/teams?sport_id=${encodeURIComponent(selected.id)}`);
+    const tab = [...document.querySelectorAll('[role=tab]')].find(
+      (candidate) => candidate.dataset.sport.toLowerCase() === name.toLowerCase(),
+    );
+    if (tab?.dataset.max) tab.querySelector('.team-count').textContent = `${teams.length}/${tab.dataset.max}`;
     panel.innerHTML = teams.length
       ? teams
           .map(
@@ -118,6 +121,12 @@ async function teamList(name) {
       '<p class="teams-state">Team listings are temporarily unavailable. Please try again later.</p>';
   }
 }
+function setSportColor(tab) {
+  const shell = document.querySelector('.teams-shell');
+  const sport = data.sports.find((candidate) => candidate.slug === tab?.dataset.slug);
+  shell.style.setProperty('--tab-color', sport?.color || 'var(--accent)');
+  shell.style.setProperty('--tab-dark', sport?.colorDark || 'var(--accent-hover)');
+}
 function bindTeamTabs() {
   document.querySelectorAll('[role=tab]').forEach((tab) =>
     tab.addEventListener('click', () => {
@@ -126,6 +135,7 @@ function bindTeamTabs() {
         item.tabIndex = item === tab ? 0 : -1;
       });
       document.querySelector('#teams-panel').setAttribute('aria-labelledby', tab.id);
+      setSportColor(tab);
       teamList(tab.dataset.sport);
     }),
   );
@@ -143,6 +153,7 @@ function bindTeamTabs() {
     tabs[next].focus();
     tabs[next].click();
   });
+  setSportColor(document.querySelector('[role=tab]'));
   teamList(data.sports[0].name);
 }
 function steps(active) {

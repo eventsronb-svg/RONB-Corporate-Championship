@@ -12,19 +12,28 @@
       "slug": "futsal",
       "name": "Futsal",
       "format": "5-a-side",
-      "description": "Small pitch. Big team energy. Take your office chemistry onto the futsal court."
+      "description": "Small pitch. Big team energy. Take your office chemistry onto the futsal court.",
+      "maxTeams": 32,
+      "color": "#2e7d32",
+      "colorDark": "#25652a"
     },
     {
-      "slug": "cricksul",
-      "name": "Cricksul",
+      "slug": "crickshal",
+      "name": "Crickshal",
       "format": "Team sport",
-      "description": "Trade the meeting room for the crease. Bring your colleagues and play for your company."
+      "description": "Trade the meeting room for the crease. Bring your colleagues and play for your company.",
+      "maxTeams": 20,
+      "color": "var(--accent)",
+      "colorDark": "var(--accent-hover)"
     },
     {
       "slug": "basketball",
       "name": "Basketball",
       "format": "3v3",
-      "description": "Three on court. Everyone in the game. Bring your best to the half court."
+      "description": "Three on court. Everyone in the game. Bring your best to the half court.",
+      "maxTeams": 16,
+      "color": "#b8865b",
+      "colorDark": "#9c6f44"
     }
   ],
   "maps_embed_url": "https://www.google.com/maps?cid=11101494050681135632&output=embed"

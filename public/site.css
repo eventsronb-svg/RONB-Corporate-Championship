@@ -1,14 +1,14 @@
 @font-face {
-  font-family: Barlow;
-  src: url('/assets/fonts/barlow-latin-400-normal.woff2') format('woff2');
+  font-family: Ultimate;
+  src: url('/assets/fonts/Ultimate.otf') format('opentype');
   font-display: swap;
-  font-weight: 400;
+  font-weight: 100 900;
 }
 @font-face {
-  font-family: Barlow;
-  src: url('/assets/fonts/barlow-latin-600-normal.woff2') format('woff2');
+  font-family: VarsityTeam;
+  src: url('/assets/fonts/VarsityTeam-Bold.otf') format('opentype');
   font-display: swap;
-  font-weight: 600 900;
+  font-weight: 700;
 }
 :root {
   color-scheme: light;
@@ -24,8 +24,9 @@
   --input-rule: oklch(0.62 0.008 20);
   color: var(--ink);
   background: var(--paper);
-  font-family: Barlow, Arial, sans-serif;
-  font-synthesis: none;
+  font-family: Ultimate, Arial, sans-serif;
+  font-size: 20.8px;
+  font-synthesis: weight;
 }
 * {
   box-sizing: border-box;
@@ -105,7 +106,7 @@ a {
   display: flex;
   align-items: center;
   gap: 9px;
-  font-size: 23px;
+  font-size: 29.9px;
   font-weight: 600;
   letter-spacing: -1px;
 }
@@ -117,13 +118,13 @@ a {
   background: var(--accent);
   color: var(--on-accent);
   border-radius: 9px;
-  font-family: Georgia, serif;
-  font-size: 24px;
+  font-family: Ultimate, Arial, sans-serif;
+  font-size: 31.2px;
 }
 .desktop-nav {
   display: flex;
   gap: 30px;
-  font-size: 15px;
+  font-size: 19.5px;
 }
 .desktop-nav a:hover,
 .text-link:hover {
@@ -135,45 +136,50 @@ a {
   border-radius: 100px;
   padding: 12px 19px;
   font-weight: 600;
-  font-size: 14px;
+  font-size: 18.2px;
 }
 .masthead-link span {
   margin-left: 12px;
 }
 .hero {
-  max-width: 1360px;
-  margin: 28px auto 36px;
-  padding: 25px 48px;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  align-items: center;
-  gap: 24px;
-  min-height: 445px;
+  max-width: 960px;
+  margin: 56px auto 40px;
+  padding: 0 clamp(28.6px, 4vw, 48px);
+  text-align: center;
+  min-height: 0;
+}
+.hero-copy {
+  text-align: center;
 }
 .eyebrow {
   color: var(--accent);
-  font-size: 12px;
+  font-size: 15.6px;
   font-weight: 600;
   letter-spacing: 1.5px;
   text-transform: uppercase;
   margin-bottom: 22px;
 }
 .hero-title {
-  font-size: clamp(38px, 4.5vw, 66px);
-  letter-spacing: -2.5px;
-  line-height: 1.06;
+  font-family: VarsityTeam, Ultimate, sans-serif;
+  font-weight: 700;
+  font-size: clamp(67.6px, 6.5vw, 137.8px);
+  letter-spacing: 0;
+  text-transform: uppercase;
+  line-height: 1.04;
   margin-bottom: 24px;
 }
 .hero-title span {
   color: var(--accent);
 }
 .hero-sub {
-  font-size: 19px;
-  max-width: 390px;
+  font-size: 24px;
+  max-width: 480px;
+  margin: 0 auto 28px;
   color: var(--muted);
 }
 .hero-actions {
   display: flex;
+  justify-content: center;
   align-items: center;
   gap: 25px;
   margin-top: 30px;
@@ -189,7 +195,7 @@ a {
   padding: 13px 23px;
   color: var(--ink);
   background: var(--white);
-  font-size: 15px;
+  font-size: 19.5px;
   font-weight: 600;
   transition:
     transform 0.25s,
@@ -216,38 +222,31 @@ a {
   cursor: not-allowed;
 }
 .text-link {
-  font-size: 15px;
+  font-size: 19.5px;
   font-weight: 600;
 }
 .text-link span {
   margin-left: 8px;
 }
 .hero-note {
-  margin: 24px 0 0;
-  font-size: 13px;
-  color: var(--muted);
-}
-.hero-image {
-  background: var(--tint);
-  border-radius: 48% 48% 24px 24px;
-  overflow: hidden;
-  transform: rotate(2deg);
-}
-.hero-image img {
-  width: 100%;
-  height: 385px;
-  display: block;
-  object-fit: cover;
-  mix-blend-mode: normal;
+  margin: 34px auto 0;
+  font-family: VarsityTeam, Ultimate, sans-serif;
+  font-weight: 700;
+  font-size: clamp(39px, 4vw, 67.6px);
+  line-height: 1.1;
+  letter-spacing: 0;
+  text-transform: uppercase;
+  color: var(--accent);
+  text-align: center;
 }
 .event-strip {
-  max-width: 1264px;
-  margin: 0 auto;
+  width: 100%;
+  margin: 0;
   display: grid;
   grid-template-columns: 1fr 1.25fr 1fr;
   border-top: 1px solid var(--rule);
   border-bottom: 1px solid var(--rule);
-  padding: 25px 0;
+  padding: 25px clamp(28.6px, 4vw, 48px);
   gap: 35px;
 }
 .event-strip div {
@@ -255,11 +254,11 @@ a {
   gap: 6px;
 }
 .event-strip span {
-  font-size: 12px;
+  font-size: 15.6px;
   color: var(--muted);
 }
 .event-strip strong {
-  font-size: 18px;
+  font-size: 23.4px;
   font-weight: 600;
 }
 .section {
@@ -277,14 +276,14 @@ a {
 }
 .section-title,
 h2 {
-  font-size: clamp(29px, 3vw, 43px);
+  font-size: clamp(37.7px, 3vw, 55.9px);
   letter-spacing: -1.2px;
   line-height: 1.15;
   margin-bottom: 17px;
 }
 .section-intro {
   color: var(--muted);
-  font-size: 17px;
+  font-size: 22.1px;
   max-width: 520px;
 }
 .sport-grid {
@@ -297,12 +296,13 @@ h2 {
   isolation: isolate;
   overflow: hidden;
   padding: 28px;
-  border: 1px solid var(--rule);
+  border: 1px solid var(--accent-hover);
   border-radius: 20px;
-  background: var(--white);
+  background: var(--accent);
   transition:
     transform 0.3s,
-    box-shadow 0.3s;
+    box-shadow 0.3s,
+    background-color 0.3s;
 }
 .sport-top {
   display: flex;
@@ -311,24 +311,25 @@ h2 {
   margin-bottom: 28px;
 }
 .sport-format {
-  font-size: 13px;
-  color: var(--muted);
+  font-size: 15px;
+  color: var(--on-accent);
+  opacity: 0.85;
 }
 .sport-symbol {
   position: absolute;
   z-index: 0;
   right: -34px;
   bottom: -40px;
-  font-size: 125px;
+  font-size: 143.8px;
   line-height: 1;
   pointer-events: none;
   transition: transform 0.55s cubic-bezier(0.2, 0.8, 0.3, 1.5);
 }
-.sport-cricksul .sport-symbol {
+.sport-crickshal .sport-symbol {
   right: -34px;
   bottom: -40px;
-  width: 127px;
-  height: 127px;
+  width: 146.1px;
+  height: 146.1px;
   object-fit: contain;
 }
 .sport > :not(.sport-symbol) {
@@ -337,19 +338,22 @@ h2 {
 }
 .sport:hover {
   transform: translateY(-7px);
-  box-shadow: 0 14px 35px rgb(35 30 31 / 0.08);
+  background-color: var(--accent-hover);
+  box-shadow: 0 14px 35px rgb(120 30 30 / 0.28);
 }
 .sport:hover .sport-symbol {
   transform: translate(-12px, -18px) rotate(18deg);
 }
 .sport h3 {
-  font-size: 28px;
+  font-size: 32.2px;
   letter-spacing: -0.7px;
+  color: var(--on-accent);
   margin-bottom: 12px;
 }
 .sport p {
-  color: var(--muted);
-  font-size: 16px;
+  color: var(--on-accent);
+  opacity: 0.85;
+  font-size: 18.4px;
   min-height: 76px;
   max-width: 290px;
 }
@@ -357,17 +361,19 @@ h2 {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 14px;
+  font-size: 16.1px;
   font-weight: 600;
+  color: var(--on-accent);
   margin-top: 26px;
 }
 .section-note {
   color: var(--muted);
-  font-size: 13px;
+  font-size: 16.9px;
   margin: 22px 0 0;
 }
 .team-story {
-  background: var(--tint);
+  background: var(--accent);
+  border: 1px solid var(--accent-hover);
   border-radius: 24px;
   padding: 55px 64px;
   display: grid;
@@ -376,43 +382,68 @@ h2 {
 }
 .team-story .eyebrow {
   grid-column: 1/-1;
+  color: var(--on-accent);
+  opacity: 0.85;
   margin-bottom: 16px;
 }
 .team-story h2 {
   grid-row: 2/4;
   margin: 0;
-  font-size: 42px;
+  font-size: 54.6px;
+  color: var(--on-accent);
 }
 .team-story > p:not(.eyebrow) {
-  font-size: 18px;
-  color: var(--muted);
+  font-size: 23.4px;
+  color: var(--on-accent);
+  opacity: 0.85;
   margin-bottom: 18px;
 }
+.team-story .text-link {
+  color: var(--on-accent);
+}
 .teams-shell {
-  border: 1px solid var(--rule);
+  border: 1px solid var(--tab-dark, var(--accent-hover));
   border-radius: 20px;
   padding: 20px;
-  background: var(--white);
+  background: var(--tab-color, var(--accent));
 }
 .team-tabs {
   display: flex;
+  justify-content: center;
   gap: 8px;
-  border-bottom: 1px solid var(--rule);
+  border-bottom: 1px solid rgb(255 255 255 / 0.25);
   padding-bottom: 18px;
 }
 .team-tabs button {
   background: transparent;
   border: 0;
-  color: var(--muted);
+  color: var(--on-accent);
+  opacity: 0.8;
   padding: 11px 22px;
   border-radius: 100px;
-  font-size: 15px;
+  font-size: 19.5px;
   min-height: 44px;
+  white-space: nowrap;
 }
 .team-tabs button[aria-selected='true'] {
-  background: var(--accent);
-  color: var(--on-accent);
+  background: var(--on-accent);
+  color: var(--tab-color, var(--accent));
+  opacity: 1;
   font-weight: 600;
+}
+.team-count {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 9px;
+  border-radius: 100px;
+  font-size: 15.6px;
+  font-weight: 700;
+  background: rgb(255 255 255 / 0.2);
+  color: var(--on-accent);
+}
+.team-tabs button[aria-selected='true'] .team-count {
+  background: var(--tab-color, var(--accent));
+  color: var(--on-accent);
 }
 .team-list {
   min-height: 155px;
@@ -424,7 +455,8 @@ h2 {
 .teams-state {
   grid-column: 1/-1;
   text-align: center;
-  color: var(--muted);
+  color: var(--on-accent);
+  opacity: 0.85;
   padding: 28px;
   max-width: 580px;
   margin: auto;
@@ -433,12 +465,14 @@ h2 {
   padding: 22px;
 }
 .team-name {
-  font-size: 22px;
+  font-size: 28.6px;
+  color: var(--on-accent);
   margin-bottom: 8px;
 }
 .team-meta {
-  font-size: 14px;
-  color: var(--muted);
+  font-size: 18.2px;
+  color: var(--on-accent);
+  opacity: 0.8;
   margin: 0;
 }
 .team-logo {
@@ -461,7 +495,7 @@ h2 {
   text-align: center;
 }
 .venue-date > span {
-  font-size: 14px;
+  font-size: 18.2px;
   color: var(--muted);
 }
 .venue-date strong {
@@ -469,19 +503,19 @@ h2 {
   align-items: center;
   justify-content: center;
   gap: 24px;
-  font-size: 100px;
+  font-size: 130px;
   font-weight: 600;
   letter-spacing: -5px;
   margin: 15px 0;
 }
 .venue-date strong span {
-  font-size: 22px;
+  font-size: 28.6px;
   letter-spacing: 0;
   font-weight: 400;
 }
 .venue-copy > p:not(.eyebrow) {
   color: var(--muted);
-  font-size: 17px;
+  font-size: 22.1px;
   max-width: 400px;
   margin-bottom: 28px;
 }
@@ -499,7 +533,7 @@ h2 {
   padding-top: 0;
 }
 .faq summary {
-  font-size: 18px;
+  font-size: 23.4px;
   font-weight: 600;
   cursor: pointer;
   list-style: none;
@@ -514,7 +548,7 @@ h2 {
 }
 .faq summary:after {
   content: '+';
-  font-size: 24px;
+  font-size: 31.2px;
 }
 .faq details[open] summary:after {
   content: '−';
@@ -522,19 +556,34 @@ h2 {
 .faq p {
   margin: 16px 0 0;
   color: var(--muted);
-  font-size: 16px;
+  font-size: 20.8px;
   max-width: 60ch;
 }
 .closing {
-  background: var(--tint);
+  background: var(--accent);
+  border: 1px solid var(--accent-hover);
   text-align: center;
   border-radius: 24px;
   padding: 60px 24px;
   margin-bottom: 55px;
 }
+.closing .eyebrow {
+  color: var(--on-accent);
+  opacity: 0.85;
+}
 .closing h2 {
-  font-size: clamp(34px, 4vw, 50px);
+  font-size: clamp(44.2px, 4vw, 65px);
+  color: var(--on-accent);
   margin-bottom: 28px;
+}
+.closing .button.primary {
+  background: var(--on-accent);
+  color: var(--accent);
+  border-color: var(--on-accent);
+}
+.closing .button.primary:hover {
+  background: hsl(0 0% 95%);
+  border-color: hsl(0 0% 95%);
 }
 .site-footer {
   max-width: 1264px;
@@ -543,7 +592,7 @@ h2 {
   display: flex;
   justify-content: space-between;
   gap: 20px;
-  font-size: 13px;
+  font-size: 16.9px;
   color: var(--muted);
 }
 .site-footer p {
@@ -558,7 +607,7 @@ h2 {
   padding: 45px 0;
 }
 .registration-header h1 {
-  font-size: 56px;
+  font-size: 72.8px;
   letter-spacing: -2px;
   line-height: 1.08;
   margin: 0;
@@ -574,7 +623,7 @@ h2 {
 .registration-aside {
   padding: 28px;
   background: var(--tint);
-  font-size: 14px;
+  font-size: 18.2px;
 }
 .steps {
   padding: 0;
@@ -594,7 +643,7 @@ h2 {
   min-width: 0;
 }
 .registration-content h2 {
-  font-size: 32px;
+  font-size: 41.6px;
 }
 .registration-content > p {
   color: var(--muted);
@@ -614,7 +663,7 @@ h2 {
 .input-group {
   display: grid;
   gap: 8px;
-  font-size: 14px;
+  font-size: 18.2px;
 }
 .input-group input,
 .sport-choice input[data-team] {
@@ -625,7 +674,7 @@ h2 {
   background: var(--white);
   color: var(--ink);
   padding: 12px;
-  font-size: 16px;
+  font-size: 20.8px;
 }
 .sport-choice {
   padding: 20px;
@@ -690,9 +739,6 @@ h2 {
   .hero-copy {
     animation: enter 0.8s both;
   }
-  .hero-image {
-    animation: image-enter 1s both;
-  }
   .reveal {
     opacity: 0;
     transform: translateY(34px) scale(0.985);
@@ -718,16 +764,6 @@ h2 {
     to {
       opacity: 1;
       transform: none;
-    }
-  }
-  @keyframes image-enter {
-    from {
-      opacity: 0;
-      transform: translateY(25px) rotate(-3deg);
-    }
-    to {
-      opacity: 1;
-      transform: rotate(2deg);
     }
   }
   @supports (animation-timeline: view()) {
@@ -756,7 +792,6 @@ h2 {
 }
 @media (max-width: 1360px) {
   .section,
-  .event-strip,
   .site-footer {
     margin-left: 48px;
     margin-right: 48px;
@@ -765,17 +800,8 @@ h2 {
 @media (max-width: 1024px) {
   .hero {
     padding: 20px 32px;
-    gap: 15px;
-  }
-  .hero-title {
-    font-size: 43px;
-    letter-spacing: -1.8px;
-  }
-  .hero-image img {
-    height: 340px;
   }
   .section,
-  .event-strip,
   .site-footer {
     margin-left: 32px;
     margin-right: 32px;
@@ -806,7 +832,7 @@ h2 {
     display: none;
   }
   .masthead-link {
-    font-size: 12px;
+    font-size: 15.6px;
     padding: 10px 14px;
   }
   .masthead-link span {
@@ -820,15 +846,15 @@ h2 {
     min-height: 0;
   }
   .hero-title {
-    font-size: clamp(36px, 9.5vw, 58px);
+    font-size: clamp(46.8px, 9.5vw, 75.4px);
     letter-spacing: -1.7px;
   }
   .hero-copy .eyebrow {
-    font-size: 10px;
+    font-size: 13px;
     margin-bottom: 18px;
   }
   .hero-sub {
-    font-size: 17px;
+    font-size: 20.4px;
     max-width: 340px;
   }
   .hero-actions {
@@ -838,16 +864,7 @@ h2 {
   .hero-note {
     margin-top: 18px;
   }
-  .hero-image {
-    border-radius: 24px;
-    transform: none;
-  }
-  .hero-image img {
-    height: 290px;
-    object-fit: cover;
-  }
   .section,
-  .event-strip,
   .site-footer {
     margin-left: 22px;
     margin-right: 22px;
@@ -855,7 +872,7 @@ h2 {
   .event-strip {
     grid-template-columns: 1fr;
     gap: 18px;
-    padding: 24px 0;
+    padding: 24px clamp(28.6px, 4vw, 48px);
   }
   .event-strip div {
     display: flex;
@@ -864,11 +881,11 @@ h2 {
     gap: 15px;
   }
   .event-strip strong {
-    font-size: 14px;
+    font-size: 18.2px;
     text-align: right;
   }
   .event-strip span {
-    font-size: 11px;
+    font-size: 14.3px;
   }
   .section {
     padding: 56px 0;
@@ -900,18 +917,19 @@ h2 {
   }
   .team-story h2 {
     grid-row: auto;
-    font-size: 34px;
+    font-size: 44.2px;
     margin-bottom: 22px;
   }
   .team-story > p:not(.eyebrow) {
-    font-size: 16px;
+    font-size: 20.8px;
   }
   .team-tabs {
+    flex-wrap: wrap;
     gap: 3px;
   }
   .team-tabs button {
     padding: 10px 14px;
-    font-size: 14px;
+    font-size: 18.2px;
   }
   .teams-shell {
     padding: 14px;
@@ -929,14 +947,14 @@ h2 {
     padding: 30px 20px;
   }
   .venue-date strong {
-    font-size: 85px;
+    font-size: 110.5px;
   }
   .faq-section {
     grid-template-columns: 1fr;
     gap: 0;
   }
   .faq summary {
-    font-size: 17px;
+    font-size: 22.1px;
   }
   .closing {
     padding: 40px 22px;
@@ -960,7 +978,7 @@ h2 {
   }
   .steps li {
     padding: 0;
-    font-size: 12px;
+    font-size: 15.6px;
   }
   .registration-content {
     padding: 25px;
@@ -969,10 +987,10 @@ h2 {
     padding: 0 20px;
   }
   .registration-header h1 {
-    font-size: 42px;
+    font-size: 54.6px;
   }
   .registration-content h2 {
-    font-size: 29px;
+    font-size: 37.7px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -987,9 +1005,6 @@ h2 {
   }
   .reveal {
     opacity: 1;
-    transform: none;
-  }
-  .hero-image {
     transform: none;
   }
   .sport:hover,
@@ -1016,7 +1031,7 @@ h2 {
 .venue-map p {
   margin: 0;
   padding: 16px 22px;
-  font-size: 14px;
+  font-size: 18.2px;
   color: var(--accent);
 }
 .venue-map a {
@@ -1024,10 +1039,24 @@ h2 {
   text-decoration: underline;
 }
 .sport:nth-child(2) {
-  background: var(--tint);
+  background: var(--accent);
 }
 .sport:nth-child(3) {
-  background: var(--tint);
+  background: var(--accent);
+}
+.sport-grid .sport.sport-futsal {
+  background: #2e7d32;
+  border-color: #25652a;
+}
+.sport-grid .sport.sport-futsal:hover {
+  background-color: #25652a;
+}
+.sport-grid .sport.sport-basketball {
+  background: #b8865b;
+  border-color: #9c6f44;
+}
+.sport-grid .sport.sport-basketball:hover {
+  background-color: #9c6f44;
 }
 @media (max-width: 767px) {
   .venue-map iframe {
