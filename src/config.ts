@@ -7,6 +7,8 @@ const envSchema = z.object({
   COOKIE_SECRET: z.string().min(32),
   GOOGLE_CLIENT_ID: z.string().default(''),
   GOOGLE_CLIENT_SECRET: z.string().default(''),
+  ADMIN_LOGIN_USERNAME: z.string().default(''),
+  ADMIN_LOGIN_PASSWORD: z.string().default(''),
   S3_ENDPOINT: z.string().default(''),
   S3_REGION: z.string().default('auto'),
   S3_ACCESS_KEY_ID: z.string().default(''),
@@ -23,6 +25,10 @@ const envSchema = z.object({
 export type Config = z.infer<typeof envSchema>;
 export function config(env: NodeJS.ProcessEnv = process.env): Config {
   const c = envSchema.parse(env);
+  if (Boolean(c.ADMIN_LOGIN_USERNAME) !== Boolean(c.ADMIN_LOGIN_PASSWORD))
+    throw new Error('Set both ADMIN_LOGIN_USERNAME and ADMIN_LOGIN_PASSWORD, or leave both empty');
+  if (c.ADMIN_LOGIN_PASSWORD && c.ADMIN_LOGIN_PASSWORD.length < 16)
+    throw new Error('ADMIN_LOGIN_PASSWORD must contain at least 16 characters');
   if (new URL(c.APP_ORIGIN).origin !== c.APP_ORIGIN)
     throw new Error('APP_ORIGIN must be an origin without a trailing slash');
   if (!c.S3_RECEIPTS_BUCKET || !c.S3_LOGOS_BUCKET || c.S3_RECEIPTS_BUCKET === c.S3_LOGOS_BUCKET)

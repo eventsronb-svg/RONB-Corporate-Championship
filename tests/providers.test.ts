@@ -3,6 +3,7 @@ import { createServer } from 'node:http';
 import sharp from 'sharp';
 import { resendMailer, s3Storage, validateFile, DeliveryError } from '../src/providers.js';
 import { config } from '../src/config.js';
+import vercelHandler from '../src/app.js';
 const base = {
   NODE_ENV: 'test',
   APP_ORIGIN: 'http://localhost:3000',
@@ -10,6 +11,29 @@ const base = {
   COOKIE_SECRET: 'x'.repeat(32),
 };
 afterEach(() => vi.restoreAllMocks());
+it('revalidates unversioned frontend assets in the Vercel adapter', async () => {
+  const server = createServer(vercelHandler);
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address() as { port: number };
+  try {
+    for (const path of [
+      '/register',
+      '/assets/site.js?v=20260916-2',
+      '/assets/admin.js?v=20260916-2',
+      '/assets/site.css',
+      '/assets/championship.json',
+    ]) {
+      const response = await fetch(`http://127.0.0.1:${address.port}${path}`);
+      expect(response.status).toBe(200);
+      expect(response.headers.get('cache-control')).toBe('public, max-age=0, must-revalidate');
+      expect(await response.text()).not.toBe('');
+    }
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((error) => (error ? reject(error) : resolve())),
+    );
+  }
+});
 it('uses the real Resend adapter with the exact immutable payload and idempotency key', async () => {
   const fetch = vi
     .spyOn(globalThis, 'fetch')

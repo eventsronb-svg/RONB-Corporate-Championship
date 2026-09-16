@@ -6,6 +6,7 @@ import { config } from '../src/config.js';
 import { buildApp } from '../src/app.js';
 import { hash } from '../src/auth.js';
 import type { GoogleProvider, Storage, Mailer } from '../src/providers.js';
+import { passwordAdminCredentials } from './credentials.js';
 export async function setup() {
   let db: Database;
   if (process.env.TEST_DATABASE_URL) {
@@ -39,6 +40,8 @@ export async function setup() {
     DATABASE_URL: 'test',
     COOKIE_SECRET: 'a'.repeat(32),
     PAYMENT_QR_TEMPLATE: 'merchant-test://pay?amount={amount}&remarks={code}',
+    ADMIN_LOGIN_USERNAME: passwordAdminCredentials.username,
+    ADMIN_LOGIN_PASSWORD: passwordAdminCredentials.password,
   });
   const files = new Map<string, Buffer>();
   const removed: string[] = [];

@@ -1,6 +1,8 @@
 const main = document.querySelector('#main');
 const toast = document.querySelector('#toast');
 let data;
+let reviewTimer;
+let profileOrder;
 
 const esc = (value = '') =>
   String(value).replace(
@@ -12,19 +14,25 @@ const api = async (path, options = {}) => {
     credentials: 'same-origin',
     ...options,
     headers: {
-      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+      ...(options.body && !(options.body instanceof FormData)
+        ? { 'Content-Type': 'application/json' }
+        : {}),
       ...options.headers,
     },
   });
   const contentType = response.headers.get('content-type') || '';
   const payload = contentType.includes('application/json') ? await response.json() : undefined;
   if (!response.ok) {
-    throw new Error(
-      payload?.message ||
+    const error = new Error(
+      payload?.details?.map((issue) => issue.message).join('; ') ||
+        payload?.message ||
         (response.status >= 500
           ? 'Registration is temporarily unavailable. Please try again shortly.'
           : 'The request could not be completed.'),
     );
+    error.status = response.status;
+    error.code = payload?.error;
+    throw error;
   }
   return payload;
 };
@@ -50,8 +58,9 @@ const e = (title, body) =>
 async function load() {
   const response = await fetch('/assets/championship.json');
   if (!response.ok) throw new Error('Event information is unavailable.');
-  data = await response.json();
-  data.sports = (await api('/sports')).map((sport) => ({ ...sport, slug: slugify(sport.name) }));
+  const event = await response.json();
+  const sports = (await api('/sports')).map((sport) => ({ ...sport, slug: slugify(sport.name) }));
+  data = { ...event, sports };
 }
 function sectionHeader(eyebrow, title, copy) {
   return `<div class="section-header"><div>${eyebrow ? `<p class="eyebrow">${esc(eyebrow)}</p>` : ''}<h2 class="section-title">${esc(title)}</h2></div><p class="section-intro">${esc(copy)}</p></div>`;
@@ -128,8 +137,9 @@ async function teamList(name) {
     if (tab?.dataset.max) {
       const count = tab.querySelector('.team-count') || document.createElement('span');
       count.className = 'team-count';
-      count.setAttribute('aria-hidden', 'true');
-      count.textContent = `${teams.length}/${tab.dataset.max}`;
+      count.id = `count-${selected.id}`;
+      count.textContent = `${selected.filled_slots}/${tab.dataset.max}`;
+      tab.setAttribute('aria-describedby', count.id);
       if (!count.parentElement) tab.append(count);
     }
     await swap(
@@ -155,12 +165,25 @@ function setSportColor(tab) {
   shell.style.setProperty('--tab-dark', sport?.colorDark || 'var(--accent-hover)');
 }
 function bindTeamTabs() {
+  if (!data.sports.length) {
+    document.querySelector('.team-tabs').hidden = true;
+    const panel = document.querySelector('#teams-panel');
+    panel.removeAttribute('aria-labelledby');
+    panel.setAttribute('aria-label', 'Teams');
+    panel.innerHTML = '<p class="teams-state">No sports are open for registration yet.</p>';
+    document.querySelector('.sport-grid').innerHTML =
+      '<p>No sports are open for registration yet.</p>';
+    return;
+  }
   document.querySelectorAll('[role=tab]').forEach((tab) =>
     tab.addEventListener('click', () => {
       document.querySelectorAll('[role=tab]').forEach((item) => {
         item.setAttribute('aria-selected', String(item === tab));
         item.tabIndex = item === tab ? 0 : -1;
-        if (item !== tab) item.querySelector('.team-count')?.remove();
+        if (item !== tab) {
+          item.querySelector('.team-count')?.remove();
+          item.removeAttribute('aria-describedby');
+        }
       });
       document.querySelector('#teams-panel').setAttribute('aria-labelledby', tab.id);
       setSportColor(tab);
@@ -192,10 +215,13 @@ async function register() {
   document.title = `Register · ${data.title}`;
   main.innerHTML = `<div class="page-register"><header class="registration-header"><p class="eyebrow">Team registration · ${displayDate()}</p><h1>Build your<br>team</h1></header><div class="registration-layout"><aside class="registration-aside"><a href="/">← Back to championship</a>${steps('Sports')}</aside><section class="registration-content" id="registration-content"><p class="loading">Checking registration status…</p></section></div></div>`;
   try {
-    const order = await api('/orders/current');
-    if (order) return resume(order);
+    const savedId = new URLSearchParams(location.search).get('order');
+    const order = await api(
+      savedId ? `/orders/${encodeURIComponent(savedId)}/status` : '/orders/current',
+    );
+    return await resume(order || (await post('/orders/draft')));
   } catch (error) {
-    if (!String(error.message).includes('Sign in')) throw error;
+    if (error.status !== 401) throw error;
   }
   renderLogin();
 }
@@ -204,23 +230,87 @@ function renderLogin() {
   target.innerHTML = `<p class="eyebrow">Captain access</p><h2>Start with your Google account</h2><p>Sign in to create a registration. Your order is saved to your account so you can return at any point.</p><div class="form-actions"><a class="button primary" href="/auth/google">Sign in with Google</a></div>`;
 }
 async function resume(order) {
+  clearTimeout(reviewTimer);
+  profileOrder = undefined;
+  const url = new URL(location.href);
+  url.searchParams.set('order', order.id);
+  history.replaceState({}, '', url);
   const target = document.querySelector('#registration-content');
   const status = order.resume_step;
+  const activeStep = {
+    sports: 'Sports',
+    contact: 'Contact',
+    invoice: 'Contact',
+    payment: 'Payment',
+    receipt: 'Receipt',
+    awaiting_review: 'Receipt',
+    team_profile: 'Team profile',
+    registered: 'Team profile',
+  }[status];
+  document.querySelector('.steps').outerHTML = steps(activeStep);
   if (status === 'sports') return sportsStep(order);
+  if (status === 'contact') return phoneStep(order);
   if (status === 'invoice') return phoneStep(order);
   if (status === 'payment') return paymentStep(order);
-  if (status === 'receipt') return receiptStep(order);
+  if (status === 'receipt') {
+    if (order.status === 'rejected') return receiptStep(order);
+    if (new Date(order.payment_request?.expires_at).getTime() <= Date.now())
+      return expiredStep(order);
+    return paymentStep(order);
+  }
   if (status === 'awaiting_review') return waitingStep(order);
   if (status === 'team_profile') return profileStep(order);
   if (status === 'registered') return doneStep(order);
+  if (status === 'expired') return expiredStep(order);
   target.innerHTML = `<p class="eyebrow">Order status</p><h2>${esc(status)}</h2><p>This registration cannot continue in its current state. Return to the event page or contact the organizer.</p><a class="button" href="/">Return home</a>`;
+}
+function expiredStep(order) {
+  const target = document.querySelector('#registration-content');
+  target.innerHTML =
+    '<h2>Payment code expired</h2><p>Start a revised registration to get a new payment code. If you already transferred the payment, contact the organizer before continuing.</p><form id="revise-form"><button class="button primary">Revise registration</button><p class="error" hidden></p></form>';
+  bindSubmission('#revise-form', async () =>
+    resume(await post(`/orders/${order.id}/cancel-and-revise`)),
+  );
+}
+function bindSubmission(selector, handler) {
+  const form = document.querySelector(selector);
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (form.dataset.submitting) return;
+    form.dataset.submitting = 'true';
+    const buttons = [...form.querySelectorAll('button')];
+    buttons.forEach((button) => {
+      button.disabled = true;
+    });
+    const error = form.querySelector('.error');
+    error.hidden = true;
+    try {
+      await handler(event);
+    } catch (err) {
+      if (err.status === 401) renderLogin();
+      else {
+        error.textContent = err.message;
+        error.hidden = false;
+      }
+    } finally {
+      delete form.dataset.submitting;
+      buttons.forEach((button) => {
+        button.disabled = false;
+      });
+    }
+  });
 }
 async function sportsStep(order) {
   const target = document.querySelector('#registration-content');
   const sports = await api('/sports');
   const selected = new Map(order.items.map((item) => [item.sport_id, item.team_name]));
   target.innerHTML = `<p class="eyebrow">Step 01 / Formats</p><h2>Select your teams</h2><p>Each sport requires a distinct team name. You can change this selection before the invoice is issued.</p><form id="sports-form"><div class="choice-list">${sports.length ? sports.map((sport) => `<div class="sport-choice"><input type="checkbox" id="sport-${sport.id}" name="sport" value="${sport.id}" ${selected.has(sport.id) ? 'checked' : ''}><label for="sport-${sport.id}"><strong>${esc(sport.name)}</strong><span>${sport.price} registration amount</span><input data-team="${sport.id}" aria-label="${esc(sport.name)} team name" value="${esc(selected.get(sport.id) || '')}" placeholder="Team name" maxlength="120"></label></div>`).join('') : '<p class="teams-state">No sports are open yet. Ask the organizer to add the championship formats.</p>'}</div><p class="error" id="form-error" hidden></p><div class="form-actions"><button class="button primary" ${sports.length ? '' : 'disabled'}>Continue to contact</button></div></form>`;
-  document.querySelector('#sports-form')?.addEventListener('submit', async (event) => {
+  const focus = new URLSearchParams(location.search).get('focus');
+  if (!order.items.length && focus) {
+    const sport = sports.find((item) => slugify(item.name) === focus);
+    if (sport) document.querySelector(`#sport-${sport.id}`).checked = true;
+  }
+  bindSubmission('#sports-form', async (event) => {
     event.preventDefault();
     const picks = [...document.querySelectorAll('input[name=sport]:checked')].map((input) => ({
       sport_id: input.value,
@@ -232,32 +322,28 @@ async function sportsStep(order) {
       error.hidden = false;
       return;
     }
-    try {
-      const next = await patch(`/orders/${order.id}/sports`, { sports: picks });
-      resume(next);
-    } catch (err) {
-      error.textContent = err.message;
-      error.hidden = false;
-    }
+    const next = await patch(`/orders/${order.id}/sports`, { sports: picks });
+    await resume(next);
   });
 }
 function phoneStep(order) {
   const target = document.querySelector('#registration-content');
-  target.innerHTML = `<p class="eyebrow">Step 02 / Contact</p><h2>Where can we reach the captain?</h2><p>Use the phone number the organizer should use for registration questions.</p><form id="phone-form" class="form-stack"><label class="input-group">Phone number<input name="phone" required inputmode="tel" value="${esc(order.phone_number || '')}" placeholder="+977 9800000000"></label><p class="error" hidden></p><div class="form-actions"><button class="button primary">Issue invoice</button></div></form>`;
-  document.querySelector('#phone-form').addEventListener('submit', async (event) => {
+  target.innerHTML = `<p class="eyebrow">Step 02 / Contact</p><h2>Where can we reach the captain?</h2><p>Use the phone number the organizer should use for registration questions.</p><form id="phone-form" class="form-stack"><label class="input-group">Phone number<input name="phone" required inputmode="tel" value="${esc(order.phone_number || '')}" placeholder="+977 9800000000"></label><p class="error" hidden></p><div class="form-actions"><button type="button" class="button" id="edit-sports">Edit teams</button><button class="button primary">Issue invoice</button></div></form>`;
+  document.querySelector('#edit-sports').addEventListener('click', () =>
+    sportsStep(order).catch((error) => {
+      if (error.status === 401) renderLogin();
+      else say(error.message);
+    }),
+  );
+  bindSubmission('#phone-form', async (event) => {
     event.preventDefault();
     const form = event.currentTarget;
-    const error = form.querySelector('.error');
-    try {
-      const phone = await post(`/orders/${order.id}/phone`, {
-        phone_number: new FormData(form).get('phone'),
-      });
-      const invoice = await post(`/orders/${order.id}/invoice`);
-      resume(invoice || phone);
-    } catch (err) {
-      error.textContent = err.message;
-      error.hidden = false;
-    }
+    if (order.invoiced_at) return resume(order);
+    order = await post(`/orders/${order.id}/phone`, {
+      phone_number: new FormData(form).get('phone'),
+    });
+    order = await post(`/orders/${order.id}/invoice`);
+    await resume(order);
   });
 }
 async function paymentStep(order) {
@@ -271,24 +357,22 @@ async function paymentStep(order) {
 function receiptStep(order) {
   const target = document.querySelector('#registration-content');
   target.innerHTML = `<p class="eyebrow">Step 04 / Receipt</p><h2>Upload proof of payment</h2><p>Send a clear PNG, JPEG, WebP, or PDF receipt, up to 5 MB. The organizer will review it alongside your exact amount and code.</p><form id="receipt-form" class="form-stack"><label class="input-group">Receipt file<input name="receipt" type="file" accept="image/png,image/jpeg,image/webp,application/pdf" required></label><p class="error" hidden></p><div class="form-actions"><button class="button primary">Submit receipt</button></div></form>`;
-  document.querySelector('#receipt-form').addEventListener('submit', async (event) => {
+  if (order.rejection) {
+    const note = document.createElement('p');
+    note.className = 'error';
+    note.textContent = `Payment rejected: ${order.rejection.notes}`;
+    target.prepend(note);
+  }
+  bindSubmission('#receipt-form', async (event) => {
     event.preventDefault();
     const form = event.currentTarget;
-    const error = form.querySelector('.error');
     const payload = new FormData(form);
     try {
-      const response = await fetch(`/orders/${order.id}/receipt`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { Origin: location.origin },
-        body: payload,
-      });
-      const next = await response.json();
-      if (!response.ok) throw new Error(next.message);
-      resume(next);
-    } catch (err) {
-      error.textContent = err.message;
-      error.hidden = false;
+      const next = await api(`/orders/${order.id}/receipt`, { method: 'POST', body: payload });
+      await resume(next);
+    } catch (error) {
+      if (error.code === 'payment_expired') return expiredStep(order);
+      throw error;
     }
   });
 }
@@ -296,30 +380,34 @@ function waitingStep(order) {
   const target = document.querySelector('#registration-content');
   target.innerHTML = `<p class="eyebrow">Payment review / ${esc(order.status)}</p><h2>Receipt received</h2><p>Your receipt is with the organizer. This page checks for an update every 20 seconds.</p>${order.rejection ? `<p class="error">Latest note: ${esc(order.rejection.notes)}</p><div class="form-actions"><button class="button primary" id="resubmit">Upload another receipt</button></div>` : '<div class="info-box">You can leave now. The order is saved and will resume here after sign in.</div>'}`;
   document.querySelector('#resubmit')?.addEventListener('click', () => receiptStep(order));
-  const interval = setInterval(async () => {
-    if (!location.pathname.startsWith('/register')) return clearInterval(interval);
+  const poll = async () => {
+    if (location.pathname !== '/register' || !target.querySelector('#review-status')) return;
     try {
       const next = await api(`/orders/${order.id}/status`);
       if (next.status !== order.status) {
-        clearInterval(interval);
-        resume(next);
+        await resume(next);
         say('Your registration status changed.');
+        return;
       }
-    } catch {}
-  }, 20000);
+    } catch (error) {
+      if (error.status === 401) return renderLogin();
+      const status = target.querySelector('#review-status');
+      if (!status) return;
+      status.textContent = 'Could not refresh the status. Retrying shortly.';
+    }
+    reviewTimer = setTimeout(poll, 20000);
+  };
+  const status = document.createElement('p');
+  status.id = 'review-status';
+  status.setAttribute('role', 'status');
+  target.append(status);
+  reviewTimer = setTimeout(poll, 20000);
 }
 function profileStep(order) {
+  profileOrder = order;
   const target = document.querySelector('#registration-content');
   const pending = order.items.filter((item) => !item.profile_completed_at);
   target.innerHTML = `<p class="eyebrow">Step 05 / Team profile</p><h2>Finish your team</h2><p>Payment is confirmed. Add a logo and roster for each team. A confirmed team appears on the public listing after you mark its profile done.</p><div class="choice-list">${pending.map((item) => `<div class="sport-choice"><div><strong>${esc(item.team_name)}</strong><span>${esc(item.sport_name)}</span></div><a class="button primary" href="#profile/${item.id}">Complete profile</a></div>`).join('')}</div>`;
-  window.addEventListener(
-    'hashchange',
-    () => {
-      const itemId = location.hash.split('/')[1];
-      if (itemId) profileEditor(order, itemId);
-    },
-    { once: true },
-  );
   const itemId = location.hash.split('/')[1];
   if (itemId) profileEditor(order, itemId);
 }
@@ -327,12 +415,11 @@ function profileEditor(order, itemId) {
   const item = order.items.find((candidate) => candidate.id === itemId);
   if (!item) return;
   const target = document.querySelector('#registration-content');
-  target.innerHTML = `<p class="eyebrow">${esc(item.sport_name)} / Team profile</p><h2>${esc(item.team_name)}</h2><form id="profile-form" class="form-stack"><label class="input-group">Team logo<input name="logo" type="file" accept="image/png,image/jpeg,image/webp"></label><label class="input-group">Players, one name per line<input name="players" required value="${esc(item.players.join('\n'))}" placeholder="Player one&#10;Player two"></label><p class="error" hidden></p><div class="form-actions"><button class="button" name="save" value="save">Save draft</button><button class="button primary" name="complete" value="complete">Save and mark done</button></div></form>`;
-  document.querySelector('#profile-form').addEventListener('submit', async (event) => {
+  target.innerHTML = `<p class="eyebrow">${esc(item.sport_name)} / Team profile</p><h2>${esc(item.team_name)}</h2><form id="profile-form" class="form-stack"><label class="input-group">Team logo<input name="logo" type="file" accept="image/png,image/jpeg,image/webp"></label><label class="input-group">Players, one name per line<textarea name="players" required rows="6" placeholder="Player one&#10;Player two">${esc(item.players.join('\n'))}</textarea></label><p class="error" hidden></p><div class="form-actions"><button class="button" name="save" value="save">Save draft</button><button class="button primary" name="complete" value="complete">Save and mark done</button></div></form>`;
+  bindSubmission('#profile-form', async (event) => {
     event.preventDefault();
     const form = event.currentTarget;
-    const action = event.submitter.value;
-    const error = form.querySelector('.error');
+    const action = event.submitter?.value || 'save';
     const fd = new FormData(form);
     const players = String(fd.get('players'))
       .split('\n')
@@ -341,32 +428,21 @@ function profileEditor(order, itemId) {
     const update = new FormData();
     if (fd.get('logo').size) update.append('logo', fd.get('logo'));
     update.append('players', JSON.stringify(players));
-    try {
-      const response = await fetch(`/orders/${order.id}/items/${item.id}/profile`, {
-        method: 'PATCH',
-        credentials: 'same-origin',
-        headers: { Origin: location.origin },
-        body: update,
-      });
-      const saved = await response.json();
-      if (!response.ok) throw new Error(saved.message);
-      if (action === 'complete') {
-        const complete = await post(`/orders/${order.id}/items/${item.id}/profile/complete`);
-        const current = await api(`/orders/${order.id}/status`);
-        resume(current || complete);
-        say('Team profile completed.');
-      } else {
-        say('Profile saved.');
-      }
-    } catch (err) {
-      error.textContent = err.message;
-      error.hidden = false;
+    await api(`/orders/${order.id}/items/${item.id}/profile`, { method: 'PATCH', body: update });
+    if (action === 'complete') {
+      const complete = await post(`/orders/${order.id}/items/${item.id}/profile/complete`);
+      const current = await api(`/orders/${order.id}/status`);
+      history.replaceState({}, '', location.pathname + location.search);
+      await resume(current || complete);
+      say('Team profile completed.');
+    } else {
+      say('Profile saved.');
     }
   });
 }
 function doneStep(order) {
   const target = document.querySelector('#registration-content');
-  target.innerHTML = `<p class="eyebrow">Registration complete</p><h2>See you at the park.</h2><p>Every team on your order has a completed profile. The confirmation email is sent after the final profile is completed.</p><div class="form-actions"><a class="button primary" href="/">Return to championship</a><a class="button" href="#teams">See team listing</a></div>`;
+  target.innerHTML = `<p class="eyebrow">Registration complete</p><h2>See you at the park.</h2><p>Every team on your order has a completed profile. Your confirmation email has been queued for delivery.</p><div class="form-actions"><a class="button primary" href="/">Return to championship</a><a class="button" href="/#teams">See team listing</a></div>`;
 }
 async function render() {
   try {
@@ -379,6 +455,11 @@ async function render() {
 }
 window.addEventListener('popstate', render);
 window.addEventListener('hashchange', () => {
+  if (profileOrder && location.pathname === '/register') {
+    const itemId = location.hash.startsWith('#profile/') ? location.hash.slice(9) : '';
+    if (itemId) profileEditor(profileOrder, itemId);
+    else profileStep(profileOrder);
+  }
   if (location.hash === '#register') {
     history.pushState({}, '', '/register');
     render();

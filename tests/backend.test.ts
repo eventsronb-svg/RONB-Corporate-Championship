@@ -3,7 +3,7 @@ import { setup } from './helpers.js';
 import { one, migrate } from '../src/db.js';
 import { deliverOne, expireOrders } from '../src/jobs.js';
 import { DeliveryError } from '../src/providers.js';
-import { passwordAdminCredentials } from '../src/auth.js';
+import { passwordAdminCredentials } from './credentials.js';
 let h: Awaited<ReturnType<typeof setup>>;
 beforeEach(async () => {
   h = await setup();

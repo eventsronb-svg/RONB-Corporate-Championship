@@ -1,0 +1,217 @@
+import { expect, test } from '@playwright/test';
+import sharp from 'sharp';
+
+test('new captain signs in, submits two teams, corrects rejected payment, and finishes profiles', async ({
+  browser,
+  baseURL,
+}) => {
+  test.setTimeout(60000);
+  const captain = await browser.newContext({ baseURL, reducedMotion: 'reduce' });
+  const organizer = await browser.newContext({ baseURL, reducedMotion: 'reduce' });
+  const page = await captain.newPage();
+  const admin = await organizer.newPage();
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  admin.on('pageerror', (error) => errors.push(error.message));
+  const png = await sharp({ create: { width: 8, height: 8, channels: 3, background: '#be1830' } })
+    .png()
+    .toBuffer();
+  const upload = { name: 'proof.png', mimeType: 'image/png', buffer: png };
+  // Only the external Google exchange is a test provider; state, cookies, routes and DB are real.
+  await page.route('**/auth/google', async (route) => {
+    const response = await route.fetch({ maxRedirects: 0 });
+    const url = new URL(response.headers().location);
+    const callback = new URL(url.searchParams.get('redirect_uri')!);
+    callback.searchParams.set('state', url.searchParams.get('state')!);
+    callback.searchParams.set('code', 'test-code');
+    await route.fulfill({
+      response,
+      headers: { ...response.headers(), location: callback.toString() },
+    });
+  });
+  try {
+    await page.goto('/register');
+    await page.getByRole('link', { name: 'Sign in with Google' }).click();
+    await expect(page.getByRole('heading', { name: 'Select your teams' })).toBeVisible();
+    const orderId = new URL(page.url()).searchParams.get('order')!;
+    expect(orderId).toBeTruthy();
+    await page.getByRole('button', { name: 'Continue to contact' }).click();
+    await expect(
+      page.getByText('Select at least one format and give every selected team a name.'),
+    ).toBeVisible();
+    for (const sport of ['Basketball', 'Football']) {
+      const row = page
+        .locator('.sport-choice')
+        .filter({ has: page.getByRole('textbox', { name: `${sport} team name` }) });
+      await row.locator('input[type=checkbox]').check();
+      await row.getByRole('textbox').fill(`E2E ${sport}`);
+    }
+    await page.getByRole('button', { name: 'Continue to contact' }).click();
+    await expect(
+      page.getByRole('heading', { name: 'Where can we reach the captain?' }),
+    ).toBeVisible();
+    await page.reload();
+    await expect(
+      page.getByRole('heading', { name: 'Where can we reach the captain?' }),
+    ).toBeVisible();
+    await page.getByRole('textbox', { name: 'Phone number' }).fill('abc');
+    await page.getByRole('button', { name: 'Issue invoice' }).click();
+    await expect(page.locator('#phone-form .error')).toBeVisible();
+    await page.getByRole('textbox', { name: 'Phone number' }).fill('9800000000');
+    await page.getByRole('button', { name: 'Issue invoice' }).click();
+    await expect(page.getByRole('heading', { name: 'Transfer 3000.50' })).toBeVisible();
+    const paymentCode = await page.locator('code').textContent();
+    await page.reload();
+    await expect(page.getByRole('heading', { name: 'Transfer 3000.50' })).toBeVisible();
+    await expect(page.locator('code')).toHaveText(paymentCode!);
+    await page.getByRole('button', { name: 'I have paid, upload receipt' }).click();
+    await page.getByLabel('Receipt file').setInputFiles({
+      name: 'bad.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from('not an image'),
+    });
+    await page.getByRole('button', { name: 'Submit receipt' }).click();
+    await expect(page.locator('#receipt-form .error')).toBeVisible();
+    await page.getByLabel('Receipt file').setInputFiles(upload);
+    await page.getByRole('button', { name: 'Submit receipt' }).click();
+    await expect(page.getByRole('heading', { name: 'Receipt received' })).toBeVisible();
+
+    await organizer.addCookies([{ name: 'admin_session', value: 'staff', url: baseURL }]);
+    await admin.goto(`/admin#order/${orderId}`);
+    await admin.getByRole('button', { name: 'Reject payment' }).click();
+    await expect(admin.getByRole('status')).toHaveText('Add notes explaining this decision.');
+    await admin
+      .getByRole('textbox', { name: 'Review / contact notes' })
+      .fill('Please upload a clearer receipt.');
+    await admin.getByRole('button', { name: 'Reject payment' }).click();
+    await expect(admin.getByRole('status')).toHaveText('Registration updated.');
+    await page.reload();
+    await expect(
+      page.getByText('Payment rejected: Please upload a clearer receipt.'),
+    ).toBeVisible();
+    await page.getByLabel('Receipt file').setInputFiles(upload);
+    await page.getByRole('button', { name: 'Submit receipt' }).click();
+    await expect(page.getByRole('heading', { name: 'Receipt received' })).toBeVisible();
+    await admin.reload();
+    await admin.getByRole('button', { name: 'Start review' }).click();
+    await expect(admin.getByRole('button', { name: 'Start review' })).toHaveCount(0);
+    await admin.getByRole('button', { name: 'Confirm payment' }).click();
+    await expect(admin.getByRole('button', { name: 'Mark contacted' })).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole('heading', { name: 'Finish your team' })).toBeVisible();
+    await page.setViewportSize({ width: 390, height: 844 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    for (const sport of ['Basketball', 'Football']) {
+      await page
+        .locator('.sport-choice')
+        .filter({ hasText: `E2E ${sport}` })
+        .getByRole('link', { name: 'Complete profile' })
+        .click();
+      await expect(page.getByRole('heading', { name: `E2E ${sport}` })).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      );
+      await page.getByLabel('Players, one name per line').fill('Player One\nPlayer Two');
+      await page.getByLabel('Team logo').setInputFiles(upload);
+      await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+      await expect(page.getByRole('status')).toHaveText('Profile saved.');
+      await page.reload();
+      await expect(page.getByLabel('Players, one name per line')).toHaveValue(
+        'Player One\nPlayer Two',
+      );
+      await page.getByRole('button', { name: 'Save and mark done' }).click();
+      await expect(page.getByRole('status')).toHaveText('Team profile completed.');
+    }
+    await expect(page.getByRole('heading', { name: 'See you at the park.' })).toBeVisible();
+    const status = await (await captain.request.get(`/orders/${orderId}/status`)).json();
+    expect(
+      status.items.every((item: any) => item.players.length === 2 && item.profile_completed_at),
+    ).toBe(true);
+    const headers = { origin: baseURL! };
+    const firstDelivery = await captain.request.post('/__test/deliver', { headers });
+    expect((await firstDelivery.json()).sent).toBe(1);
+    expect((await (await captain.request.post('/__test/deliver', { headers })).json()).sent).toBe(
+      1,
+    );
+    await admin.reload();
+    await expect(admin.getByText('Profile complete', { exact: true })).toHaveCount(2);
+    await admin.getByRole('button', { name: 'Mark contacted' }).click();
+    await admin.getByRole('button', { name: 'Mark completed' }).click();
+    await expect(admin.getByRole('status')).toHaveText('Registration updated.');
+    await page.reload();
+    await expect(page.getByRole('heading', { name: 'See you at the park.' })).toBeVisible();
+    await page.getByRole('link', { name: 'See team listing' }).click();
+    await expect(page).toHaveURL(/\/#teams$/);
+    await expect(page.getByRole('heading', { name: 'E2E Basketball' })).toBeVisible();
+    await page.getByRole('tab', { name: 'Football' }).click();
+    await expect(page.getByRole('heading', { name: 'E2E Football' })).toBeVisible();
+    await admin.getByRole('button', { name: 'Sign out' }).click();
+    await expect(admin.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
+    expect((await organizer.request.get('/admin/orders')).status()).toBe(401);
+    expect(errors).toEqual([]);
+  } finally {
+    await captain.close();
+    await organizer.close();
+  }
+});
+
+test('mobile captain can revise an expired payment and recover from session expiry during submission', async ({
+  page,
+  context,
+  baseURL,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await context.addCookies([{ name: 'session', value: 'stranger', url: baseURL }]);
+  await page.goto('/register');
+  await expect(page.getByRole('heading', { name: 'Select your teams' })).toBeVisible();
+  const row = page
+    .locator('.sport-choice')
+    .filter({ has: page.getByRole('textbox', { name: 'Basketball team name' }) });
+  await row.locator('input[type=checkbox]').check();
+  await row.getByRole('textbox').fill('Mobile Hoopers');
+  await page.getByRole('button', { name: 'Continue to contact' }).click();
+  await page.getByRole('textbox', { name: 'Phone number' }).fill('9800000000');
+  await page.route(
+    '**/payment-request',
+    async (route) => {
+      await route.fulfill({ status: 503, json: { message: 'Temporary payment outage' } });
+    },
+    { times: 1 },
+  );
+  await page.getByRole('button', { name: 'Issue invoice' }).click();
+  await expect(page.getByText('Temporary payment outage')).toBeVisible();
+  await page.getByRole('button', { name: 'Issue invoice' }).click();
+  await expect(page.getByRole('heading', { name: 'Transfer 1000.00' })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  const oldId = new URL(page.url()).searchParams.get('order');
+  await context.request.post(`/__test/expire/${oldId}`, { headers: { origin: baseURL! } });
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Payment code expired' })).toBeVisible();
+  await page.getByRole('button', { name: 'Revise registration' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Where can we reach the captain?' }),
+  ).toBeVisible();
+  expect(new URL(page.url()).searchParams.get('order')).not.toBe(oldId);
+  await page.getByRole('button', { name: 'Edit teams' }).click();
+  await expect(page.getByRole('textbox', { name: 'Basketball team name' })).toHaveValue(
+    'Mobile Hoopers',
+  );
+  await page.getByRole('button', { name: 'Continue to contact' }).click();
+  await context.clearCookies();
+  await page.getByRole('button', { name: 'Issue invoice' }).click();
+  await expect(page.getByRole('link', { name: 'Sign in with Google' })).toBeVisible();
+});
+
+test('empty sports and expired captain sessions have usable screens', async ({ page, context }) => {
+  await page.route('**/sports', (route) => route.fulfill({ json: [] }));
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Corporate Championship' })).toBeVisible();
+  await expect(page.getByText('No sports are open for registration yet.').first()).toBeVisible();
+  await context.addCookies([
+    { name: 'session', value: 'expired-token', domain: 'localhost', path: '/' },
+  ]);
+  await page.goto('/register');
+  await expect(page.getByRole('link', { name: 'Sign in with Google' })).toBeVisible();
+});

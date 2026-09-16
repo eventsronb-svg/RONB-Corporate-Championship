@@ -6,10 +6,6 @@ import { type Database, one, type Row } from './db.js';
 import type { GoogleProvider } from './providers.js';
 import { assert } from './errors.js';
 export const hash = (s: string) => createHash('sha256').update(s).digest('hex');
-export const passwordAdminCredentials = {
-  username: 'DGszgsDwZBkf',
-  password: 'XKLMpYDnTcguRQdaAEtiLHnu',
-} as const;
 export type Actor = { id: string; kind: 'user' | 'admin'; role?: string };
 declare module 'fastify' {
   interface FastifyRequest {
@@ -60,6 +56,12 @@ export async function registerAuth(
     '/admin/auth/password',
     { config: { rateLimit: { max: 10, timeWindow: '15 minutes' } } },
     async (req, reply) => {
+      assert(
+        c.ADMIN_LOGIN_USERNAME && c.ADMIN_LOGIN_PASSWORD,
+        503,
+        'password_login_disabled',
+        'Password sign-in is not configured. Use Google sign-in.',
+      );
       const input = z
         .object({ username: z.string().min(1).max(200), password: z.string().min(1).max(200) })
         .strict()
@@ -67,20 +69,24 @@ export async function registerAuth(
       const valid =
         timingSafeEqual(
           Buffer.from(hash(input.username)),
-          Buffer.from(hash(passwordAdminCredentials.username)),
+          Buffer.from(hash(c.ADMIN_LOGIN_USERNAME)),
         ) &&
         timingSafeEqual(
           Buffer.from(hash(input.password)),
-          Buffer.from(hash(passwordAdminCredentials.password)),
+          Buffer.from(hash(c.ADMIN_LOGIN_PASSWORD)),
         );
       assert(valid, 401, 'invalid_credentials', 'Username or password is incorrect');
       const token = randomBytes(32).toString('base64url');
       const admin = await db.transaction(async (tx) => {
+        await tx.query(
+          `INSERT INTO admins(email,name,role,active) VALUES('password-admin@ronb.local','Password administrator','super_admin',true)
+           ON CONFLICT(email) DO NOTHING`,
+        );
         const person = await one(
           tx,
-          `INSERT INTO admins(email,name,role,active) VALUES('password-admin@ronb.local','Password administrator','super_admin',true)
-           ON CONFLICT(email) DO UPDATE SET name=EXCLUDED.name,role='super_admin',active=true RETURNING *`,
+          "SELECT * FROM admins WHERE email='password-admin@ronb.local' FOR UPDATE",
         );
+        assert(person?.active, 403, 'account_inactive', 'This organizer account is inactive');
         const oldToken = req.cookies.admin_session;
         if (oldToken) await tx.query('DELETE FROM sessions WHERE token_hash=$1', [hash(oldToken)]);
         await tx.query(

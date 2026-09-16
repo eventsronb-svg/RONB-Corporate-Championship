@@ -19,7 +19,15 @@ import {
   validateFile,
 } from './providers.js';
 import { auth, registerAuth } from './auth.js';
-import { Orders, teamSelection, profileInput, uuid, detail, paid } from './orders.js';
+import {
+  Orders,
+  teamSelection,
+  profileInput,
+  uuid,
+  detail,
+  paid,
+  reservedStates,
+} from './orders.js';
 import { registerAdmin } from './admin.js';
 import { assert, HttpError } from './errors.js';
 export async function buildApp(deps: {
@@ -62,7 +70,10 @@ export async function buildApp(deps: {
       },
     },
   });
-  await app.register(rateLimit, { max: 120, timeWindow: '1 minute' });
+  await app.register(rateLimit, {
+    max: c.NODE_ENV === 'test' ? 10000 : 120,
+    timeWindow: '1 minute',
+  });
   await app.register(multipart, {
     limits: { fileSize: 5 * 1024 * 1024, files: 1, fields: 1, parts: 2, fieldSize: 20000 },
   });
@@ -129,7 +140,13 @@ export async function buildApp(deps: {
   app.get('/event', async () => (await one(db, 'SELECT * FROM events WHERE active')) ?? null);
   app.get(
     '/sports',
-    async () => (await db.query('SELECT * FROM sports WHERE active ORDER BY name')).rows,
+    async () =>
+      (
+        await db.query(
+          `SELECT s.*, (SELECT count(*)::int FROM order_items i JOIN orders o ON o.id=i.order_id WHERE i.sport_id=s.id AND o.status=ANY($1::text[])) AS filled_slots FROM sports s WHERE active ORDER BY name`,
+          [reservedStates],
+        )
+      ).rows,
   );
   app.get('/teams', async (req) => {
     const q = z
@@ -350,7 +367,7 @@ async function servePublicFile(req: IncomingMessage, res: ServerResponse): Promi
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader(
     'Cache-Control',
-    extension === '.html'
+    ['.html', '.js', '.css', '.json'].includes(extension)
       ? 'public, max-age=0, must-revalidate'
       : 'public, max-age=31536000, immutable',
   );

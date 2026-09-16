@@ -5,7 +5,15 @@ import { type Database, one } from './db.js';
 import type { Config } from './config.js';
 import type { Storage } from './providers.js';
 import { assert } from './errors.js';
-import { audit, detail, transition, queueEmail, uuid } from './orders.js';
+import {
+  audit,
+  detail,
+  transition,
+  queueEmail,
+  uuid,
+  ensureCapacity,
+  reservedStates,
+} from './orders.js';
 const text = z.string().trim().min(1).max(2000);
 const price = z
   .union([
@@ -24,6 +32,7 @@ const sportBody = z
     price,
     description: z.string().max(5000).optional(),
     active: z.boolean().optional(),
+    max_teams: z.number().int().positive().max(2147483647).nullable().optional(),
   })
   .strict();
 const eventBody = z
@@ -199,6 +208,7 @@ export async function registerAdmin(
               'no_receipt',
               'A receipt is required',
             );
+            if (decision === 'confirmed') await ensureCapacity(tx, id);
             await tx.query(
               'INSERT INTO payment_verifications(order_id,admin_id,decision,notes) VALUES($1,$2,$3,$4)',
               [id, adminId, decision, notes],
@@ -267,8 +277,8 @@ export async function registerAdmin(
     const result = await db.transaction(async (tx) => {
       const s = (await one(
         tx,
-        'INSERT INTO sports(name,price,description,active) VALUES($1,$2,$3,$4) RETURNING *',
-        [b.name, b.price, b.description ?? '', b.active ?? true],
+        'INSERT INTO sports(name,price,description,active,max_teams) VALUES($1,$2,$3,$4,$5) RETURNING *',
+        [b.name, b.price, b.description ?? '', b.active ?? true, b.max_teams ?? null],
       ))!;
       await audit(tx, req.actor!.id, 'sport.create', 'sport', s.id, b);
       return s;
@@ -293,10 +303,23 @@ export async function registerAdmin(
           const before = await one(tx, 'SELECT * FROM sports WHERE id=$1 FOR UPDATE', [id]);
           assert(before, 404, 'not_found', 'Sport not found');
           const merged = { ...before, ...b };
+          if (merged.max_teams != null) {
+            const used = await one(
+              tx,
+              'SELECT count(*)::int AS count FROM order_items i JOIN orders o ON o.id=i.order_id WHERE i.sport_id=$1 AND o.status=ANY($2::text[])',
+              [id, reservedStates],
+            );
+            assert(
+              merged.max_teams >= used!.count,
+              409,
+              'capacity_in_use',
+              'Capacity cannot be lower than the number of reserved slots',
+            );
+          }
           const after = await one(
             tx,
-            'UPDATE sports SET name=$2,price=$3,description=$4,active=$5 WHERE id=$1 RETURNING *',
-            [id, merged.name, merged.price, merged.description, merged.active],
+            'UPDATE sports SET name=$2,price=$3,description=$4,active=$5,max_teams=$6 WHERE id=$1 RETURNING *',
+            [id, merged.name, merged.price, merged.description, merged.active, merged.max_teams],
           );
           await audit(
             tx,

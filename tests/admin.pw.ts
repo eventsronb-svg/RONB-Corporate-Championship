@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { passwordAdminCredentials } from '../src/auth.js';
+import { passwordAdminCredentials } from './credentials.js';
 test('shows the organizer login on desktop and mobile', async ({ page }) => {
   await page.goto('/admin');
   await expect(page.getByRole('heading', { name: 'A good event starts here.' })).toBeVisible();
@@ -62,8 +62,15 @@ test('reviews an order, changes settings, and manages organizer access', async (
     .locator('.sport-form')
     .filter({ has: page.locator('input[value="Cricket"]') });
   await cricket.getByRole('spinbutton', { name: 'Registration price' }).fill('1800.50');
+  await cricket.getByRole('spinbutton', { name: 'Team capacity (blank for unlimited)' }).fill('20');
   await cricket.getByRole('button', { name: 'Save changes' }).click();
   await expect(page.getByRole('status')).toHaveText('Sport updated.');
+  await expect(
+    page
+      .locator('.sport-form')
+      .filter({ has: page.locator('input[value="Cricket"]') })
+      .getByRole('spinbutton', { name: 'Team capacity (blank for unlimited)' }),
+  ).toHaveValue('20');
   await expect(
     page
       .locator('.sport-form')

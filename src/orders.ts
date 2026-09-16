@@ -6,6 +6,36 @@ import type { Config } from './config.js';
 import { assert } from './errors.js';
 export const paid = ['confirmed', 'contacted', 'completed'];
 export const openSql = "status NOT IN ('completed','cancelled','expired','rejected')";
+export const reservedStates = [
+  'invoiced',
+  'payment_pending',
+  'receipt_submitted',
+  'under_review',
+  ...paid,
+];
+// A slot is reserved at invoicing; all contenders lock sport rows in the same order.
+export async function ensureCapacity(tx: Queryable, orderId: string) {
+  const sports = (
+    await tx.query(
+      'SELECT * FROM sports WHERE id IN (SELECT sport_id FROM order_items WHERE order_id=$1) ORDER BY id FOR UPDATE',
+      [orderId],
+    )
+  ).rows;
+  for (const sport of sports) {
+    if (sport.max_teams === null) continue;
+    const used = await one(
+      tx,
+      'SELECT count(*)::int AS count FROM order_items i JOIN orders o ON o.id=i.order_id WHERE i.sport_id=$1 AND o.id<>$2 AND o.status=ANY($3::text[])',
+      [sport.id, orderId, reservedStates],
+    );
+    assert(
+      used!.count < sport.max_teams,
+      409,
+      'sport_full',
+      `${sport.name} has no registration slots remaining. Contact the organizer or choose another sport.`,
+    );
+  }
+}
 export const uuid = z.string().uuid();
 export const teamSelection = z
   .object({
@@ -67,7 +97,7 @@ function resume(order: Row, items: Row[]) {
     return items.every((i) => i.profile_completed_at) ? 'registered' : 'team_profile';
   return (
     {
-      draft: 'sports',
+      draft: items.length ? 'contact' : 'sports',
       phone_captured: 'invoice',
       invoiced: 'payment',
       payment_pending: 'receipt',
@@ -225,6 +255,7 @@ export class Orders {
         'invalid_state',
         'Capture contact number before invoicing',
       );
+      await ensureCapacity(tx, id);
       const items = (
         await tx.query(
           'SELECT i.id,s.price,s.active FROM order_items i JOIN sports s ON s.id=i.sport_id WHERE order_id=$1 FOR SHARE OF s',
@@ -303,6 +334,7 @@ export class Orders {
           'Payment code expired; cancel and revise this order',
         );
       if (o.status === 'rejected') {
+        await ensureCapacity(tx, id);
         assert(
           !(await one(tx, `SELECT id FROM orders WHERE user_id=$1 AND ${openSql} AND id<>$2`, [
             userId,
@@ -321,7 +353,9 @@ export class Orders {
   async revise(userId: string, id: string) {
     return this.owned(userId, id, async (tx, o) => {
       assert(
-        !['completed', 'cancelled'].includes(o.status),
+        ['draft', 'phone_captured', 'invoiced', 'payment_pending', 'expired', 'rejected'].includes(
+          o.status,
+        ),
         409,
         'invalid_state',
         'This order cannot be revised',

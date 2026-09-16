@@ -8,6 +8,7 @@ export async function expireOrders(db: Database) {
       await tx.query(
         `SELECT o.* FROM orders o WHERE
    (o.status IN ('draft','phone_captured') AND o.invoiced_at IS NULL AND o.updated_at<=now()-interval '7 days')
+   OR (o.status='invoiced' AND o.invoiced_at<=now()-interval '1 day')
    OR (o.status='payment_pending' AND EXISTS(SELECT 1 FROM payment_requests p WHERE p.order_id=o.id AND p.expires_at<=now()) AND NOT EXISTS(SELECT 1 FROM receipts r WHERE r.order_id=o.id))
    ORDER BY o.id FOR UPDATE OF o SKIP LOCKED LIMIT 100`,
         [],

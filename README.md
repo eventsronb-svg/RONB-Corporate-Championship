@@ -28,7 +28,7 @@ Open **http://localhost:3000/admin**. The initial admin seed is deliberately one
 
 You can use an existing local PostgreSQL installation or a Neon branch instead of Docker. Set `DATABASE_URL` accordingly. Missing OAuth/storage/payment configuration returns a clear `503` when that integration is used. Production startup requires every integration setting.
 
-The public registration frontend is an API consumer, not included in this backend project. `/` is a small service index; `/event`, `/sports`, `/teams`, and the captain endpoints provide its data.
+The public championship site is served at `/` and the captain registration flow at `/register`. Sports, prices, capacities, team listings, and registration state come from the API and PostgreSQL.
 
 ## Test
 
@@ -38,15 +38,24 @@ No service credentials are needed. Tests never send real email, invoke a bank, o
 npm run check            # Type checking, integration tests using PGlite, production build
 npm run test:postgres    # Same tests on a temporary native PostgreSQL server; cleaned up afterward
 npx playwright install chromium
-npm run test:browser     # Real Chromium tests of the admin panel at desktop/mobile sizes
+npm run test:browser     # Chromium captain and admin journeys, including desktop/mobile
 npm run check:all        # All of the above checks (after Chromium is installed)
 ```
 
 PGlite runs PostgreSQL compiled to WebAssembly; it is not used in production. The native suite tests actual concurrent connections, row locks, unique constraints, and worker claims. Native PostgreSQL tests can also use a provided `TEST_DATABASE_URL`. **That database is cleared between tests and its name must end in `_test`. Never use a database containing data you want to retain.** CI uses a disposable PostgreSQL 17 service.
 
-Browser tests start a separate local fixture server, seed registrations, and inject test-only session records. These helpers exist only in `tests/` and are excluded from the production build. The tests exercise login presentation, receipt review, confirmation/contact actions, sports prices, event editing, invitations, captain search, role-specific navigation, and mobile overflow. Screenshots and failure traces go to `test-results/`.
+Browser tests start a separate local fixture server, seed registrations, and inject test-only session records. These helpers exist only in `tests/` and are excluded from the production build. The tests exercise login presentation, receipt review, confirmation/contact actions, sports prices, event editing, invitations, captain search, role-specific navigation, and mobile overflow. They also complete a two-sport captain registration through the real OAuth callback with a test Google provider, reject and resubmit receipts, complete both team profiles, deliver the confirmation through a test mailer, and verify public publication. Recovery covers expired payments, expired sessions, payment-service errors, refreshes, and empty sports. Screenshots and failure traces go to `test-results/`. Set `PLAYWRIGHT_PORT=3001` if your development server occupies port 3000. The fixture raises only the global request limit for fast browser runs; production and password-login limits remain enforced.
 
 ## Configure services
+
+### Organizer password sign-in
+
+Password sign-in is optional. Set both `ADMIN_LOGIN_USERNAME` and a fresh random `ADMIN_LOGIN_PASSWORD` (at least 16 characters), or leave both empty to disable it and use allowlisted Google accounts. Credentials previously embedded in source must be replaced, including on Vercel. Existing password-admin accounts retain their current role and active state; logging in never promotes or reactivates them. When rotating the formerly embedded credentials, revoke old password-admin sessions:
+
+```sql
+DELETE FROM sessions WHERE admin_id IN
+  (SELECT id FROM admins WHERE email = 'password-admin@ronb.local');
+```
 
 ### Google sign-in
 
@@ -114,7 +123,8 @@ Expected failures return `{ "error": "code", "message": "..." }`; validation err
 - Prices are refreshed from active sports **when invoicing**, then the total, invoice timestamp, purchased prices, sports, and team names become immutable through database triggers. Revisions create a new order with current prices.
 - Selecting sports uses full replacement. Duplicate sports, blank team names, and inactive sports are rejected. Selections remain editable in `phone_captured` until invoicing.
 - `GET /orders/current` returns an open order first; if none exists, it returns the latest rejected order so its captain can re-upload. Creating a new draft is allowed after rejection; re-uploading the older order then returns `409` until the newer open order is resolved.
-- `cancel-and-revise` also accepts expired and rejected orders so captains can recover from expiry. It preserves names/contact information and copies only active sports. Logos, rosters, and completion flags start fresh. Completed or already-cancelled orders cannot be revised.
+- `cancel-and-revise` also accepts expired and rejected orders so captains can recover from expiry. It preserves names/contact information and copies only active sports. Logos, rosters, and completion flags start fresh. Orders with submitted or confirmed payments, completed orders, and already-cancelled orders cannot be revised by captains; organizers handle cancellation of those orders.
+- Sport capacity is reserved when invoicing, using ordered sport-row locks to prevent concurrent overbooking. `/sports` exposes `filled_slots`; only the selected public sport tab shows its filled/total count. Rejection, cancellation, and expiry release reservations. Resubmitting a rejected receipt must reacquire a slot. Admins can edit capacity, but cannot reduce it below current reservations. Blank capacity means unlimited.
 - A payment request is idempotent and its code is never renewed in place. Expired unpaid codes require revision. A rejected receipt can be resubmitted even after the original code expiry because a transfer is already under dispute.
 - A profile requires a logo and at least one nonblank player (maximum 100); no sport-specific roster size was supplied. Roster order is preserved. Profiles can be edited after completion without duplicating confirmation; updates must retain a valid roster/logo.
 - Public teams require status `confirmed`, `contacted`, or `completed` **and** that item's completion timestamp. Publication does not require all other teams on the same order to finish. It does not expose captain contact or payment information.
@@ -122,7 +132,7 @@ Expected failures return `{ "error": "code", "message": "..." }`; validation err
 - Added `/admin/orders/:id/review` and `/complete` to make the specified `under_review` and `completed` states reachable. Super admins can cancel any order; staff can request manual resends. Cancellation notes live in the audit log, with `admin_rejected` as the schema's admin-cancellation category.
 - Organizer “invite” means adding an email to the allowlist. No invitation email is sent. The last active super admin cannot be demoted or deactivated, even through concurrent requests.
 - Mutating admin actions, including login/logout, are audited transactionally. Opening details is read-only; starting review is an explicit action.
-- The worker checks expiry once a minute, in batches of 100. It leaves receipt-submitted/reviewed and already-invoiced amounts untouched. Only uninvoiced drafts/phone-captured orders idle seven days and unpaid, expired payment requests are expired.
+- The worker checks expiry once a minute, in batches of 100. It leaves receipt-submitted/reviewed and already-invoiced amounts untouched. It expires uninvoiced drafts/phone-captured orders idle seven days, invoices without a payment request after one day, and unpaid expired payment requests.
 
 ## Production deployment
 
@@ -135,7 +145,7 @@ npm start
 node --env-file-if-exists=.env dist/worker-main.js
 ```
 
-The API and worker share `DATABASE_URL` and service configuration. Run migrations before starting either. The API health endpoint is `/health`; it checks database connectivity. Run the worker as a persistent supervised process, not inside a short-lived request handler. If using a serverless API host, deploy the worker separately. Both processes shut down on SIGINT/SIGTERM.
+The API and worker share `DATABASE_URL` and service configuration. Run migrations before starting either. The API health endpoint is `/health`; it checks database connectivity. Run the worker as a persistent supervised process, not inside a short-lived request handler. If using a serverless API host, deploy the worker separately. Both processes shut down on SIGINT/SIGTERM. The checked-in Vercel configuration deploys the API only; it does not start the email/expiry worker. Without a separately running worker, confirmations remain queued and stale reservations are not released. Automated tests use isolated provider fixtures, so deployed Google OAuth, private storage access, a real payment QR, and Resend delivery still need a controlled production smoke test.
 
 A production Dockerfile is included:
 

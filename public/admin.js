@@ -78,6 +78,8 @@ function bindForm(selector, fn) {
   document.querySelectorAll(selector).forEach((form) =>
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
+      if (form.dataset.submitting) return;
+      form.dataset.submitting = 'true';
       const buttons = [...form.querySelectorAll('button')];
       buttons.forEach((b) => (b.disabled = true));
       notice.hidden = true;
@@ -86,6 +88,7 @@ function bindForm(selector, fn) {
       } catch (err) {
         message(err.message, true);
       } finally {
+        delete form.dataset.submitting;
         buttons.forEach((b) => (b.disabled = false));
       }
     }),
@@ -102,6 +105,11 @@ function login() {
     location.hash = '#orders';
     await render();
   });
+  const google = document.createElement('a');
+  google.className = 'button';
+  google.href = '/admin/auth/google';
+  google.textContent = 'Sign in with Google';
+  document.querySelector('#password-login').after(google);
 }
 function navigation() {
   const links = [
@@ -221,7 +229,7 @@ async function orderDetail(id) {
 async function sportsView() {
   const sports = await api('/admin/sports');
   const sportForm = (s, isNew = false) =>
-    `<form class="surface sport-form" data-id="${e(s.id || '')}"><div class="form-grid">${field('Sport name', 'name', s.name, 'text', 'required maxlength="120"')}${field('Registration price', 'price', s.price, 'number', 'required min="0" step="0.01" max="9999999999.99"')}<label class="full">Description<textarea name="description" maxlength="5000">${e(s.description)}</textarea></label><label class="check"><input name="active" type="checkbox" ${isNew || s.active ? 'checked' : ''}> Open for registration</label></div><div class="form-footer"><button class="primary">${isNew ? 'Add sport' : 'Save changes'}</button><p class="form-note">${isNew ? 'Set the price before opening registration.' : 'New prices apply to future invoices.'}</p></div></form>`;
+    `<form class="surface sport-form" data-id="${e(s.id || '')}"><div class="form-grid">${field('Sport name', 'name', s.name, 'text', 'required maxlength="120"')}${field('Registration price', 'price', s.price, 'number', 'required min="0" step="0.01" max="9999999999.99"')}${field('Team capacity (blank for unlimited)', 'max_teams', s.max_teams ?? '', 'number', 'min="1" step="1"')}<label class="full">Description<textarea name="description" maxlength="5000">${e(s.description)}</textarea></label><label class="check"><input name="active" type="checkbox" ${isNew || s.active ? 'checked' : ''}> Open for registration</label></div><div class="form-footer"><button class="primary">${isNew ? 'Add sport' : 'Save changes'}</button><p class="form-note">${isNew ? 'Set the price before opening registration.' : 'New prices apply to future invoices.'}</p></div></form>`;
   return {
     html: `${header('Sports & pricing', 'Set registration prices and control which sports are open.', 'EVENT SETTINGS')}<div class="edit-list">${sports.map((s) => sportForm(s)).join('')}</div><h2 class="section-title section-gap">Add a sport</h2><div class="edit-list">${sportForm({}, true)}</div>`,
     bind() {
@@ -229,7 +237,11 @@ async function sportsView() {
         const id = form.dataset.id;
         await api(id ? `/admin/sports/${id}` : '/admin/sports', {
           method: id ? 'PATCH' : 'POST',
-          body: JSON.stringify({ ...b, active: b.active === 'on' }),
+          body: JSON.stringify({
+            ...b,
+            active: b.active === 'on',
+            max_teams: b.max_teams ? Number(b.max_teams) : null,
+          }),
         });
         await render();
         message(id ? 'Sport updated.' : 'Sport added.');
@@ -298,7 +310,11 @@ async function adminsView() {
       bindForm('.organizer-form', async (b, form) => {
         await api(`/admin/admins/${form.dataset.id}`, {
           method: 'PATCH',
-          body: JSON.stringify({ ...b, active: b.active === 'on' }),
+          body: JSON.stringify({
+            ...b,
+            active: b.active === 'on',
+            max_teams: b.max_teams ? Number(b.max_teams) : null,
+          }),
         });
         me = await api('/admin/me');
         navigation();
