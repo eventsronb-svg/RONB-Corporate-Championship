@@ -182,8 +182,7 @@ export async function registerAuth(
         };
       });
       reply.setCookie(sessionCookie, token, { ...cookieOptions, maxAge: 604800 });
-      if (req.method === 'GET')
-        return reply.redirect(kind === 'admin' ? '/admin' : '/orders/current');
+      if (req.method === 'GET') return reply.redirect(kind === 'admin' ? '/admin' : '/register');
       return { [kind]: result };
     };
     app.get(`${prefix}/google/callback`, callback);

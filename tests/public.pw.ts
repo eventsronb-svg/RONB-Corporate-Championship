@@ -18,17 +18,20 @@ test('renders the championship landing page with its event facts and public inte
     'src',
     'https://www.google.com/maps?cid=11101494050681135632&output=embed',
   );
-  await expect(page.getByRole('tab', { name: 'Futsal' })).toHaveAttribute('aria-selected', 'true');
-  await page.getByRole('tab', { name: 'Basketball' }).click();
   await expect(page.getByRole('tab', { name: 'Basketball' })).toHaveAttribute(
     'aria-selected',
     'true',
   );
+  await page.getByRole('tab', { name: 'Football' }).click();
+  await expect(page.getByRole('tab', { name: 'Football' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
   await page
-    .getByRole('link', { name: /Futsal/ })
+    .getByRole('link', { name: /Football/ })
     .first()
     .click();
-  await expect(page).toHaveURL(/\/register\?focus=futsal/);
+  await expect(page).toHaveURL(/\/register\?focus=football/);
   await expect(page.getByRole('link', { name: /Sign in with Google/ })).toBeVisible();
   expect(errors).toEqual([]);
 });
@@ -44,7 +47,7 @@ test('reflows the championship page on a narrow screen', async ({ page }) => {
 
 test('reveals sections as the visitor scrolls', async ({ page }) => {
   await page.goto('/');
-  const sport = page.getByRole('link', { name: /Futsal/ }).first();
+  const sport = page.getByRole('link', { name: /Football/ }).first();
   await expect(sport).toHaveClass(/reveal/);
   await sport.scrollIntoViewIfNeeded();
   await expect(sport).toHaveClass(/revealed/);
@@ -56,24 +59,21 @@ test('supports keyboard tabs and reduced motion with a dark system preference', 
 }) => {
   await page.emulateMedia({ reducedMotion: 'reduce', colorScheme: 'dark' });
   await page.goto('/');
-  const first = page.getByRole('tab', { name: 'Futsal' });
+  const first = page.getByRole('tab', { name: 'Basketball' });
   await first.focus();
   await page.keyboard.press('ArrowRight');
-  await expect(page.getByRole('tab', { name: 'Cricksul' })).toBeFocused();
-  await expect(page.getByRole('tab', { name: 'Cricksul' })).toHaveAttribute(
-    'aria-selected',
-    'true',
-  );
-  await expect(page.getByRole('tabpanel')).toHaveAttribute('aria-labelledby', 'tab-cricksul');
+  await expect(page.getByRole('tab', { name: 'Cricket' })).toBeFocused();
+  await expect(page.getByRole('tab', { name: 'Cricket' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tabpanel')).toHaveAttribute('aria-labelledby', 'tab-cricket');
   await page.keyboard.press('End');
-  await expect(page.getByRole('tab', { name: 'Basketball' })).toBeFocused();
+  await expect(page.getByRole('tab', { name: 'Football' })).toBeFocused();
   await expect(page.getByRole('heading', { name: 'Meet the teams' })).toBeVisible();
   expect(
     await page.locator('.hero-copy').evaluate((el) => getComputedStyle(el).animationName),
   ).toBe('none');
   expect(
     await page
-      .getByRole('link', { name: /Futsal/ })
+      .getByRole('link', { name: /Football/ })
       .first()
       .evaluate((el) => el.classList.contains('reveal')),
   ).toBe(false);

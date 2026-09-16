@@ -356,7 +356,7 @@ describe('background jobs', () => {
   });
   it('applies migrations idempotently', async () => {
     await migrate(h.db);
-    expect((await h.db.query('SELECT * FROM schema_migrations')).rows).toHaveLength(1);
+    expect((await h.db.query('SELECT * FROM schema_migrations')).rows).toHaveLength(2);
   });
 });
 describe('Google OAuth sessions', () => {
@@ -414,6 +414,14 @@ describe('Google OAuth sessions', () => {
         })
       ).statusCode,
     ).toBe(401);
+    const browser = await start();
+    const redirect = await h.app.inject({
+      url: `${browser.prefix}/google/callback?code=valid&state=${browser.state}`,
+      headers: { cookie: browser.cookie },
+    });
+    expect(redirect.statusCode).toBe(302);
+    expect(redirect.headers.location).toBe('/register');
+    expect(redirect.cookies.some((c) => c.name === 'session' && c.httpOnly)).toBe(true);
   });
   it('refuses uninvited admin accounts without creating a regular user', async () => {
     const s = await start('admin');

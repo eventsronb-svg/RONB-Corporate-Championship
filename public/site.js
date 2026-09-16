@@ -38,6 +38,12 @@ const say = (message) => {
   }, 4200);
 };
 const displayDate = () => 'October 1-4, 2026';
+const slugify = (value) =>
+  String(value)
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
 const e = (title, body) =>
   `<div class="error-view"><p class="eyebrow">System notice</p><h1>${esc(title)}</h1><p>${esc(body)}</p><a class="button primary" href="/">Return home</a></div>`;
 
@@ -45,6 +51,7 @@ async function load() {
   const response = await fetch('/assets/championship.json');
   if (!response.ok) throw new Error('Event information is unavailable.');
   data = await response.json();
+  data.sports = (await api('/sports')).map((sport) => ({ ...sport, slug: slugify(sport.name) }));
 }
 function sectionHeader(eyebrow, title, copy) {
   return `<div class="section-header"><div>${eyebrow ? `<p class="eyebrow">${esc(eyebrow)}</p>` : ''}<h2 class="section-title">${esc(title)}</h2></div><p class="section-intro">${esc(copy)}</p></div>`;
@@ -63,9 +70,9 @@ function home() {
       </div>
     </section>
     <div class="event-strip"><div><span>Save the dates</span><strong>October 1-4, 2026</strong></div><div><span>Meet us at</span><strong>Royal Sports Park, Chunikhel</strong></div><div><span>TEAM UP & TURN UP</span><strong>Ready to Bring the Heat?</strong></div></div>
-    <section class="section" id="sports">${sectionHeader('A game for your team', 'Good colleagues. Great teammates.', 'Pick your sport, rally your people, and give the office something new to talk about.')}<div class="sport-grid">${data.sports.map((sport) => `<a class="sport sport-${sport.slug}" href="/register?focus=${encodeURIComponent(sport.slug)}"><div class="sport-top"><span class="sport-format">${esc(sport.format)}</span></div><h3>${esc(sport.name)}</h3><p>${esc(sport.description)}</p><span class="sport-link">Let's play</span>${sport.slug === 'crickshal' ? '<img class="sport-symbol" src="/assets/images/crick.png" alt="" />' : `<span class="sport-symbol" aria-hidden="true">${sportSymbols[sport.slug]}</span>`}</a>`).join('')}</div><p class="section-note">Registration fees and available places are shown when you sign in.</p></section>
+    <section class="section" id="sports">${sectionHeader('A game for your team', 'Good colleagues. Great teammates.', 'Pick your sport, rally your people, and give the office something new to talk about.')}<div class="sport-grid">${data.sports.map((sport) => `<a class="sport sport-${sport.slug}" href="/register?focus=${encodeURIComponent(sport.slug)}"><div class="sport-top"><span class="sport-format">Open for registration</span></div><h3>${esc(sport.name)}</h3>${sport.description ? `<p>${esc(sport.description)}</p>` : ''}<span class="sport-link">Let's play</span>${sport.slug === 'crickshal' ? '<img class="sport-symbol" src="/assets/images/crick.png" alt="" />' : `<span class="sport-symbol" aria-hidden="true">${sportSymbols[sport.slug] || '🏆'}</span>`}</a>`).join('')}</div><p class="section-note">Registration fees and available places are shown when you sign in.</p></section>
     <section class="team-story section"><p class="eyebrow">Better together</p><h2>A different kind<br>of team meeting.</h2><p>Swap the meeting room for the court. Cheer for your colleagues, meet other company teams, and make memories beyond the workday.</p><a class="button" href="/register">Make your company part of it</a></section>
-    <section class="section" id="teams">${sectionHeader('', 'Meet the teams', 'Your next friendly rivals. Confirmed teams appear here once their captain completes the team profile.')}<div class="teams-shell"><div class="team-tabs" role="tablist" aria-label="Team sports">${data.sports.map((sport, index) => `<button role="tab" id="tab-${sport.slug}" aria-controls="teams-panel" aria-selected="${index === 0}" tabindex="${index === 0 ? 0 : -1}" data-sport="${esc(sport.name)}" data-slug="${sport.slug}" data-max="${sport.maxTeams}">${esc(sport.name)}<span class="team-count">–/${sport.maxTeams}</span></button>`).join('')}</div><div class="team-list" id="teams-panel" role="tabpanel" aria-labelledby="tab-futsal" aria-live="polite"><p class="teams-state">Loading confirmed teams…</p></div></div></section>
+    <section class="section" id="teams">${sectionHeader('', 'Meet the teams', 'Your next friendly rivals. Confirmed teams appear here once their captain completes the team profile.')}<div class="teams-shell"><div class="team-tabs" role="tablist" aria-label="Team sports">${data.sports.map((sport, index) => `<button role="tab" id="tab-${sport.slug}" aria-label="${esc(sport.name)}" aria-controls="teams-panel" aria-selected="${index === 0}" tabindex="${index === 0 ? 0 : -1}" data-sport="${esc(sport.name)}" data-slug="${sport.slug}" ${sport.max_teams ? `data-max="${sport.max_teams}"` : ''}>${esc(sport.name)}</button>`).join('')}</div><div class="team-list" id="teams-panel" role="tabpanel" aria-labelledby="tab-${data.sports[0]?.slug || ''}" aria-live="polite"><p class="teams-state">Loading confirmed teams…</p></div></div></section>
     <section class="section venue-section" id="venue"><img class="venue-date" src="/assets/images/calendar.png" alt="See you in October 01 to 04 2026 · Chunikhel, Kathmandu" width="1536" height="1024" /><div class="venue-copy"><p class="eyebrow">Room to play. Reasons to stay.</p><h2>${esc(data.venue)}</h2><p>Four days of team spirit at ${esc(data.locality)}. Get your colleagues together and meet us on the court.</p><a class="button primary" href="${esc(data.maps_url)}" target="_blank" rel="noreferrer">Open directions</a></div><div class="venue-map"><iframe title="Royal Sports Park location on Google Maps" src="${esc(data.maps_embed_url)}" loading="lazy" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe><p>Royal Sports Park, Chunikhel · <a href="${esc(data.maps_url)}" target="_blank" rel="noreferrer">View larger map and directions ↗</a></p></div></section>
     <section class="section faq-section" id="faq">${sectionHeader('A little pre-game prep', 'Good questions', 'Everything you need to get your team started.')}<div class="faq"><details><summary>Can a company enter more than one sport?</summary><p>Yes. A captain can select every available sport in one registration, then supply a separate team name and profile for each sport.</p></details><details><summary>When does a team show publicly?</summary><p>After payment is confirmed by the organizer and the captain completes the logo and roster for that sport.</p></details><details><summary>How does payment work?</summary><p>Your registration includes the exact amount, a payment code, and instructions. Upload your receipt after transfer. An organizer verifies it before team profiles unlock.</p></details><details><summary>Where can I get directions?</summary><p>Use the Royal Sports Park directions link above. It opens the organizer-provided Google Maps location.</p></details></div></section>
     <section class="closing section"><p class="eyebrow">The best teams play together</p><h2>Bring your people.<br>We'll bring the occasion.</h2><a class="button primary" href="/register">Register your team</a></section>`;
@@ -114,11 +121,17 @@ async function teamList(name) {
       return;
     }
     const teams = await api(`/teams?sport_id=${encodeURIComponent(selected.id)}`);
+    if (requestId !== teamRequest) return;
     const tab = [...document.querySelectorAll('[role=tab]')].find(
       (candidate) => candidate.dataset.sport.toLowerCase() === name.toLowerCase(),
     );
-    if (tab?.dataset.max)
-      tab.querySelector('.team-count').textContent = `${teams.length}/${tab.dataset.max}`;
+    if (tab?.dataset.max) {
+      const count = tab.querySelector('.team-count') || document.createElement('span');
+      count.className = 'team-count';
+      count.setAttribute('aria-hidden', 'true');
+      count.textContent = `${teams.length}/${tab.dataset.max}`;
+      if (!count.parentElement) tab.append(count);
+    }
     await swap(
       teams.length
         ? teams
@@ -147,6 +160,7 @@ function bindTeamTabs() {
       document.querySelectorAll('[role=tab]').forEach((item) => {
         item.setAttribute('aria-selected', String(item === tab));
         item.tabIndex = item === tab ? 0 : -1;
+        if (item !== tab) item.querySelector('.team-count')?.remove();
       });
       document.querySelector('#teams-panel').setAttribute('aria-labelledby', tab.id);
       setSportColor(tab);
