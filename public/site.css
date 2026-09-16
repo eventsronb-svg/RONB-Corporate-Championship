@@ -35,14 +35,6 @@ body {
   margin: 0;
   min-width: 320px;
   background-color: var(--paper);
-  background-image:
-    radial-gradient(circle at 18% 16%, rgb(255 224 114 / 0.1) 0 1px, transparent 1.5px),
-    radial-gradient(circle at 74% 68%, rgb(255 255 255 / 0.07) 0 1px, transparent 1.5px),
-    linear-gradient(120deg, rgb(73 8 17 / 0.16), transparent 44%, rgb(255 215 92 / 0.07));
-  background-size:
-    11px 11px,
-    17px 17px,
-    auto;
 }
 a {
   color: inherit;
