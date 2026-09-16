@@ -32,9 +32,10 @@ export async function setup() {
     };
   }
   await migrate(db);
+  const appOrigin = process.env.TEST_APP_ORIGIN ?? 'http://localhost:3000';
   const c = config({
     NODE_ENV: 'test',
-    APP_ORIGIN: 'http://localhost:3000',
+    APP_ORIGIN: appOrigin,
     DATABASE_URL: 'test',
     COOKIE_SECRET: 'a'.repeat(32),
     PAYMENT_QR_TEMPLATE: 'merchant-test://pay?amount={amount}&remarks={code}',
