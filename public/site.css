@@ -723,6 +723,27 @@ h2 {
   width: 20px;
   height: 20px;
 }
+.sport-choice-label {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 48px;
+  align-items: center;
+  gap: 16px;
+  cursor: pointer;
+}
+.sport-choice .sport-choice-copy,
+.sport-choice-copy > span {
+  margin-bottom: 0;
+}
+.sport-choice .sport-choice-icon {
+  width: 48px;
+  height: 48px;
+  margin: 0;
+  object-fit: contain;
+  font-size: 42px;
+  line-height: 48px;
+  text-align: center;
+  pointer-events: none;
+}
 .info-box {
   padding: 20px;
   background: var(--tint);

@@ -29,13 +29,15 @@ it('accepts exactly one of two simultaneous verification decisions', async () =>
 it('serializes invoice creation with sport edits without mixing the invoice and selections', async () => {
   const o = (await h.call('POST', '/orders/draft')).json();
   await h.call('PATCH', `/orders/${o.id}/sports`, {
-    sports: [{ sport_id: h.sports[0].id, team_name: 'Valley XI' }],
+    company_name: 'Valley XI',
+    sports: [{ sport_id: h.sports[0].id }],
   });
   await h.call('POST', `/orders/${o.id}/phone`, { phone_number: '9800000000' });
   const [invoice, edit] = await Promise.all([
     h.call('POST', `/orders/${o.id}/invoice`),
     h.call('PATCH', `/orders/${o.id}/sports`, {
-      sports: [{ sport_id: h.sports[1].id, team_name: 'United' }],
+      company_name: 'United',
+      sports: [{ sport_id: h.sports[1].id }],
     }),
   ]);
   expect(invoice.statusCode).toBe(200);

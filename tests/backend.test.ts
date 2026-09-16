@@ -67,7 +67,8 @@ describe('registration and publication', () => {
     expect(
       (
         await h.call('PATCH', `/orders/${o.id}/sports`, {
-          sports: [{ sport_id: h.sports[0].id, team_name: 'Changed' }],
+          company_name: 'Changed',
+          sports: [{ sport_id: h.sports[0].id }],
         })
       ).statusCode,
     ).toBe(409);
@@ -92,7 +93,8 @@ describe('registration and publication', () => {
   it('takes current prices at invoice time and refuses inactive sports', async () => {
     const o = (await h.call('POST', '/orders/draft')).json();
     await h.call('PATCH', `/orders/${o.id}/sports`, {
-      sports: [{ sport_id: h.sports[0].id, team_name: 'Valley XI' }],
+      company_name: 'Valley XI',
+      sports: [{ sport_id: h.sports[0].id }],
     });
     await h.call('POST', `/orders/${o.id}/phone`, { phone_number: '9800000000' });
     await h.call('PATCH', `/admin/sports/${h.sports[0].id}`, { price: '999.99' }, 'admin');
@@ -103,7 +105,8 @@ describe('registration and publication', () => {
     expect(
       (
         await h.call('PATCH', `/orders/${next.id}/sports`, {
-          sports: [{ sport_id: h.sports[0].id, team_name: 'Valley XI' }],
+          company_name: 'Valley XI',
+          sports: [{ sport_id: h.sports[0].id }],
         })
       ).statusCode,
     ).toBe(400);
@@ -212,9 +215,14 @@ describe('authorization and validation', () => {
       (await h.call('POST', '/admin/sports', { name: 'Tennis', price: -1 }, 'admin')).statusCode,
     ).toBe(400);
     const o = (await h.call('POST', '/orders/draft')).json();
-    const same = { sport_id: h.sports[0].id, team_name: 'Valley' };
+    const same = { sport_id: h.sports[0].id };
     expect(
-      (await h.call('PATCH', `/orders/${o.id}/sports`, { sports: [same, same] })).statusCode,
+      (
+        await h.call('PATCH', `/orders/${o.id}/sports`, {
+          company_name: 'Valley',
+          sports: [same, same],
+        })
+      ).statusCode,
     ).toBe(400);
     expect((await h.call('POST', `/orders/${o.id}/invoice`)).statusCode).toBe(409);
     const submitted = await h.submit();

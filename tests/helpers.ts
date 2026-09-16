@@ -158,9 +158,9 @@ export async function setup() {
     const draft = await call('POST', '/orders/draft');
     const id = draft.json().id;
     const selection = await call('PATCH', `/orders/${id}/sports`, {
-      sports: sports.slice(0, count).map((s, i) => ({
+      company_name: 'Valley Strikers',
+      sports: sports.slice(0, count).map((s) => ({
         sport_id: s.id,
-        team_name: ['Valley Strikers', 'Kathmandu United', 'Himalayan Hoopers'][i],
       })),
     });
     if (selection.statusCode !== 200) throw new Error(selection.body);

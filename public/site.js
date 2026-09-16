@@ -46,6 +46,8 @@ const say = (message) => {
   }, 4200);
 };
 const displayDate = () => 'October 1-4, 2026';
+const money = (value) =>
+  `${Number(value).toLocaleString('en-US', { minimumFractionDigits: Number.isInteger(Number(value)) ? 0 : 2, maximumFractionDigits: 2 })} NPR`;
 const slugify = (value) =>
   String(value)
     .toLowerCase()
@@ -65,9 +67,15 @@ async function load() {
 function sectionHeader(eyebrow, title, copy) {
   return `<div class="section-header"><div>${eyebrow ? `<p class="eyebrow">${esc(eyebrow)}</p>` : ''}<h2 class="section-title">${esc(title)}</h2></div><p class="section-intro">${esc(copy)}</p></div>`;
 }
+function sportIcon(sport, className = 'sport-symbol') {
+  const slug = sport.slug || slugify(sport.name);
+  if (slug === 'crickshal')
+    return `<img class="${className}" src="/assets/images/crick.png" alt="" aria-hidden="true" />`;
+  const symbols = { futsal: '⚽', basketball: '🏀' };
+  return `<span class="${className}" aria-hidden="true">${symbols[slug] || '🏆'}</span>`;
+}
 function home() {
   document.title = `${data.title} ${data.edition}`;
-  const sportSymbols = { futsal: '⚽', basketball: '🏀' };
   main.innerHTML = `
     <section class="hero" aria-labelledby="hero-title">
       <div class="hero-copy">
@@ -79,11 +87,11 @@ function home() {
       </div>
     </section>
     <div class="event-strip"><div><span>Save the dates</span><strong>October 1-4, 2026</strong></div><div><span>Meet us at</span><strong>Royal Sports Park, Chunikhel</strong></div><div><span>TEAM UP & TURN UP</span><strong>Ready to Bring the Heat?</strong></div></div>
-    <section class="section" id="sports">${sectionHeader('A game for your team', 'Good colleagues. Great teammates.', 'Pick your sport, rally your people, and give the office something new to talk about.')}<div class="sport-grid">${data.sports.map((sport) => `<a class="sport sport-${sport.slug}" href="/register?focus=${encodeURIComponent(sport.slug)}"><div class="sport-top"><span class="sport-format">Open for registration</span></div><h3>${esc(sport.name)}</h3>${sport.description ? `<p>${esc(sport.description)}</p>` : ''}<span class="sport-link">Let's play</span>${sport.slug === 'crickshal' ? '<img class="sport-symbol" src="/assets/images/crick.png" alt="" />' : `<span class="sport-symbol" aria-hidden="true">${sportSymbols[sport.slug] || '🏆'}</span>`}</a>`).join('')}</div><p class="section-note">Registration fees and available places are shown when you sign in.</p></section>
+    <section class="section" id="sports">${sectionHeader('A game for your team', 'Good colleagues. Great teammates.', 'Pick your sport, rally your people, and give the office something new to talk about.')}<div class="sport-grid">${data.sports.map((sport) => `<a class="sport sport-${sport.slug}" href="/register?focus=${encodeURIComponent(sport.slug)}"><div class="sport-top"><span class="sport-format">Open for registration</span></div><h3>${esc(sport.name)}</h3>${sport.description ? `<p>${esc(sport.description)}</p>` : ''}<span class="sport-link">Let's play</span>${sportIcon(sport)}</a>`).join('')}</div><p class="section-note">Registration fees and available places are shown when you sign in.</p></section>
     <section class="team-story section"><p class="eyebrow">Better together</p><h2>A different kind<br>of team meeting.</h2><p>Swap the meeting room for the court. Cheer for your colleagues, meet other company teams, and make memories beyond the workday.</p><a class="button" href="/register">Make your company part of it</a></section>
     <section class="section" id="teams">${sectionHeader('', 'Meet the teams', 'Your next friendly rivals. Confirmed teams appear here once their captain completes the team profile.')}<div class="teams-shell"><div class="team-tabs" role="tablist" aria-label="Team sports">${data.sports.map((sport, index) => `<button role="tab" id="tab-${sport.slug}" aria-label="${esc(sport.name)}" aria-controls="teams-panel" aria-selected="${index === 0}" tabindex="${index === 0 ? 0 : -1}" data-sport="${esc(sport.name)}" data-slug="${sport.slug}" ${sport.max_teams ? `data-max="${sport.max_teams}"` : ''}>${esc(sport.name)}</button>`).join('')}</div><div class="team-list" id="teams-panel" role="tabpanel" aria-labelledby="tab-${data.sports[0]?.slug || ''}" aria-live="polite"><p class="teams-state">Loading confirmed teams…</p></div></div></section>
     <section class="section venue-section" id="venue"><img class="venue-date" src="/assets/images/calendar.png" alt="See you in October 01 to 04 2026 · Chunikhel, Kathmandu" width="1536" height="1024" /><div class="venue-copy"><p class="eyebrow">Room to play. Reasons to stay.</p><h2>${esc(data.venue)}</h2><p>Four days of team spirit at ${esc(data.locality)}. Get your colleagues together and meet us on the court.</p><a class="button primary" href="${esc(data.maps_url)}" target="_blank" rel="noreferrer">Open directions</a></div><div class="venue-map"><iframe title="Royal Sports Park location on Google Maps" src="${esc(data.maps_embed_url)}" loading="lazy" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe><p>Royal Sports Park, Chunikhel · <a href="${esc(data.maps_url)}" target="_blank" rel="noreferrer">View larger map and directions ↗</a></p></div></section>
-    <section class="section faq-section" id="faq">${sectionHeader('A little pre-game prep', 'Good questions', 'Everything you need to get your team started.')}<div class="faq"><details><summary>Can a company enter more than one sport?</summary><p>Yes. A captain can select every available sport in one registration, then supply a separate team name and profile for each sport.</p></details><details><summary>When does a team show publicly?</summary><p>After payment is confirmed by the organizer and the captain completes the logo and roster for that sport.</p></details><details><summary>How does payment work?</summary><p>Your registration includes the exact amount, a payment code, and instructions. Upload your receipt after transfer. An organizer verifies it before team profiles unlock.</p></details><details><summary>Where can I get directions?</summary><p>Use the Royal Sports Park directions link above. It opens the organizer-provided Google Maps location.</p></details></div></section>
+    <section class="section faq-section" id="faq">${sectionHeader('A little pre-game prep', 'Good questions', 'Everything you need to get your team started.')}<div class="faq"><details><summary>Can a company enter more than one sport?</summary><p>Yes. A captain can select every available sport in one registration, use one company name across all selected sports, then complete a roster and profile for each sport.</p></details><details><summary>When does a team show publicly?</summary><p>After payment is confirmed by the organizer and the captain completes the logo and roster for that sport.</p></details><details><summary>How does payment work?</summary><p>Your registration includes the exact amount, a payment code, and instructions. Upload your receipt after transfer. An organizer verifies it before team profiles unlock.</p></details><details><summary>Where can I get directions?</summary><p>Use the Royal Sports Park directions link above. It opens the organizer-provided Google Maps location.</p></details></div></section>
     <section class="closing section"><p class="eyebrow">The best teams play together</p><h2>Bring your people.<br>We'll bring the occasion.</h2><a class="button primary" href="/register">Register your team</a></section>`;
   bindTeamTabs();
   const motion = !matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -213,7 +221,7 @@ function steps(active) {
 }
 async function register() {
   document.title = `Register · ${data.title}`;
-  main.innerHTML = `<div class="page-register"><header class="registration-header"><p class="eyebrow">Team registration · ${displayDate()}</p><h1>Build your<br>team</h1></header><div class="registration-layout"><aside class="registration-aside"><a href="/">← Back to championship</a>${steps('Sports')}</aside><section class="registration-content" id="registration-content"><p class="loading">Checking registration status…</p></section></div></div>`;
+  main.innerHTML = `<div class="page-register"><header class="registration-header"><p class="eyebrow">Team registration · ${displayDate()}</p><h1>Register your<br>company</h1></header><div class="registration-layout"><aside class="registration-aside"><a href="/">← Back to championship</a>${steps('Sports')}</aside><section class="registration-content" id="registration-content"><p class="loading">Checking registration status…</p></section></div></div>`;
   try {
     const savedId = new URLSearchParams(location.search).get('order');
     const order = await api(
@@ -303,8 +311,8 @@ function bindSubmission(selector, handler) {
 async function sportsStep(order) {
   const target = document.querySelector('#registration-content');
   const sports = await api('/sports');
-  const selected = new Map(order.items.map((item) => [item.sport_id, item.team_name]));
-  target.innerHTML = `<p class="eyebrow">Step 01 / Formats</p><h2>Select your teams</h2><p>Each sport requires a distinct team name. You can change this selection before the invoice is issued.</p><form id="sports-form"><div class="choice-list">${sports.length ? sports.map((sport) => `<div class="sport-choice"><input type="checkbox" id="sport-${sport.id}" name="sport" value="${sport.id}" ${selected.has(sport.id) ? 'checked' : ''}><label for="sport-${sport.id}"><strong>${esc(sport.name)}</strong><span>${sport.price} registration amount</span><input data-team="${sport.id}" aria-label="${esc(sport.name)} team name" value="${esc(selected.get(sport.id) || '')}" placeholder="Team name" maxlength="120"></label></div>`).join('') : '<p class="teams-state">No sports are open yet. Ask the organizer to add the championship formats.</p>'}</div><p class="error" id="form-error" hidden></p><div class="form-actions"><button class="button primary" ${sports.length ? '' : 'disabled'}>Continue to contact</button></div></form>`;
+  const selected = new Set(order.items.map((item) => item.sport_id));
+  target.innerHTML = `<p class="eyebrow">Step 01 / Company & sports</p><h2>Register your company</h2><p>Enter your company name, then choose the sports you want to enter. The same company name will appear for every selected sport.</p><form id="sports-form" class="form-stack"><label class="input-group">Company name<input name="company_name" aria-required="true" autocomplete="organization" value="${esc(order.company_name || '')}" placeholder="Your company name" maxlength="120"></label><h3>Select sports</h3><div class="choice-list">${sports.length ? sports.map((sport) => `<div class="sport-choice"><input type="checkbox" id="sport-${sport.id}" name="sport" value="${sport.id}" ${selected.has(sport.id) ? 'checked' : ''}><label class="sport-choice-label" for="sport-${sport.id}"><span class="sport-choice-copy"><strong>${esc(sport.name)}</strong><span>${money(sport.price)}</span></span>${sportIcon(sport, 'sport-choice-icon')}</label></div>`).join('') : '<p class="teams-state">No sports are open yet. Ask the organizer to add the championship formats.</p>'}</div><p class="error" id="form-error" hidden></p><div class="form-actions"><button class="button primary" ${sports.length ? '' : 'disabled'}>Continue to contact</button></div></form>`;
   const focus = new URLSearchParams(location.search).get('focus');
   if (!order.items.length && focus) {
     const sport = sports.find((item) => slugify(item.name) === focus);
@@ -312,23 +320,26 @@ async function sportsStep(order) {
   }
   bindSubmission('#sports-form', async (event) => {
     event.preventDefault();
+    const companyName = event.currentTarget.elements.company_name.value.trim();
     const picks = [...document.querySelectorAll('input[name=sport]:checked')].map((input) => ({
       sport_id: input.value,
-      team_name: document.querySelector(`[data-team="${input.value}"]`).value.trim(),
     }));
     const error = document.querySelector('#form-error');
-    if (!picks.length || picks.some((pick) => !pick.team_name)) {
-      error.textContent = 'Select at least one format and give every selected team a name.';
+    if (!companyName || !picks.length) {
+      error.textContent = 'Enter your company name and select at least one sport.';
       error.hidden = false;
       return;
     }
-    const next = await patch(`/orders/${order.id}/sports`, { sports: picks });
+    const next = await patch(`/orders/${order.id}/sports`, {
+      company_name: companyName,
+      sports: picks,
+    });
     await resume(next);
   });
 }
 function phoneStep(order) {
   const target = document.querySelector('#registration-content');
-  target.innerHTML = `<p class="eyebrow">Step 02 / Contact</p><h2>Where can we reach the captain?</h2><p>Use the phone number the organizer should use for registration questions.</p><form id="phone-form" class="form-stack"><label class="input-group">Phone number<input name="phone" required inputmode="tel" value="${esc(order.phone_number || '')}" placeholder="+977 9800000000"></label><p class="error" hidden></p><div class="form-actions"><button type="button" class="button" id="edit-sports">Edit teams</button><button class="button primary">Issue invoice</button></div></form>`;
+  target.innerHTML = `<p class="eyebrow">Step 02 / Contact</p><h2>Where can we reach the captain?</h2><p>Use the phone number the organizer should use for registration questions.</p><form id="phone-form" class="form-stack"><label class="input-group">Phone number<input name="phone" required inputmode="tel" value="${esc(order.phone_number || '')}" placeholder="+977 9800000000"></label><p class="error" hidden></p><div class="form-actions"><button type="button" class="button" id="edit-sports">Edit company & sports</button><button class="button primary">Issue invoice</button></div></form>`;
   document.querySelector('#edit-sports').addEventListener('click', () =>
     sportsStep(order).catch((error) => {
       if (error.status === 401) renderLogin();
@@ -349,7 +360,7 @@ function phoneStep(order) {
 async function paymentStep(order) {
   const target = document.querySelector('#registration-content');
   const payment = await post(`/orders/${order.id}/payment-request`);
-  target.innerHTML = `<p class="eyebrow">Step 03 / Payment</p><h2>Transfer ${esc(order.total_amount)}</h2><p>Use the payment details below. Put the unique code in the transfer remarks exactly as shown.</p><div class="info-box"><strong>Amount: ${esc(order.total_amount)}</strong><br>Remarks code: <code>${esc(payment.unique_code)}</code><br>Expires: ${new Date(payment.expires_at).toLocaleString()}</div><img class="qr" src="${esc(payment.qr_data_url)}" alt="Payment QR code"><p>${esc(payment.instructions)}</p><div class="form-actions"><button class="button primary" id="receipt-next">I have paid, upload receipt</button></div>`;
+  target.innerHTML = `<p class="eyebrow">Step 03 / Payment</p><h2>Transfer ${money(order.total_amount)}</h2><p>Use the payment details below. Put the unique code in the transfer remarks exactly as shown.</p><div class="info-box"><strong>Amount: ${money(order.total_amount)}</strong><br>Remarks code: <code>${esc(payment.unique_code)}</code><br>Expires: ${new Date(payment.expires_at).toLocaleString()}</div><img class="qr" src="${esc(payment.qr_data_url)}" alt="Payment QR code"><p>${esc(payment.instructions)}</p><div class="form-actions"><button class="button primary" id="receipt-next">I have paid, upload receipt</button></div>`;
   document
     .querySelector('#receipt-next')
     .addEventListener('click', () => receiptStep({ ...order, status: 'payment_pending' }));

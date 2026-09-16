@@ -11,6 +11,39 @@ afterEach(async () => {
   await h?.close();
 });
 
+it('requires one company name and preserves it across sports, reloads and revisions', async () => {
+  const draft = (await h.call('POST', '/orders/draft')).json();
+  const sports = h.sports.map((sport) => ({ sport_id: sport.id }));
+  for (const company_name of ['', '   ', 'x'.repeat(121)]) {
+    expect(
+      (await h.call('PATCH', `/orders/${draft.id}/sports`, { company_name, sports })).statusCode,
+    ).toBe(400);
+  }
+  expect((await h.call('PATCH', `/orders/${draft.id}/sports`, { sports })).statusCode).toBe(400);
+  const saved = await h.call('PATCH', `/orders/${draft.id}/sports`, {
+    company_name: '  RONB Studios  ',
+    sports,
+  });
+  expect(saved.statusCode).toBe(200);
+  const current = (await h.call('GET', '/orders/current')).json();
+  expect(current.company_name).toBe('RONB Studios');
+  expect(current.items).toHaveLength(3);
+  expect(current.items.every((item: any) => item.team_name === 'RONB Studios')).toBe(true);
+  await h.call('POST', `/orders/${draft.id}/phone`, { phone_number: '9800000000' });
+  expect((await h.call('POST', `/orders/${draft.id}/invoice`)).statusCode).toBe(200);
+  expect(
+    (
+      await h.call('PATCH', `/orders/${draft.id}/sports`, {
+        company_name: 'Different Company',
+        sports,
+      })
+    ).statusCode,
+  ).toBe(409);
+  const revised = (await h.call('POST', `/orders/${draft.id}/cancel-and-revise`)).json();
+  expect(revised.company_name).toBe('RONB Studios');
+  expect(revised.items.every((item: any) => item.team_name === 'RONB Studios')).toBe(true);
+});
+
 async function ready(actor: string, name: string) {
   const draft = (await h.call('POST', '/orders/draft', undefined, actor)).json();
   expect(draft.resume_step).toBe('sports');
@@ -18,7 +51,8 @@ async function ready(actor: string, name: string) {
     'PATCH',
     `/orders/${draft.id}/sports`,
     {
-      sports: [{ sport_id: h.sports[0].id, team_name: name }],
+      company_name: name,
+      sports: [{ sport_id: h.sports[0].id }],
     },
     actor,
   );

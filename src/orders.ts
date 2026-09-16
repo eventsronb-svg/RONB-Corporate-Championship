@@ -39,8 +39,9 @@ export async function ensureCapacity(tx: Queryable, orderId: string) {
 export const uuid = z.string().uuid();
 export const teamSelection = z
   .object({
+    company_name: z.string().trim().min(1).max(120),
     sports: z
-      .array(z.object({ sport_id: uuid, team_name: z.string().trim().min(1).max(120) }).strict())
+      .array(z.object({ sport_id: uuid }).strict())
       .min(1)
       .max(30),
   })
@@ -86,6 +87,10 @@ export async function detail(tx: Queryable, id: string): Promise<Row & { items: 
   );
   return {
     ...order,
+    company_name:
+      items.length && items.every((item) => item.team_name === items[0].team_name)
+        ? items[0].team_name
+        : '',
     items,
     payment_request: payment ?? null,
     rejection: order.status === 'rejected' ? (rejection ?? null) : null,
@@ -145,11 +150,12 @@ export async function queueEmail(
         `${i.team_name} — ${i.sport_name}\nPlayers: ${i.players.join(', ')}\nLogo: ${i.logo_url}`,
     )
     .join('\n\n');
+  const amount = `${Number(order.total_amount).toLocaleString('en-US', { minimumFractionDigits: Number.isInteger(Number(order.total_amount)) ? 0 : 2, maximumFractionDigits: 2 })} NPR`;
   const payload = {
     to: user.email,
     userId: user.id,
     subject: `Registration confirmed${event ? `: ${event.title}` : ''}`,
-    text: `Hi ${user.name},\n\nYour registration is confirmed.\nOrder: ${id}\nAmount paid: ${order.total_amount}\n\n${teams}\n\n${event ? `${event.title}\n${event.description}\nVenue: ${event.venue}\nStarts: ${new Date(event.start_date).toISOString()}\nEnds: ${new Date(event.end_date).toISOString()}` : ''}`,
+    text: `Hi ${user.name},\n\nYour registration is confirmed.\nOrder: ${id}\nAmount paid: ${amount}\n\n${teams}\n\n${event ? `${event.title}\n${event.description}\nVenue: ${event.venue}\nStarts: ${new Date(event.start_date).toISOString()}\nEnds: ${new Date(event.end_date).toISOString()}` : ''}`,
   };
   return one(
     tx,
@@ -220,7 +226,12 @@ export class Orders {
       for (const pick of input.sports)
         await tx.query(
           'INSERT INTO order_items(order_id,sport_id,team_name,price_at_purchase) VALUES($1,$2,$3,$4)',
-          [id, pick.sport_id, pick.team_name, sports.find((s) => s.id === pick.sport_id)!.price],
+          [
+            id,
+            pick.sport_id,
+            input.company_name,
+            sports.find((s) => s.id === pick.sport_id)!.price,
+          ],
         );
       await tx.query('UPDATE orders SET updated_at=now() WHERE id=$1', [id]);
       return detail(tx, id);
