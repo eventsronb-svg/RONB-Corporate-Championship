@@ -371,7 +371,7 @@ function phoneStep(order) {
 async function paymentStep(order) {
   const target = document.querySelector('#registration-content');
   const payment = await post(`/orders/${order.id}/payment-request`);
-  target.innerHTML = `<p class="eyebrow">Step 03 / Payment</p><h2>Transfer ${money(order.total_amount)}</h2><p>Use the bank details below. Put the unique code in the transfer remarks exactly as shown.</p><div class="info-box"><strong>Amount: ${money(order.total_amount)}</strong><br>Remarks code: <code>${esc(payment.unique_code)}</code><br>Expires: ${new Date(payment.expires_at).toLocaleString()}</div><div class="bank-details">${esc(payment.bank_details)}</div><p>${esc(payment.instructions)}</p><div class="form-actions"><button class="button primary" id="receipt-next">I have paid, upload receipt</button></div>`;
+  target.innerHTML = `<p class="eyebrow">Step 03 / Payment</p><h2>Transfer ${money(order.total_amount)}</h2><p>Use the bank details below. <span class="remarks-copy">Put the unique Remarks code in the transfer remarks exactly as shown.</span></p><div class="info-box"><strong>Amount: ${money(order.total_amount)}</strong><br><span class="remarks-label">Remarks code:</span> <code>${esc(payment.unique_code)}</code><br>Expires: ${new Date(payment.expires_at).toLocaleString()}</div><div class="bank-details">${esc(payment.bank_details)}</div><p>${esc(payment.instructions)}</p><div class="form-actions"><button class="button primary" id="receipt-next">I have paid, upload receipt</button></div>`;
   document
     .querySelector('#receipt-next')
     .addEventListener('click', () => receiptStep({ ...order, status: 'payment_pending' }));

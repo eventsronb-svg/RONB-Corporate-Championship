@@ -776,6 +776,15 @@ h2 {
   padding: 2px 6px;
   border-radius: 6px;
 }
+.remarks-copy {
+  color: var(--accent);
+  text-transform: uppercase;
+  font-weight: 600;
+}
+.remarks-label {
+  color: var(--accent);
+  font-weight: 700;
+}
 .error {
   color: var(--accent);
   background: var(--white);
