@@ -16,8 +16,16 @@ const api = async (path, options = {}) => {
       ...options.headers,
     },
   });
-  const payload = await response.json();
-  if (!response.ok) throw new Error(payload.message || 'The request could not be completed.');
+  const contentType = response.headers.get('content-type') || '';
+  const payload = contentType.includes('application/json') ? await response.json() : undefined;
+  if (!response.ok) {
+    throw new Error(
+      payload?.message ||
+        (response.status >= 500
+          ? 'Registration is temporarily unavailable. Please try again shortly.'
+          : 'The request could not be completed.'),
+    );
+  }
   return payload;
 };
 const post = (path, body = {}) => api(path, { method: 'POST', body: JSON.stringify(body) });
@@ -327,7 +335,7 @@ async function render() {
     if (location.pathname === '/register') await register();
     else home();
   } catch (error) {
-    main.innerHTML = e('Connection lost', error.message);
+    main.innerHTML = e('Registration unavailable', error.message);
   }
 }
 window.addEventListener('popstate', render);

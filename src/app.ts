@@ -410,8 +410,18 @@ export default async function vercelHandler(req: IncomingMessage, res: ServerRes
   } catch (error) {
     console.error('Vercel request failed', error);
     if (!res.headersSent) {
-      res.statusCode = 500;
-      res.end('Internal Server Error');
+      // Do not leak configuration or provider details to the browser. Returning
+      // JSON also lets the public registration page present a useful message
+      // instead of failing while it tries to parse Vercel's plain-text error.
+      res.statusCode = 503;
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-store');
+      res.end(
+        JSON.stringify({
+          error: 'service_unavailable',
+          message: 'Registration is temporarily unavailable. Please try again shortly.',
+        }),
+      );
     }
   }
 }
