@@ -88,7 +88,8 @@ export async function registerAdmin(
       args.push(v);
       where.push(s.replaceAll('?', `$${args.length}`));
     };
-    if (q.status !== 'all') add('o.status=?', q.status);
+    if (q.status === 'completed') where.push("o.status IN ('confirmed','contacted','completed')");
+    else if (q.status !== 'all') add('o.status=?', q.status);
     if (q.search)
       add(
         '(u.name ILIKE ? OR u.email ILIKE ? OR o.id::text ILIKE ? OR EXISTS(SELECT 1 FROM order_items i WHERE i.order_id=o.id AND i.team_name ILIKE ?) OR EXISTS(SELECT 1 FROM payment_requests p WHERE p.order_id=o.id AND p.unique_code ILIKE ?))',
@@ -393,7 +394,19 @@ export async function registerAdmin(
     return {
       users: (
         await db.query(
-          'SELECT id,email,name,phone,created_at FROM users WHERE ($1::text IS NULL OR name ILIKE $1 OR email ILIKE $1 OR phone ILIKE $1) ORDER BY created_at DESC,id LIMIT $2 OFFSET $3',
+          `SELECT u.id,u.email,u.name,u.phone,u.created_at,
+   coalesce(k.companies,'[]') AS companies
+   FROM users u
+   LEFT JOIN LATERAL (
+    SELECT json_agg(json_build_object('company',c.team_name,'sports',c.sports) ORDER BY c.team_name) AS companies
+    FROM (
+     SELECT i.team_name, array_agg(DISTINCT s.name ORDER BY s.name) AS sports
+     FROM order_items i JOIN orders o ON o.id=i.order_id JOIN sports s ON s.id=i.sport_id
+     WHERE o.user_id=u.id GROUP BY i.team_name
+    ) c
+   ) k ON true
+   WHERE ($1::text IS NULL OR u.name ILIKE $1 OR u.email ILIKE $1 OR u.phone ILIKE $1)
+   ORDER BY u.created_at DESC,u.id LIMIT $2 OFFSET $3`,
           [q.search ? `%${q.search}%` : null, q.limit, q.offset],
         )
       ).rows,

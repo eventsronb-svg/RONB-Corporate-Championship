@@ -112,7 +112,7 @@ test('new captain signs in, submits two teams, corrects rejected payment, and fi
     await admin.getByRole('button', { name: 'Start review' }).click();
     await expect(admin.getByRole('button', { name: 'Start review' })).toHaveCount(0);
     await admin.getByRole('button', { name: 'Confirm payment' }).click();
-    await expect(admin.getByRole('button', { name: 'Mark contacted' })).toBeVisible();
+    await expect(admin.getByRole('heading', { name: 'Verified on' })).toBeVisible();
     await page.reload();
     await expect(page.getByRole('heading', { name: 'Finish your team' })).toBeVisible();
     await page.setViewportSize({ width: 390, height: 844 });
@@ -198,7 +198,10 @@ test('new captain signs in, submits two teams, corrects rejected payment, and fi
     );
     await admin.reload();
     await expect(admin.getByText('Profile complete', { exact: true })).toHaveCount(2);
+    await admin.getByText('Registration management', { exact: true }).click();
     await admin.getByRole('button', { name: 'Mark contacted' }).click();
+    await expect(admin.getByRole('status')).toHaveText('Registration updated.');
+    await admin.getByText('Registration management', { exact: true }).click();
     await admin.getByRole('button', { name: 'Mark completed' }).click();
     await expect(admin.getByRole('status')).toHaveText('Registration updated.');
     await page.reload();

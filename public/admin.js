@@ -3,8 +3,6 @@ const notice = document.querySelector('#notice');
 const states = [
   'receipt_submitted',
   'under_review',
-  'confirmed',
-  'contacted',
   'completed',
   'rejected',
   'payment_pending',
@@ -40,7 +38,18 @@ const sportSummary = (teams) => {
     .sort((a, b) => rank(a) - rank(b) || a.localeCompare(b))
     .join('/');
 };
+const sportLabels = (names) => {
+  const order = ['futsal', 'crickshal', 'basketball'];
+  const rank = (name) => {
+    const index = order.indexOf(name.toLowerCase());
+    return index < 0 ? order.length : index;
+  };
+  return [...new Set(names)].sort((a, b) => rank(a) - rank(b) || a.localeCompare(b)).join('/');
+};
 const status = (s) => `<span class="status ${e(s)}">${e(human(s))}</span>`;
+const verifiedStates = ['confirmed', 'contacted', 'completed'];
+const registrationStatus = (s) =>
+  verifiedStates.includes(s) ? '<span class="status completed">Completed</span>' : status(s);
 function message(text, error = false) {
   notice.textContent = text;
   notice.classList.toggle('error', error);
@@ -153,13 +162,13 @@ function navigation() {
 }
 async function queue(params) {
   const q = new URLSearchParams(params);
-  if (!q.has('status')) q.set('status', 'receipt_submitted');
+  if (!q.has('status')) q.set('status', 'all');
   q.set('limit', '25');
   const [data, sports] = await Promise.all([api(`/admin/orders?${q}`), api('/sports')]);
   const offset = Number(q.get('offset') || 0);
   return {
     html: `${header('Registrations', 'Review payment proof and follow each team through registration.', 'EVENT OPERATIONS', `${data.orders.length} ON THIS PAGE`)}<section class="surface"><form class="toolbar" id="queue-filter"><label class="search">Find a registration<input name="search" placeholder="Captain, team, email or payment code" value="${e(q.get('search'))}"></label><label>Status<select name="status">${['all', ...states].map((s) => `<option value="${s}" ${s === q.get('status') ? 'selected' : ''}>${e(human(s))}</option>`).join('')}</select></label><label>Sport<select name="sport_id"><option value="">All sports</option>${sports.map((s) => `<option value="${s.id}" ${s.id === q.get('sport_id') ? 'selected' : ''}>${e(s.name)}</option>`).join('')}</select></label><button class="primary" type="submit">Apply filters</button><details><summary>Date range</summary><div class="data">${field('From', 'date_from', q.get('date_from')?.slice(0, 10), 'date')}${field('Through', 'date_to', q.get('date_to')?.slice(0, 10), 'date')}</div></details></form>
-  ${data.orders.length ? `<div class="table-scroll"><table><thead><tr><th>Captain / company</th><th>Amount</th><th>Payment code</th><th>Status</th><th>Submitted</th><th><span class="sub">Review</span></th></tr></thead><tbody>${data.orders.map((o) => `<tr><td><a class="strong" href="#order/${o.id}">${e([o.captain_name, o.company_name].filter(Boolean).join(' · '))}</a><span class="sub">${e(sportSummary(o.teams))}</span></td><td>${o.total_amount === null ? '—' : money(o.total_amount)}</td><td class="mono">${e(o.unique_code || 'Not issued')}</td><td>${status(o.status)}</td><td>${e(date(o.receipt_submitted_at))}</td><td><a href="#order/${o.id}" aria-label="Review ${e(o.company_name || o.captain_name)}">Open ↗</a></td></tr>`).join('')}</tbody></table></div>` : empty('You’re all caught up.', 'No registrations match these filters. New receipt submissions will appear here.')}
+  ${data.orders.length ? `<div class="table-scroll"><table><thead><tr><th>Captain / company</th><th>Amount</th><th>Payment code</th><th>Status</th><th>Submitted</th><th><span class="sub">Review</span></th></tr></thead><tbody>${data.orders.map((o) => `<tr><td><a class="strong" href="#order/${o.id}">${e([o.captain_name, o.company_name].filter(Boolean).join(' · '))}</a><span class="sub">${e(sportSummary(o.teams))}</span></td><td>${o.total_amount === null ? '—' : money(o.total_amount)}</td><td class="mono">${e(o.unique_code || 'Not issued')}</td><td>${registrationStatus(o.status)}</td><td>${e(date(o.receipt_submitted_at))}</td><td><a href="#order/${o.id}" aria-label="Review ${e(o.company_name || o.captain_name)}">Open ↗</a></td></tr>`).join('')}</tbody></table></div>` : empty('You’re all caught up.', 'No registrations match these filters. New receipt submissions will appear here.')}
   <div class="pagination"><span>Showing ${data.orders.length ? offset + 1 : 0}–${offset + data.orders.length}</span><div><button id="prev" ${offset === 0 ? 'disabled' : ''}>Previous</button> <button id="next" ${data.orders.length < 25 ? 'disabled' : ''}>Next</button></div></div></section>`,
     bind() {
       bindForm('#queue-filter', async (b) => {
@@ -186,6 +195,10 @@ async function queue(params) {
 }
 async function orderDetail(id) {
   const o = await api(`/admin/orders/${id}`);
+  const verified = verifiedStates.includes(o.status);
+  const verifiedAt =
+    [...o.verifications].reverse().find((v) => v.decision === 'confirmed')?.verified_at ||
+    [...o.timeline].reverse().find((t) => t.to_status === 'confirmed')?.changed_at;
   const reviewable = ['receipt_submitted', 'under_review'].includes(o.status);
   const allDone =
     ['confirmed', 'contacted', 'completed'].includes(o.status) &&
@@ -194,10 +207,10 @@ async function orderDetail(id) {
   const info = (label, value) => `<div><dt>${e(label)}</dt><dd>${e(value)}</dd></div>`;
   return {
     html: `<a class="back" href="#orders">← All registrations</a>${header(o.user.name, `${o.company_name ? `Company: ${o.company_name} · ` : ''}${o.user.email} · ${o.phone_number || 'Contact number not captured'}`, 'REGISTRATION DETAIL', o.id)}<div class="detail-grid">
- <div class="stack"><section class="surface panel"><div class="data"><div><div class="eyebrow">EXPECTED PAYMENT</div><div class="amount">${o.total_amount === null ? 'Not invoiced' : money(o.total_amount)}</div></div><div>${status(o.status)}<span class="sub">Invoiced ${e(date(o.invoiced_at))}</span></div></div><dl class="data">${info('Payment remarks code', o.payment_request?.unique_code || 'Not issued')}${info('Code expires', date(o.payment_request?.expires_at))}</dl><h2 class="section-gap">Payment proof</h2>${o.receipts.length ? o.receipts.map((r, i) => `<div><img class="receipt" src="${e(r.signed_url)}" alt="Payment receipt ${i + 1}" loading="lazy"><a class="receipt-link" href="${e(r.signed_url)}" target="_blank" rel="noopener noreferrer">Open original receipt ${i + 1} ↗ <span class="sub">Uploaded ${e(date(r.uploaded_at))} · link valid for 5 minutes</span></a></div>`).join('') : '<p class="form-note">The captain has not uploaded a receipt.</p>'}</section>
+ <div class="stack"><section class="surface panel"><div class="data"><div><div class="eyebrow">EXPECTED PAYMENT</div><div class="amount">${o.total_amount === null ? 'Not invoiced' : money(o.total_amount)}</div></div><div>${registrationStatus(o.status)}<span class="sub">Invoiced ${e(date(o.invoiced_at))}</span></div></div><dl class="data">${info('Payment remarks code', o.payment_request?.unique_code || 'Not issued')}${info('Code expires', date(o.payment_request?.expires_at))}</dl><h2 class="section-gap">Payment proof</h2>${o.receipts.length ? o.receipts.map((r, i) => `<div><img class="receipt" src="${e(r.signed_url)}" alt="Payment receipt ${i + 1}" loading="lazy"><a class="receipt-link" href="${e(r.signed_url)}" target="_blank" rel="noopener noreferrer">Open original receipt ${i + 1} ↗ <span class="sub">Uploaded ${e(date(r.uploaded_at))} · link valid for 5 minutes</span></a></div>`).join('') : '<p class="form-note">The captain has not uploaded a receipt.</p>'}</section>
  <section class="surface panel"><h2>Company sport entries</h2>${o.items.length ? o.items.map((i) => `<div class="team-row">${i.logo_url ? `<img class="team-logo" src="${e(i.logo_url)}" alt="${e(i.team_name)} logo">` : `<span class="team-initial" aria-hidden="true">${e(i.team_name[0])}</span>`}<div><div class="strong">${e(i.team_name)}</div><p>${e(i.sport_name)} · ${money(i.price_at_purchase)}</p><p>${i.players.length ? e(i.players.join(', ')) : 'Roster not added yet'}</p>${i.captain_position != null ? `<p>Team captain: ${e(i.players[i.captain_position])}</p>` : ''}<span class="status ${i.profile_completed_at ? 'confirmed' : ''}">${i.profile_completed_at ? 'Profile complete' : 'Profile pending'}</span></div></div>`).join('') : '<p>No sports selected yet.</p>'}</section>
  <section class="surface panel"><h2>Email activity</h2>${o.email_jobs.length ? o.email_jobs.map((j) => `<p>${status(j.status)} ${e(human(j.kind))} <span class="sub">${e(date(j.created_at))} · ${j.attempts} attempt(s) ${j.last_error ? '· ' + e(j.last_error) : ''}</span></p>`).join('') : '<p class="form-note">Confirmation is queued when every team has completed its profile.</p>'}${o.email_log.map((l) => `<p>${status(l.status)} ${e(l.sent_to)}<span class="sub">${e(date(l.created_at))} ${l.provider_message_id ? '· ' + e(l.provider_message_id) : ''}</span></p>`).join('')}</section></div>
- <div class="stack"><section class="surface panel"><h2>Next action</h2><form id="order-action"><label>Review / contact notes<textarea name="notes" maxlength="2000" placeholder="Record payment discrepancies or contact details"></textarea></label><div class="actions">${o.status === 'receipt_submitted' ? '<button name="action" value="review">Start review</button>' : ''}${reviewable ? '<button class="primary" name="action" value="confirmed">Confirm payment</button><button class="danger" name="action" value="rejected">Reject payment</button>' : ''}${o.status === 'confirmed' ? '<button class="primary" name="action" value="contact">Mark contacted</button>' : ''}${o.status === 'contacted' ? '<button class="primary" name="action" value="complete">Mark completed</button>' : ''}${allDone ? '<button name="action" value="resend-email">Resend confirmation</button>' : ''}${me.role === 'super_admin' && o.status !== 'cancelled' ? '<button class="danger" name="action" value="cancel">Cancel order</button>' : ''}</div><p class="form-note section-gap">Rejection and cancellation require notes. Payment confirmation unlocks team profiles.</p></form></section>
+ <div class="stack">${verified ? `<section class="surface panel verification-card"><h2>Verified on</h2>${verifiedAt ? `<time datetime="${e(verifiedAt)}">${e(date(verifiedAt))}</time>` : '<p>Verification date unavailable</p>'}</section><details class="surface panel"><summary>Registration management</summary>` : '<section class="surface panel"><h2>Next action</h2>'}<form id="order-action"><label>Review / contact notes<textarea name="notes" maxlength="2000" placeholder="Record payment discrepancies or contact details"></textarea></label><div class="actions">${o.status === 'receipt_submitted' ? '<button name="action" value="review">Start review</button>' : ''}${reviewable ? '<button class="primary" name="action" value="confirmed">Confirm payment</button><button class="danger" name="action" value="rejected">Reject payment</button>' : ''}${o.status === 'confirmed' ? '<button class="primary" name="action" value="contact">Mark contacted</button>' : ''}${o.status === 'contacted' ? '<button class="primary" name="action" value="complete">Mark completed</button>' : ''}${allDone ? '<button name="action" value="resend-email">Resend confirmation</button>' : ''}${me.role === 'super_admin' && o.status !== 'cancelled' ? '<button class="danger" name="action" value="cancel">Cancel order</button>' : ''}</div><p class="form-note section-gap">${verified ? 'Cancellation requires notes.' : 'Rejection and cancellation require notes. Payment confirmation unlocks team profiles.'}</p></form>${verified ? '</details>' : '</section>'}
  <section class="surface panel"><h2>Order timeline</h2><ol class="timeline">${o.timeline.map((t) => `<li>${e(human(t.to_status))}<span class="sub">${e(date(t.changed_at))}</span></li>`).join('')}</ol></section>
  ${o.verifications.length ? `<section class="surface panel"><h2>Verification notes</h2>${o.verifications.map((v) => `<p>${status(v.decision)}<span class="sub">${e(date(v.verified_at))}</span>${e(v.notes || 'No notes')}</p>`).join('')}</section>` : ''}
  ${o.audit_log.length ? `<section class="surface panel"><h2>Organizer activity</h2>${o.audit_log.map((a) => `<p>${e(human(a.action.replace('order.', '')))}<span class="sub">${e(date(a.created_at))}</span>${e(a.metadata.notes || a.metadata.reason || '')}</p>`).join('')}</section>` : ''}</div></div>`,
@@ -290,7 +303,7 @@ async function usersView(params) {
   const data = await api(`/admin/users?${q}`);
   const offset = Number(q.get('offset') || 0);
   return {
-    html: `${header('Captains', 'Find contact details and registration history.', 'PEOPLE')}<section class="surface"><form class="toolbar" id="user-search"><label>Search captains<input name="search" value="${e(q.get('search'))}" placeholder="Name, email or phone"></label><button class="primary">Search</button></form>${data.users.length ? `<div class="table-scroll"><table><thead><tr><th>Captain</th><th>Email</th><th>Phone</th><th>Joined</th></tr></thead><tbody>${data.users.map((u) => `<tr><td><a href="#user/${u.id}" class="strong">${e(u.name)}</a></td><td>${e(u.email)}</td><td>${e(u.phone || 'Not provided')}</td><td>${e(date(u.created_at))}</td></tr>`).join('')}</tbody></table></div>` : empty('No captains found.', 'Try a different name, email or phone number.')}<div class="pagination"><span>Showing ${data.users.length ? offset + 1 : 0}–${offset + data.users.length}</span><div><button id="prev" ${offset === 0 ? 'disabled' : ''}>Previous</button> <button id="next" ${data.users.length < 25 ? 'disabled' : ''}>Next</button></div></div></section>`,
+    html: `${header('Captains', 'Find contact details and registration history.', 'PEOPLE')}<section class="surface"><form class="toolbar" id="user-search"><label>Search captains<input name="search" value="${e(q.get('search'))}" placeholder="Name, email or phone"></label><button class="primary">Search</button></form>${data.users.length ? `<div class="table-scroll"><table><thead><tr><th>Captain</th><th>Company</th><th>Email</th><th>Phone</th><th>Joined</th></tr></thead><tbody>${data.users.map((u) => `<tr><td><a href="#user/${u.id}" class="strong">${e(u.name)}</a></td><td>${u.companies?.length ? u.companies.map((c) => `<div class="strong">${e(c.company)}</div><span class="sub">${e(sportLabels(c.sports))}</span>`).join('') : '<span class="sub">Not registered yet</span>'}</td><td>${e(u.email)}</td><td>${e(u.phone || 'Not provided')}</td><td>${e(date(u.created_at))}</td></tr>`).join('')}</tbody></table></div>` : empty('No captains found.', 'Try a different name, email or phone number.')}<div class="pagination"><span>Showing ${data.users.length ? offset + 1 : 0}–${offset + data.users.length}</span><div><button id="prev" ${offset === 0 ? 'disabled' : ''}>Previous</button> <button id="next" ${data.users.length < 25 ? 'disabled' : ''}>Next</button></div></div></section>`,
     bind() {
       bindForm('#user-search', async (b) => {
         location.hash = `users?${new URLSearchParams(b)}`;
@@ -309,7 +322,7 @@ async function usersView(params) {
 async function userDetail(id) {
   const u = await api(`/admin/users/${id}`);
   return {
-    html: `<a class="back" href="#users">← All captains</a>${header(u.name, `${u.email} · ${u.phone || 'No phone provided'}`, 'CAPTAIN PROFILE')}<section class="surface"><div class="table-scroll"><table><thead><tr><th>Order</th><th>Amount</th><th>Status</th><th>Created</th></tr></thead><tbody>${u.orders.map((o) => `<tr><td><a class="mono" href="#order/${o.id}">${e(o.id)}</a></td><td>${o.total_amount === null ? '—' : money(o.total_amount)}</td><td>${status(o.status)}</td><td>${e(date(o.created_at))}</td></tr>`).join('')}</tbody></table></div>${!u.orders.length ? empty('No registrations yet.', 'This captain has signed in but has not started an order.') : ''}</section>`,
+    html: `<a class="back" href="#users">← All captains</a>${header(u.name, `${u.email} · ${u.phone || 'No phone provided'}`, 'CAPTAIN PROFILE')}<section class="surface"><div class="table-scroll"><table><thead><tr><th>Order</th><th>Amount</th><th>Status</th><th>Created</th></tr></thead><tbody>${u.orders.map((o) => `<tr><td><a class="mono" href="#order/${o.id}">${e(o.id)}</a></td><td>${o.total_amount === null ? '—' : money(o.total_amount)}</td><td>${registrationStatus(o.status)}</td><td>${e(date(o.created_at))}</td></tr>`).join('')}</tbody></table></div>${!u.orders.length ? empty('No registrations yet.', 'This captain has signed in but has not started an order.') : ''}</section>`,
   };
 }
 async function adminsView() {

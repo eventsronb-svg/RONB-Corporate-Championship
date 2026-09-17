@@ -795,3 +795,22 @@ tbody tr:hover {
     flex-direction: column;
   }
 }
+
+/* Verified registrations use the same success treatment in the list and detail. */
+.status.completed,
+.verification-card {
+  background: oklch(0.43 0.1 145);
+  color: white;
+}
+.verification-card {
+  border-color: oklch(0.43 0.1 145);
+}
+.verification-card h2 {
+  color: inherit;
+  margin-bottom: 8px;
+}
+.verification-card time {
+  display: block;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
