@@ -31,13 +31,17 @@ test('reviews an order, changes settings, and manages organizer access', async (
   ]);
   await page.goto('/admin');
   await expect(page.getByRole('heading', { name: 'Registrations', exact: true })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Anish Shrestha', exact: true })).toBeVisible();
+  const reviewLink = page
+    .getByRole('row')
+    .filter({ hasText: 'Anish Shrestha' })
+    .getByRole('link', { name: /^Review / });
+  await expect(reviewLink).toBeVisible();
   await page.screenshot({
     path: 'test-results/admin-queue-desktop.png',
     fullPage: true,
     animations: 'disabled',
   });
-  await page.getByRole('link', { name: 'Anish Shrestha', exact: true }).click();
+  await reviewLink.click();
   await expect(page.getByRole('heading', { name: 'Payment proof' })).toBeVisible();
   await page.getByRole('button', { name: 'Start review' }).click();
   await expect(page.getByRole('button', { name: 'Start review' })).toHaveCount(0);

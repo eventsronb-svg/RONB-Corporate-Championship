@@ -1,0 +1,35 @@
+@font-face {
+  font-family: FuturaMaxiCG;
+  src: url('/assets/fonts/FuturaMaxiCGBold.otf') format('opentype');
+  font-display: swap;
+  font-weight: 700;
+}
+@font-face {
+  font-family: Ultimate;
+  src: url('/assets/fonts/Ultimate.otf') format('opentype');
+  font-display: swap;
+  font-weight: 100 900;
+}
+@font-face {
+  font-family: VarsityTeam;
+  src: url('/assets/fonts/VarsityTeam-Bold.otf') format('opentype');
+  font-display: swap;
+  font-weight: 700;
+}
+:root {
+  color-scheme: light;
+  --paper: oklch(0.985 0.002 20);
+  --white: oklch(0.998 0.001 20);
+  --ink: oklch(0.25 0.008 20);
+  --muted: oklch(0.46 0.008 20);
+  --accent: oklch(0.52 0.2 25);
+  --accent-hover: oklch(0.46 0.18 25);
+  --on-accent: oklch(0.998 0.001 20);
+  --tint: oklch(0.95 0.004 20);
+  --rule: oklch(0.84 0.006 20);
+  --input-rule: oklch(0.62 0.008 20);
+  --font-body: FuturaMaxiCG, Arial, sans-serif;
+  --radius-panel: 20px;
+  --radius-input: 10px;
+  --radius-button: 100px;
+}
