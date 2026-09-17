@@ -85,11 +85,21 @@ it('classifies transient and permanent errors from the Resend response', async (
   await expect(mailer.send(p, 'key')).rejects.toMatchObject({ transient: false });
 });
 it('sends files to separate S3 buckets and signs private receipt reads for five minutes', async () => {
-  const requests: { method: string; url: string; body: Buffer }[] = [];
+  const requests: {
+    method: string;
+    url: string;
+    body: Buffer;
+    headers: import('node:http').IncomingHttpHeaders;
+  }[] = [];
   const server = createServer(async (req, res) => {
     const buffers: Buffer[] = [];
     for await (const chunk of req) buffers.push(Buffer.from(chunk));
-    requests.push({ method: req.method!, url: req.url!, body: Buffer.concat(buffers) });
+    requests.push({
+      method: req.method!,
+      url: req.url!,
+      body: Buffer.concat(buffers),
+      headers: req.headers,
+    });
     res.statusCode = req.method === 'DELETE' ? 204 : 200;
     res.end();
   });
@@ -110,13 +120,24 @@ it('sends files to separate S3 buckets and signs private receipt reads for five 
     })
       .png()
       .toBuffer();
-    const receipt = await storage.put('receipt', buffer, 'image/png');
-    const logo = await storage.put('logo', buffer, 'image/png');
+    const optimized = await validateFile(buffer, 'image/png', 'logo');
+    const receipt = await storage.put('receipt', optimized.buffer, optimized.mime);
+    const logo = await storage.put('logo', optimized.buffer, optimized.mime);
     expect(receipt.url).toMatch(/^receipts\//);
     expect(logo.url).toMatch(/^https:\/\/logos.example\/team-logos\//);
     expect(requests[0].url).toContain('/booking-private/receipts/');
     expect(requests[1].url).toContain('/booking-public/team-logos/');
-    expect(requests[0].body).toEqual(buffer);
+    expect(requests[0].body).toEqual(optimized.buffer);
+    expect(receipt.key).toMatch(/\.webp$/);
+    expect(logo.key).toMatch(/\.webp$/);
+    expect(requests[0].headers['content-type']).toBe('image/webp');
+    expect(requests[0].headers['cache-control']).toBe('private, no-store');
+    expect(requests[1].headers['cache-control']).toBe('public, max-age=31536000, immutable');
+    const pdf = Buffer.from('%PDF-1.7\n');
+    const storedPdf = await storage.put('receipt', pdf, 'application/pdf');
+    expect(storedPdf.key).toMatch(/\.pdf$/);
+    expect(requests[2].body).toEqual(pdf);
+    expect(requests[2].headers['content-type']).toBe('application/pdf');
     const signed = new URL(await storage.signReceipt(receipt.key));
     expect(signed.searchParams.get('X-Amz-Expires')).toBe('300');
     expect(signed.searchParams.has('X-Amz-Signature')).toBe(true);
@@ -128,7 +149,7 @@ it('sends files to separate S3 buckets and signs private receipt reads for five 
     );
   }
 });
-it('normalizes images, limits logo dimensions, and rejects malformed or oversized uploads', async () => {
+it('normalizes images, preserves original logo dimensions, and rejects malformed or oversized uploads', async () => {
   const jpeg = await sharp({
     create: { width: 1600, height: 800, channels: 3, background: '#ffffff' },
   })
@@ -136,9 +157,10 @@ it('normalizes images, limits logo dimensions, and rejects malformed or oversize
     .toBuffer();
   const result = await validateFile(jpeg, 'image/jpeg', 'logo');
   const metadata = await sharp(result.buffer).metadata();
-  expect(result.mime).toBe('image/png');
-  expect(metadata.width).toBe(1024);
-  expect(metadata.height).toBe(512);
+  expect(result.mime).toBe('image/webp');
+  expect(metadata.format).toBe('webp');
+  expect(metadata.width).toBe(1600);
+  expect(metadata.height).toBe(800);
   await expect(
     validateFile(Buffer.alloc(5 * 1024 * 1024 + 1), 'image/png', 'logo'),
   ).rejects.toMatchObject({ code: 'invalid_file' });
@@ -164,4 +186,76 @@ it('fails closed for missing provider settings and shared public/private buckets
       'key',
     ),
   ).rejects.toBeInstanceOf(DeliveryError);
+});
+
+it('compresses receipt images while retaining resolution and close pixel fidelity', async () => {
+  const width = 1200;
+  const height = 600;
+  const pixels = Buffer.alloc(width * height * 3);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const offset = (y * width + x) * 3;
+      pixels[offset] = Math.round((x / width) * 255);
+      pixels[offset + 1] = Math.round((y / height) * 255);
+      pixels[offset + 2] = Math.round(((x + y) / (width + height)) * 255);
+    }
+  }
+  const input = await sharp(pixels, { raw: { width, height, channels: 3 } })
+    .png()
+    .toBuffer();
+  const result = await validateFile(input, 'image/png', 'receipt');
+  const decoded = await sharp(result.buffer).raw().toBuffer({ resolveWithObject: true });
+  expect(decoded.info.width).toBe(width);
+  expect(decoded.info.height).toBe(height);
+  expect(result.buffer.length).toBeLessThan(input.length / 2);
+  let error = 0;
+  for (let i = 0; i < pixels.length; i++) error += Math.abs(pixels[i] - decoded.data[i]);
+  expect(error / pixels.length).toBeLessThan(3);
+});
+
+it('preserves transparency without upscaling and corrects orientation before stripping metadata', async () => {
+  const transparent = await sharp({
+    create: {
+      width: 24,
+      height: 12,
+      channels: 4,
+      background: { r: 40, g: 90, b: 150, alpha: 0.5 },
+    },
+  })
+    .png()
+    .toBuffer();
+  const logo = await validateFile(transparent, 'image/png', 'logo');
+  const alpha = await sharp(logo.buffer).ensureAlpha().extractChannel(3).raw().toBuffer();
+  const originalAlpha = await sharp(transparent).extractChannel(3).raw().toBuffer();
+  expect(alpha).toEqual(originalAlpha);
+  expect(await sharp(logo.buffer).metadata()).toMatchObject({
+    width: 24,
+    height: 12,
+    hasAlpha: true,
+  });
+
+  const rotated = await sharp({
+    create: { width: 120, height: 60, channels: 3, background: '#759585' },
+  })
+    .withMetadata({ orientation: 6 })
+    .jpeg()
+    .toBuffer();
+  const receipt = await validateFile(rotated, 'image/jpeg', 'receipt');
+  const metadata = await sharp(receipt.buffer).metadata();
+  expect(metadata).toMatchObject({ width: 60, height: 120 });
+  expect(metadata.orientation).toBeUndefined();
+  expect(metadata.exif).toBeUndefined();
+  const webp = await validateFile(logo.buffer, 'image/webp', 'logo');
+  expect((await sharp(webp.buffer).metadata()).format).toBe('webp');
+});
+
+it('keeps receipt PDFs unchanged and rejects corrupt images', async () => {
+  const buffer = Buffer.from('%PDF-1.7\n');
+  expect(await validateFile(buffer, 'application/pdf', 'receipt')).toEqual({
+    buffer,
+    mime: 'application/pdf',
+  });
+  await expect(validateFile(Buffer.from('broken'), 'image/jpeg', 'receipt')).rejects.toMatchObject({
+    code: 'invalid_file',
+  });
 });

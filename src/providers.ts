@@ -118,12 +118,15 @@ export async function validateFile(buffer: Buffer, mime: string, kind: 'receipt'
       'invalid_file',
       'Unsupported image',
     );
-    // Decode and re-encode to strip metadata and embedded content. Logos are bounded for public display.
-    const normalized =
-      kind === 'logo'
-        ? img.rotate().resize(1024, 1024, { fit: 'inside', withoutEnlargement: true })
-        : img.rotate();
-    return { buffer: await normalized.png().toBuffer(), mime: 'image/png' };
+    // Preserve displayed dimensions and aspect ratio, applying EXIF orientation
+    // before stripping metadata. Compress without cropping or resizing.
+    const normalized = img.rotate();
+    return {
+      buffer: await normalized
+        .webp({ quality: 90, alphaQuality: 100, smartSubsample: true, effort: 4 })
+        .toBuffer(),
+      mime: 'image/webp',
+    };
   } catch {
     throw new HttpError(400, 'invalid_file', 'The image could not be decoded');
   }
@@ -156,7 +159,14 @@ export function s3Storage(c: Config): Storage {
           'storage_unconfigured',
           'Public logo URL is not configured',
         );
-      const key = `${kind === 'receipt' ? 'receipts' : 'team-logos'}/${randomUUID()}.${mime === 'application/pdf' ? 'pdf' : 'png'}`;
+      const extension = {
+        'application/pdf': 'pdf',
+        'image/webp': 'webp',
+        'image/png': 'png',
+        'image/jpeg': 'jpg',
+      }[mime];
+      assert(extension, 400, 'invalid_file', 'Unsupported storage content type');
+      const key = `${kind === 'receipt' ? 'receipts' : 'team-logos'}/${randomUUID()}.${extension}`;
       await client.send(
         new PutObjectCommand({
           Bucket: bucket(kind),

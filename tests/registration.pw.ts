@@ -71,8 +71,25 @@ test('new captain signs in, submits two teams, corrects rejected payment, and fi
     });
     await page.getByRole('button', { name: 'Submit receipt' }).click();
     await expect(page.locator('#receipt-form .error')).toBeVisible();
-    await page.getByLabel('Receipt file').setInputFiles(upload);
+    // A valid image above Vercel's request limit must shrink before it leaves the browser.
+    const largePng = await sharp({
+      create: { width: 1400, height: 1200, channels: 3, background: '#759585' },
+    })
+      .png({ compressionLevel: 0 })
+      .toBuffer();
+    expect(largePng.length).toBeGreaterThan(4_500_000);
+    await page.getByLabel('Receipt file').setInputFiles({
+      name: 'large-receipt.png',
+      mimeType: 'image/png',
+      buffer: largePng,
+    });
+    const submitted = page.waitForRequest(
+      (request) => request.url().endsWith('/receipt') && request.method() === 'POST',
+    );
     await page.getByRole('button', { name: 'Submit receipt' }).click();
+    const requestBody = (await submitted).postDataBuffer()!;
+    expect(requestBody.length).toBeLessThan(4_100_000);
+    expect(requestBody.toString('latin1')).toContain('image/webp');
     await expect(page.getByRole('heading', { name: 'Receipt received' })).toBeVisible();
 
     await organizer.addCookies([{ name: 'admin_session', value: 'staff', url: baseURL }]);

@@ -46,8 +46,8 @@ export async function setup() {
   const files = new Map<string, Buffer>();
   const removed: string[] = [];
   const storage: Storage = {
-    async put(kind, buffer) {
-      const key = `${kind === 'receipt' ? 'receipts' : 'team-logos'}/${randomUUID()}.png`;
+    async put(kind, buffer, mime) {
+      const key = `${kind === 'receipt' ? 'receipts' : 'team-logos'}/${randomUUID()}.${mime === 'application/pdf' ? 'pdf' : 'webp'}`;
       files.set(key, buffer);
       return { key, url: kind === 'receipt' ? key : `https://logos.example/${key}` };
     },

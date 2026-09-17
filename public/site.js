@@ -1,3 +1,5 @@
+import { prepareUploadForm } from './uploads.js';
+
 const main = document.querySelector('#main');
 const toast = document.querySelector('#toast');
 let data;
@@ -10,6 +12,7 @@ const esc = (value = '') =>
     (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char],
   );
 const api = async (path, options = {}) => {
+  if (options.body instanceof FormData) await prepareUploadForm(options.body);
   const response = await fetch(path, {
     credentials: 'same-origin',
     ...options,
@@ -26,9 +29,11 @@ const api = async (path, options = {}) => {
     const error = new Error(
       payload?.details?.map((issue) => issue.message).join('; ') ||
         payload?.message ||
-        (response.status >= 500
-          ? 'Registration is temporarily unavailable. Please try again shortly.'
-          : 'The request could not be completed.'),
+        (response.status === 413
+          ? 'This file is too large to upload. Choose a file under 4 MB.'
+          : response.status >= 500
+            ? 'Registration is temporarily unavailable. Please try again shortly.'
+            : 'The request could not be completed.'),
     );
     error.status = response.status;
     error.code = payload?.error;
@@ -378,7 +383,7 @@ async function paymentStep(order) {
 }
 function receiptStep(order) {
   const target = document.querySelector('#registration-content');
-  target.innerHTML = `<p class="eyebrow">Step 04 / Receipt</p><h2>Upload proof of payment</h2><p>Send a clear PNG, JPEG, WebP, or PDF receipt, up to 5 MB. The organizer will review it alongside your exact amount and code.</p><form id="receipt-form" class="form-stack"><label class="input-group">Receipt file<input name="receipt" type="file" accept="image/png,image/jpeg,image/webp,application/pdf" required></label><p class="error" hidden></p><div class="form-actions"><button class="button primary">Submit receipt</button></div></form>`;
+  target.innerHTML = `<p class="eyebrow">Step 04 / Receipt</p><h2>Upload proof of payment</h2><p>Send a clear PNG, JPEG, or WebP receipt up to 5 MB, or a PDF under 4 MB. Large images are compressed automatically before upload. The organizer will review it alongside your exact amount and code.</p><form id="receipt-form" class="form-stack"><label class="input-group">Receipt file<input name="receipt" type="file" accept="image/png,image/jpeg,image/webp,application/pdf" required></label><p class="error" hidden></p><div class="form-actions"><button class="button primary">Submit receipt</button></div></form>`;
   if (order.rejection) {
     const note = document.createElement('p');
     note.className = 'error';
