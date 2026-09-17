@@ -102,7 +102,8 @@ test('new captain signs in, submits two teams, corrects rejected payment, and fi
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );
-    for (const sport of ['Basketball', 'Football']) {
+    const rosterNames: Record<string, number> = { Basketball: 3, Football: 2 };
+    for (const sport of Object.keys(rosterNames)) {
       await page
         .locator('.sport-choice')
         .filter({ hasText: sport })
@@ -112,13 +113,19 @@ test('new captain signs in, submits two teams, corrects rejected payment, and fi
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
         true,
       );
-      await page.getByLabel('Players, one name per line').fill('Player One\nPlayer Two');
-      await page.getByLabel('Team logo').setInputFiles(upload);
+      await page
+        .getByLabel('Players, one name per line')
+        .fill(Array.from({ length: rosterNames[sport] }, (_, i) => `Player ${i + 1}`).join('\n'));
+      if (sport === 'Basketball') {
+        await page.getByLabel('Company logo').setInputFiles(upload);
+      } else {
+        await expect(page.getByRole('img', { name: 'E2E Company company logo' })).toBeVisible();
+      }
       await page.getByRole('button', { name: 'Save draft', exact: true }).click();
       await expect(page.getByRole('status')).toHaveText('Profile saved.');
       await page.reload();
       await expect(page.getByLabel('Players, one name per line')).toHaveValue(
-        'Player One\nPlayer Two',
+        Array.from({ length: rosterNames[sport] }, (_, i) => `Player ${i + 1}`).join('\n'),
       );
       await page.getByRole('button', { name: 'Save and mark done' }).click();
       await expect(page.getByRole('status')).toHaveText('Team profile completed.');
@@ -126,9 +133,14 @@ test('new captain signs in, submits two teams, corrects rejected payment, and fi
     await expect(page.getByRole('heading', { name: 'See you at the park.' })).toBeVisible();
     const status = await (await captain.request.get(`/orders/${orderId}/status`)).json();
     expect(status.company_name).toBe('E2E Company');
+    expect(status.items[0].logo_url).toBeTruthy();
+    expect(new Set(status.items.map((item: any) => item.logo_url)).size).toBe(1);
     expect(status.items.every((item: any) => item.team_name === 'E2E Company')).toBe(true);
     expect(
-      status.items.every((item: any) => item.players.length === 2 && item.profile_completed_at),
+      status.items.every(
+        (item: any) =>
+          item.players.length === rosterNames[item.sport_name] && item.profile_completed_at,
+      ),
     ).toBe(true);
     const headers = { origin: baseURL! };
     const firstDelivery = await captain.request.post('/__test/deliver', { headers });

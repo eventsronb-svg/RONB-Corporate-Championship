@@ -192,7 +192,7 @@ export async function setup() {
   async function fill(order: any, index = 0) {
     const f = multipart('logo', png, {
       name: 'players',
-      value: JSON.stringify(['Suman Karki', 'Pratik Gurung']),
+      value: JSON.stringify(['Suman Karki', 'Pratik Gurung', 'Aarav Shah']),
     });
     const r = await call(
       'PATCH',

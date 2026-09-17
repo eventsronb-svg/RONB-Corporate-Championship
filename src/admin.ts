@@ -100,6 +100,7 @@ export async function registerAdmin(
     if (q.date_to) add('o.created_at<=?', q.date_to);
     const result = await db.query(
       `SELECT o.*,u.name AS captain_name,u.email,p.unique_code,
+   (SELECT i.team_name FROM order_items i WHERE i.order_id=o.id ORDER BY i.id LIMIT 1) AS company_name,
    (SELECT max(uploaded_at) FROM receipts r WHERE r.order_id=o.id) AS receipt_submitted_at,
    coalesce((SELECT json_agg(json_build_object('id',i.id,'team_name',i.team_name,'sport_name',s.name,'profile_completed_at',i.profile_completed_at)) FROM order_items i JOIN sports s ON s.id=i.sport_id WHERE i.order_id=o.id),'[]') AS teams
    FROM orders o JOIN users u ON u.id=o.user_id LEFT JOIN payment_requests p ON p.order_id=o.id

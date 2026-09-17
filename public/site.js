@@ -91,7 +91,7 @@ function home() {
     <section class="team-story section"><p class="eyebrow">Better together</p><h2>A different kind<br>of team meeting.</h2><p>Swap the meeting room for the court. Cheer for your colleagues, meet other company teams, and make memories beyond the workday.</p><a class="button" href="/register">Make your company part of it</a></section>
     <section class="section" id="teams">${sectionHeader('', 'Meet the teams', 'Your next friendly rivals. Confirmed teams appear here once their captain completes the team profile.')}<div class="teams-shell"><div class="team-tabs" role="tablist" aria-label="Team sports">${data.sports.map((sport, index) => `<button role="tab" id="tab-${sport.slug}" aria-label="${esc(sport.name)}" aria-controls="teams-panel" aria-selected="${index === 0}" tabindex="${index === 0 ? 0 : -1}" data-sport="${esc(sport.name)}" data-slug="${sport.slug}" ${sport.max_teams ? `data-max="${sport.max_teams}"` : ''}>${esc(sport.name)}</button>`).join('')}</div><div class="team-list" id="teams-panel" role="tabpanel" aria-labelledby="tab-${data.sports[0]?.slug || ''}" aria-live="polite"><p class="teams-state">Loading confirmed teams…</p></div></div></section>
     <section class="section venue-section" id="venue"><img class="venue-date" src="/assets/images/calendar.png" alt="See you in October 01 to 04 2026 · Chunikhel, Kathmandu" width="1536" height="1024" /><div class="venue-copy"><p class="eyebrow">Room to play. Reasons to stay.</p><h2>${esc(data.venue)}</h2><p>Four days of team spirit at ${esc(data.locality)}. Get your colleagues together and meet us on the court.</p><a class="button primary" href="${esc(data.maps_url)}" target="_blank" rel="noreferrer">Open directions</a></div><div class="venue-map"><iframe title="Royal Sports Park location on Google Maps" src="${esc(data.maps_embed_url)}" loading="lazy" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe><p>Royal Sports Park, Chunikhel · <a href="${esc(data.maps_url)}" target="_blank" rel="noreferrer">View larger map and directions ↗</a></p></div></section>
-    <section class="section faq-section" id="faq">${sectionHeader('A little pre-game prep', 'Good questions', 'Everything you need to get your team started.')}<div class="faq"><details><summary>Can a company enter more than one sport?</summary><p>Yes. A captain can select every available sport in one registration, use one company name across all selected sports, then complete a roster and profile for each sport.</p></details><details><summary>When does a team show publicly?</summary><p>After payment is confirmed by the organizer and the captain completes the logo and roster for that sport.</p></details><details><summary>How does payment work?</summary><p>Your registration includes the exact amount, a payment code, and instructions. Upload your receipt after transfer. An organizer verifies it before team profiles unlock.</p></details><details><summary>Where can I get directions?</summary><p>Use the Royal Sports Park directions link above. It opens the organizer-provided Google Maps location.</p></details></div></section>
+    <section class="section faq-section" id="faq">${sectionHeader('A little pre-game prep', 'Good questions', 'Everything you need to get your team started.')}<div class="faq"><details><summary>Can a company enter more than one sport?</summary><p>Yes. A captain can select every available sport in one registration, use one company name across all selected sports, share one company logo across all sports, then complete a roster for each sport.</p></details><details><summary>When does a team show publicly?</summary><p>After payment is confirmed by the organizer and the captain adds the company logo and completes the roster for that sport.</p></details><details><summary>How does payment work?</summary><p>Your registration includes the exact amount, a payment code, and instructions. Upload your receipt after transfer. An organizer verifies it before team profiles unlock.</p></details><details><summary>Where can I get directions?</summary><p>Use the Royal Sports Park directions link above. It opens the organizer-provided Google Maps location.</p></details></div></section>
     <section class="closing section"><p class="eyebrow">The best teams play together</p><h2>Bring your people.<br>We'll bring the occasion.</h2><a class="button primary" href="/register">Register your team</a></section>`;
   bindTeamTabs();
   const motion = !matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -155,7 +155,7 @@ async function teamList(name) {
         ? teams
             .map(
               (team) =>
-                `<article class="team">${team.logo_url ? `<img class="team-logo" src="${esc(team.logo_url)}" alt="${esc(team.team_name)} logo" />` : ''}<h3 class="team-name">${esc(team.team_name)}</h3><p class="team-meta">${esc(team.players.length ? `${team.players.length} listed player${team.players.length === 1 ? '' : 's'}` : 'Team profile complete')}</p></article>`,
+                `<article class="team">${team.logo_url ? `<img class="team-logo" src="${esc(team.logo_url)}" alt="${esc(team.team_name)} logo" />` : ''}<h3 class="team-name">${esc(team.team_name)}</h3></article>`,
             )
             .join('')
         : `<p class="teams-state">No confirmed ${esc(name)} teams are listed yet.</p>`,
@@ -429,15 +429,17 @@ function profileStep(order) {
   profileOrder = order;
   const target = document.querySelector('#registration-content');
   const pending = order.items.filter((item) => !item.profile_completed_at);
-  target.innerHTML = `<p class="eyebrow">Step 05 / Team profile</p><h2>Finish your team</h2><p>Payment is confirmed. Add a logo and roster for each team. A confirmed team appears on the public listing after you mark its profile done.</p><div class="choice-list">${pending.map((item) => `<div class="sport-choice"><div><strong>${esc(item.team_name)}</strong><span>${esc(item.sport_name)}</span></div><a class="button primary" href="#profile/${item.id}">Complete profile</a></div>`).join('')}</div>`;
+  target.innerHTML = `<p class="eyebrow">Step 05 / Team profile</p><h2>Finish your team</h2><p>Payment is confirmed. Upload your company logo once for all sports, then add a separate roster for each team. A confirmed team appears on the public listing after you mark its profile done.</p><div class="choice-list">${pending.map((item) => `<div class="sport-choice"><div><strong>${esc(item.team_name)}</strong><span>${esc(item.sport_name)}</span></div><a class="button primary" href="#profile/${item.id}">Complete profile</a></div>`).join('')}</div>`;
   const itemId = location.hash.split('/')[1];
   if (itemId) profileEditor(order, itemId);
 }
+const MIN_ROSTER = { futsal: 5, basketball: 3, crickshal: 7 };
 function profileEditor(order, itemId) {
   const item = order.items.find((candidate) => candidate.id === itemId);
   if (!item) return;
+  const required = MIN_ROSTER[item.sport_name.toLowerCase()] ?? 1;
   const target = document.querySelector('#registration-content');
-  target.innerHTML = `<p class="eyebrow">${esc(item.sport_name)} / Team profile</p><h2>${esc(item.team_name)}</h2><form id="profile-form" class="form-stack"><label class="input-group">Team logo<input name="logo" type="file" accept="image/png,image/jpeg,image/webp"></label><label class="input-group">Players, one name per line<textarea name="players" required rows="6" placeholder="Player one&#10;Player two">${esc(item.players.join('\n'))}</textarea></label><p class="error" hidden></p><div class="form-actions"><button class="button" name="save" value="save">Save draft</button><button class="button primary" name="complete" value="complete">Save and mark done</button></div></form>`;
+  target.innerHTML = `<p class="eyebrow">${esc(item.sport_name)} / Team profile</p><h2>${esc(item.team_name)}</h2><form id="profile-form" class="form-stack">${item.logo_url ? `<img class="company-logo-preview" src="${esc(item.logo_url)}" alt="${esc(item.team_name)} company logo" />` : ''}<label class="input-group">Company logo<input name="logo" type="file" accept="image/png,image/jpeg,image/webp" aria-describedby="company-logo-note"></label><p id="company-logo-note" class="form-note">${item.logo_url ? 'This logo is used for all your company’s sports. Upload a new logo to replace it everywhere in this registration.' : 'Upload once. This logo will be used for all your company’s sports in this registration.'}</p><label class="input-group">Players, one name per line — at least ${required}${required > 1 ? ' required' : ''}<textarea name="players" required rows="${Math.max(required, 6)}" placeholder="${esc(Array.from({ length: required }, (_, i) => `Player ${i + 1}`).join('\n'))}">${esc(item.players.join('\n'))}</textarea></label><p class="error" hidden></p><div class="form-actions"><button class="button" name="save" value="save">Save draft</button><button class="button primary" name="complete" value="complete">Save and mark done</button></div></form>`;
   bindSubmission('#profile-form', async (event) => {
     event.preventDefault();
     const form = event.currentTarget;
@@ -447,6 +449,12 @@ function profileEditor(order, itemId) {
       .split('\n')
       .map((name) => name.trim())
       .filter(Boolean);
+    const error = form.querySelector('.error');
+    if (action === 'complete' && players.length < required) {
+      error.textContent = `Add at least ${required} player${required > 1 ? 's' : ''} before completing the ${item.sport_name} profile.`;
+      error.hidden = false;
+      return;
+    }
     const update = new FormData();
     if (fd.get('logo').size) update.append('logo', fd.get('logo'));
     update.append('players', JSON.stringify(players));

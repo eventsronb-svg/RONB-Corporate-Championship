@@ -29,7 +29,7 @@ describe('registration and publication', () => {
     expect(first).toHaveLength(1);
     expect(first[0].team_name).toBe('Valley Strikers');
     expect(first[0]).not.toHaveProperty('user_id');
-    expect(first[0].players).toEqual(['Suman Karki', 'Pratik Gurung']);
+    expect(first[0].players).toEqual(['Suman Karki', 'Pratik Gurung', 'Aarav Shah']);
     expect((await h.db.query('SELECT * FROM email_jobs')).rows).toHaveLength(0);
     await h.fill(order, 1);
     const finish = await Promise.all(
@@ -52,6 +52,30 @@ describe('registration and publication', () => {
     expect(detail.receipts[0].signed_url).toContain('?signed=1');
     expect(detail.receipts[0]).not.toHaveProperty('file_url');
     expect(detail.timeline.at(-1).to_status).toBe('confirmed');
+  });
+  it('shares and replaces company logos across sports while keeping rosters separate', async () => {
+    const order = await h.confirm();
+    const first = await h.fill(order, 0);
+    let current = (await h.call('GET', `/orders/${order.id}/status`)).json();
+    expect(current.items.every((item: any) => item.logo_url === first.logo_url)).toBe(true);
+    expect(current.items[1].players).toEqual([]);
+    expect(
+      (await h.call('POST', `/orders/${order.id}/items/${order.items[1].id}/profile/complete`))
+        .statusCode,
+    ).toBe(409);
+    const replacement = await h.fill(order, 1);
+    expect(replacement.logo_url).not.toBe(first.logo_url);
+    current = (await h.call('GET', `/orders/${order.id}/status`)).json();
+    expect(current.items.every((item: any) => item.logo_url === replacement.logo_url)).toBe(true);
+    expect(current.items[0].players).toEqual(first.players);
+    for (const item of order.items) {
+      expect(
+        (await h.call('POST', `/orders/${order.id}/items/${item.id}/profile/complete`)).statusCode,
+      ).toBe(200);
+    }
+    const teams = (await h.call('GET', '/teams')).json();
+    expect(teams).toHaveLength(2);
+    expect(teams.every((team: any) => team.logo_url === replacement.logo_url)).toBe(true);
   });
   it('serializes double draft creation and prevents duplicate open orders in the database', async () => {
     const results = await Promise.all(
@@ -366,7 +390,7 @@ describe('background jobs', () => {
   });
   it('applies migrations idempotently', async () => {
     await migrate(h.db);
-    expect((await h.db.query('SELECT * FROM schema_migrations')).rows).toHaveLength(2);
+    expect((await h.db.query('SELECT * FROM schema_migrations')).rows).toHaveLength(3);
   });
 });
 describe('Google OAuth sessions', () => {

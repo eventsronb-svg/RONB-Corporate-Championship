@@ -4,6 +4,8 @@ import type { Config } from './config.js';
 import { assert } from './errors.js';
 export const paid = ['confirmed', 'contacted', 'completed'];
 export const openSql = "status NOT IN ('completed','cancelled','expired','rejected')";
+// Minimum roster size required to complete a team profile, keyed by sport slug/name.
+export const MIN_ROSTER: Record<string, number> = { crickshal: 7, basketball: 3, futsal: 5 };
 export const reservedStates = [
   'invoiced',
   'payment_pending',
@@ -411,12 +413,25 @@ export class Orders {
       ]);
       assert(item, 404, 'not_found', 'Team not found');
       if (complete) {
+        const sportRow = await one(
+          tx,
+          'SELECT s.name AS name FROM order_items i JOIN sports s ON s.id=i.sport_id WHERE i.id=$1',
+          [itemId],
+        );
+        assert(sportRow, 404, 'not_found', 'Team not found');
+        const sportName = sportRow.name;
+        const requiredPlayers = MIN_ROSTER[sportName.toLowerCase()] ?? 1;
+        const rosterRow = await one(
+          tx,
+          'SELECT count(*)::int AS count FROM team_players WHERE order_item_id=$1',
+          [itemId],
+        );
+        const rosterCount = rosterRow!.count;
         assert(
-          item.logo_url &&
-            (await one(tx, 'SELECT id FROM team_players WHERE order_item_id=$1 LIMIT 1', [itemId])),
+          item.logo_url && rosterCount >= requiredPlayers,
           409,
           'profile_incomplete',
-          'Add a logo and at least one player before completing the profile',
+          `Add a logo and at least ${requiredPlayers} player${requiredPlayers > 1 ? 's' : ''} before completing the ${sportName} profile`,
         );
         await tx.query(
           'UPDATE order_items SET profile_completed_at=coalesce(profile_completed_at,now()) WHERE id=$1',
@@ -436,9 +451,10 @@ export class Orders {
           'Provide players or a logo',
         );
         if (input.logo_url)
-          await tx.query('UPDATE order_items SET logo_url=$2 WHERE id=$1', [
-            itemId,
+          await tx.query('UPDATE order_items SET logo_url=$2 WHERE order_id=$1 AND team_name=$3', [
+            id,
             input.logo_url,
+            item.team_name,
           ]);
         if (input.players) {
           await tx.query('DELETE FROM team_players WHERE order_item_id=$1', [itemId]);
