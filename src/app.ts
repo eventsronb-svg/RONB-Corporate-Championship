@@ -267,7 +267,7 @@ export async function buildApp(deps: {
     let input: z.infer<typeof profileInput> = {};
     let upload: { buffer: Buffer; mime: string } | undefined;
     if (req.isMultipart()) {
-      for await (const part of req.parts()) {
+      for await (const part of req.parts({ limits: { fields: 2, parts: 3 } })) {
         if (part.type === 'file') {
           assert(
             part.fieldname === 'logo',
@@ -278,18 +278,18 @@ export async function buildApp(deps: {
           upload = await validateFile(await part.toBuffer(), part.mimetype, 'logo');
         } else {
           assert(
-            part.fieldname === 'players',
+            ['players', 'captain_position'].includes(part.fieldname),
             400,
             'invalid_field',
-            'Only players and logo fields are accepted',
+            'Only players, captain_position and logo fields are accepted',
           );
           let value: unknown;
           try {
             value = JSON.parse(String(part.value));
           } catch {
-            throw new HttpError(400, 'invalid_players', 'Players must be a JSON array of names');
+            throw new HttpError(400, 'invalid_players', 'Profile fields must contain valid JSON');
           }
-          input = profileInput.parse({ players: value });
+          input = profileInput.parse({ ...input, [part.fieldname]: value });
         }
       }
     } else input = profileInput.parse(req.body);

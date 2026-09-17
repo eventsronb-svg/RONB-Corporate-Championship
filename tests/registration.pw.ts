@@ -102,6 +102,27 @@ test('new captain signs in, submits two teams, corrects rejected payment, and fi
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );
+    await page.getByLabel('Company logo').setInputFiles(upload);
+    await page.getByRole('button', { name: 'Save company logo', exact: true }).click();
+    await expect(page.getByRole('status')).toHaveText('Company logo saved for all sports.');
+    await page
+      .locator('.sport-choice')
+      .filter({ hasText: 'Basketball' })
+      .getByRole('link', { name: 'Complete profile' })
+      .click();
+    await page.getByRole('textbox', { name: 'Player 1', exact: true }).fill('Draft player');
+    await page.getByRole('button', { name: 'Back to all sports' }).click();
+    await expect(page.getByRole('heading', { name: 'Finish your team' })).toBeVisible();
+    await page
+      .locator('.sport-choice')
+      .filter({ hasText: 'Basketball' })
+      .getByRole('link', { name: 'Complete profile' })
+      .click();
+    await expect(page.getByRole('textbox', { name: 'Player 1', exact: true })).toHaveValue(
+      'Draft player',
+    );
+    await expect(page.getByLabel('Company logo')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Back to all sports' }).click();
     const rosterNames: Record<string, number> = { Basketball: 3, Football: 2 };
     for (const sport of Object.keys(rosterNames)) {
       await page
@@ -113,19 +134,27 @@ test('new captain signs in, submits two teams, corrects rejected payment, and fi
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
         true,
       );
-      await page
-        .getByLabel('Players, one name per line')
-        .fill(Array.from({ length: rosterNames[sport] }, (_, i) => `Player ${i + 1}`).join('\n'));
-      if (sport === 'Basketball') {
-        await page.getByLabel('Company logo').setInputFiles(upload);
-      } else {
-        await expect(page.getByRole('img', { name: 'E2E Company company logo' })).toBeVisible();
+      for (let i = 0; i < rosterNames[sport]; i++) {
+        if (
+          (await page.getByRole('textbox', { name: `Player ${i + 1}`, exact: true }).count()) === 0
+        ) {
+          await page.getByRole('button', { name: 'Add player', exact: true }).click();
+        }
+        await page
+          .getByRole('textbox', { name: `Player ${i + 1}`, exact: true })
+          .fill(`Player ${i + 1}`);
       }
+      await page.getByRole('combobox', { name: 'Team captain', exact: true }).selectOption('1');
       await page.getByRole('button', { name: 'Save draft', exact: true }).click();
       await expect(page.getByRole('status')).toHaveText('Profile saved.');
       await page.reload();
-      await expect(page.getByLabel('Players, one name per line')).toHaveValue(
-        Array.from({ length: rosterNames[sport] }, (_, i) => `Player ${i + 1}`).join('\n'),
+      for (let i = 0; i < rosterNames[sport]; i++) {
+        await expect(
+          page.getByRole('textbox', { name: `Player ${i + 1}`, exact: true }),
+        ).toHaveValue(`Player ${i + 1}`);
+      }
+      await expect(page.getByRole('combobox', { name: 'Team captain', exact: true })).toHaveValue(
+        '1',
       );
       await page.getByRole('button', { name: 'Save and mark done' }).click();
       await expect(page.getByRole('status')).toHaveText('Team profile completed.');
@@ -139,7 +168,9 @@ test('new captain signs in, submits two teams, corrects rejected payment, and fi
     expect(
       status.items.every(
         (item: any) =>
-          item.players.length === rosterNames[item.sport_name] && item.profile_completed_at,
+          item.players.length === rosterNames[item.sport_name] &&
+          item.captain_position === 1 &&
+          item.profile_completed_at,
       ),
     ).toBe(true);
     const headers = { origin: baseURL! };

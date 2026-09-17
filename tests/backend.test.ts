@@ -77,6 +77,20 @@ describe('registration and publication', () => {
     expect(teams).toHaveLength(2);
     expect(teams.every((team: any) => team.logo_url === replacement.logo_url)).toBe(true);
   });
+  it('stores the captain as a roster member and rejects positions outside the roster', async () => {
+    const order = await h.confirm();
+    await h.fill(order, 0);
+    const path = `/orders/${order.id}/items/${order.items[0].id}/profile`;
+    const saved = await h.call('PATCH', path, { captain_position: 1 });
+    expect(saved.statusCode).toBe(200);
+    expect(saved.json().captain_position).toBe(1);
+    expect(saved.json().players).toHaveLength(3);
+    expect((await h.call('PATCH', path, { captain_position: 3 })).statusCode).toBe(400);
+    expect((await h.call('PATCH', path, { captain_position: -1 })).statusCode).toBe(400);
+    expect((await h.call('GET', path)).json().captain_position).toBe(1);
+    const changed = await h.call('PATCH', path, { players: ['New player'] });
+    expect(changed.json().captain_position).toBeNull();
+  });
   it('serializes double draft creation and prevents duplicate open orders in the database', async () => {
     const results = await Promise.all(
       Array.from({ length: 8 }, () => h.call('POST', '/orders/draft')),
@@ -390,7 +404,7 @@ describe('background jobs', () => {
   });
   it('applies migrations idempotently', async () => {
     await migrate(h.db);
-    expect((await h.db.query('SELECT * FROM schema_migrations')).rows).toHaveLength(3);
+    expect((await h.db.query('SELECT * FROM schema_migrations')).rows).toHaveLength(4);
   });
 });
 describe('Google OAuth sessions', () => {

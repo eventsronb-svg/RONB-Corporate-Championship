@@ -25,6 +25,7 @@ a {
 }
 button,
 input,
+select,
 textarea {
   font: inherit;
 }
@@ -38,7 +39,8 @@ button {
 a:focus-visible,
 button:focus-visible,
 summary:focus-visible,
-input:focus-visible {
+input:focus-visible,
+select:focus-visible {
   outline: 3px solid var(--accent);
   outline-offset: 5px;
 }
@@ -668,6 +670,7 @@ h2 {
   font-size: 18.2px;
 }
 .input-group input,
+.input-group select,
 .sport-choice input[data-team] {
   width: 100%;
   min-height: 48px;
@@ -1183,4 +1186,33 @@ h2 {
   margin: 0;
   color: var(--muted);
   font-size: 16px;
+}
+
+.roster-fields {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.roster-fields legend {
+  margin-bottom: 12px;
+}
+.player-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin: 20px 0;
+}
+.player-fields > * {
+  min-width: 0;
+}
+#captain-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 16px;
+}
+@media (max-width: 767px) {
+  .player-fields {
+    grid-template-columns: 1fr;
+  }
 }

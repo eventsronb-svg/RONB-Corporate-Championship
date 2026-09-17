@@ -430,6 +430,25 @@ function profileStep(order) {
   const target = document.querySelector('#registration-content');
   const pending = order.items.filter((item) => !item.profile_completed_at);
   target.innerHTML = `<p class="eyebrow">Step 05 / Team profile</p><h2>Finish your team</h2><p>Payment is confirmed. Upload your company logo once for all sports, then add a separate roster for each team. A confirmed team appears on the public listing after you mark its profile done.</p><div class="choice-list">${pending.map((item) => `<div class="sport-choice"><div><strong>${esc(item.team_name)}</strong><span>${esc(item.sport_name)}</span></div><a class="button primary" href="#profile/${item.id}">Complete profile</a></div>`).join('')}</div>`;
+  const companyItem = order.items.find((item) => item.logo_url) || order.items[0];
+  if (companyItem) {
+    target
+      .querySelector('.choice-list')
+      .insertAdjacentHTML(
+        'beforebegin',
+        `<form id="company-logo-form" class="form-stack">${companyItem.logo_url ? `<img class="company-logo-preview" src="${esc(companyItem.logo_url)}" alt="${esc(companyItem.team_name)} company logo" />` : ''}<label class="input-group">Company logo<input name="logo" type="file" accept="image/png,image/jpeg,image/webp" required aria-describedby="company-logo-note"></label><p id="company-logo-note">${companyItem.logo_url ? 'Your company logo is saved for every sport. You can replace it here.' : 'Upload your company logo once. It will appear for every sport in this registration.'}</p><p class="error" hidden></p><div><button class="button" type="submit">${companyItem.logo_url ? 'Replace company logo' : 'Save company logo'}</button></div></form>`,
+      );
+    bindSubmission('#company-logo-form', async (event) => {
+      event.preventDefault();
+      await api(`/orders/${order.id}/items/${companyItem.id}/profile`, {
+        method: 'PATCH',
+        body: new FormData(event.currentTarget),
+      });
+      const current = await api(`/orders/${order.id}/status`);
+      profileStep(current);
+      say('Company logo saved for all sports.');
+    });
+  }
   const itemId = location.hash.split('/')[1];
   if (itemId) profileEditor(order, itemId);
 }
@@ -439,24 +458,67 @@ function profileEditor(order, itemId) {
   if (!item) return;
   const required = MIN_ROSTER[item.sport_name.toLowerCase()] ?? 1;
   const target = document.querySelector('#registration-content');
-  target.innerHTML = `<p class="eyebrow">${esc(item.sport_name)} / Team profile</p><h2>${esc(item.team_name)}</h2><form id="profile-form" class="form-stack">${item.logo_url ? `<img class="company-logo-preview" src="${esc(item.logo_url)}" alt="${esc(item.team_name)} company logo" />` : ''}<label class="input-group">Company logo<input name="logo" type="file" accept="image/png,image/jpeg,image/webp" aria-describedby="company-logo-note"></label><p id="company-logo-note" class="form-note">${item.logo_url ? 'This logo is used for all your company’s sports. Upload a new logo to replace it everywhere in this registration.' : 'Upload once. This logo will be used for all your company’s sports in this registration.'}</p><label class="input-group">Players, one name per line — at least ${required}${required > 1 ? ' required' : ''}<textarea name="players" required rows="${Math.max(required, 6)}" placeholder="${esc(Array.from({ length: required }, (_, i) => `Player ${i + 1}`).join('\n'))}">${esc(item.players.join('\n'))}</textarea></label><p class="error" hidden></p><div class="form-actions"><button class="button" name="save" value="save">Save draft</button><button class="button primary" name="complete" value="complete">Save and mark done</button></div></form>`;
+  target.innerHTML = `<button class="button" type="submit" form="profile-form" name="save" value="back">← Back to all sports</button><p class="eyebrow">${esc(item.sport_name)} / Team profile</p><h2>${esc(item.team_name)}</h2><p>Your roster is saved as a draft when you return to all sports.</p>${!item.logo_url ? '<p class="info-box">Add your company logo on the all-sports overview before marking this profile done.</p>' : ''}<form id="profile-form" class="form-stack"><fieldset class="roster-fields"><legend>Players</legend><p class="form-note">Add at least ${required} player${required > 1 ? 's' : ''}, including your team captain.</p><div id="player-fields" class="player-fields"></div><button class="button" id="add-player" type="button">Add player</button></fieldset><label class="input-group">Team captain<select name="captain_position" aria-describedby="captain-note"><option value="">Choose a player</option></select></label><p id="captain-note" class="form-note">Choose one of the players above. The captain counts as part of your roster.</p><p class="error" hidden></p><div class="form-actions"><button class="button" name="save" value="save">Save draft</button><button class="button primary" name="complete" value="complete">Save and mark done</button></div></form>`;
+  const fields = target.querySelector('#player-fields');
+  const captain = target.querySelector('[name="captain_position"]');
+  const addButton = target.querySelector('#add-player');
+  const syncCaptain = () => {
+    const selected = captain.value;
+    captain.innerHTML =
+      '<option value="">Choose a player</option>' +
+      [...fields.querySelectorAll('input')]
+        .map((input, index) =>
+          input.value.trim()
+            ? `<option value="${index}">${esc(input.value.trim())} (Player ${index + 1})</option>`
+            : '',
+        )
+        .join('');
+    captain.value = selected;
+  };
+  const addPlayer = (name = '') => {
+    const index = fields.children.length;
+    fields.insertAdjacentHTML(
+      'beforeend',
+      `<label class="input-group">Player ${index + 1}<input name="player" type="text" value="${esc(name)}" maxlength="120" autocomplete="off" placeholder="Full name"></label>`,
+    );
+    addButton.disabled = fields.children.length >= 100;
+  };
+  for (let index = 0; index < Math.max(required, item.players.length); index++)
+    addPlayer(item.players[index] || '');
+  fields.addEventListener('input', syncCaptain);
+  addButton.addEventListener('click', () => {
+    addPlayer();
+    fields.lastElementChild.querySelector('input').focus();
+  });
+  syncCaptain();
+  captain.value =
+    item.captain_position === null || item.captain_position === undefined
+      ? ''
+      : String(item.captain_position);
   bindSubmission('#profile-form', async (event) => {
     event.preventDefault();
     const form = event.currentTarget;
     const action = event.submitter?.value || 'save';
     const fd = new FormData(form);
-    const players = String(fd.get('players'))
-      .split('\n')
-      .map((name) => name.trim())
-      .filter(Boolean);
+    const names = fd.getAll('player').map((name) => String(name).trim());
+    const players = names.filter(Boolean);
+    const selectedPosition = captain.value === '' ? null : Number(captain.value);
+    const captainPosition =
+      selectedPosition === null ? null : names.slice(0, selectedPosition).filter(Boolean).length;
     const error = form.querySelector('.error');
     if (action === 'complete' && players.length < required) {
       error.textContent = `Add at least ${required} player${required > 1 ? 's' : ''} before completing the ${item.sport_name} profile.`;
       error.hidden = false;
       return;
     }
+    if (action === 'complete' && captainPosition === null) {
+      error.textContent = 'Choose a team captain from your players.';
+      error.hidden = false;
+      captain.focus();
+      return;
+    }
     const update = new FormData();
-    if (fd.get('logo').size) update.append('logo', fd.get('logo'));
+    update.append('captain_position', JSON.stringify(captainPosition));
     update.append('players', JSON.stringify(players));
     await api(`/orders/${order.id}/items/${item.id}/profile`, { method: 'PATCH', body: update });
     if (action === 'complete') {
@@ -466,6 +528,11 @@ function profileEditor(order, itemId) {
       await resume(current || complete);
       say('Team profile completed.');
     } else {
+      profileOrder = await api(`/orders/${order.id}/status`);
+      if (action === 'back') {
+        history.replaceState({}, '', location.pathname + location.search);
+        profileStep(profileOrder);
+      }
       say('Profile saved.');
     }
   });

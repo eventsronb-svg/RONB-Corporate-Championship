@@ -51,7 +51,10 @@ export const teamSelection = z
     'Each sport can be selected once',
   );
 export const profileInput = z
-  .object({ players: z.array(z.string().trim().min(1).max(120)).min(1).max(100).optional() })
+  .object({
+    players: z.array(z.string().trim().min(1).max(120)).max(100).optional(),
+    captain_position: z.number().int().min(0).max(99).nullable().optional(),
+  })
   .strict();
 export async function transition(
   tx: Queryable,
@@ -397,7 +400,7 @@ export class Orders {
     userId: string,
     id: string,
     itemId: string,
-    input: { players?: string[]; logo_url?: string },
+    input: { players?: string[]; logo_url?: string; captain_position?: number | null },
     complete = false,
   ) {
     return this.owned(userId, id, async (tx, o) => {
@@ -445,11 +448,33 @@ export class Orders {
         if (!incomplete) await queueEmail(tx, id);
       } else {
         assert(
-          input.players !== undefined || input.logo_url !== undefined,
+          input.players !== undefined ||
+            input.logo_url !== undefined ||
+            input.captain_position !== undefined,
           400,
           'empty_update',
-          'Provide players or a logo',
+          'Provide players, a captain, or a logo',
         );
+        const captainPosition =
+          input.captain_position !== undefined
+            ? input.captain_position
+            : input.players !== undefined
+              ? null
+              : item.captain_position;
+        if (captainPosition !== null) {
+          const roster =
+            input.players ?? (await detail(tx, id)).items.find((i) => i.id === itemId)!.players;
+          assert(
+            captainPosition < roster.length,
+            400,
+            'invalid_captain',
+            'Choose a captain from the listed players',
+          );
+        }
+        await tx.query('UPDATE order_items SET captain_position=$2 WHERE id=$1', [
+          itemId,
+          captainPosition,
+        ]);
         if (input.logo_url)
           await tx.query('UPDATE order_items SET logo_url=$2 WHERE order_id=$1 AND team_name=$3', [
             id,
