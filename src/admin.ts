@@ -389,6 +389,40 @@ export async function registerAdmin(
       return after;
     });
   });
+  app.get('/admin/teams', { preHandler: guard.admin }, async (req) => {
+    const q = listQuery.parse(req.query);
+    return {
+      teams: (
+        await db.query(
+          `SELECT o.id,o.status,o.created_at,u.name AS captain_name,u.email,
+           coalesce(o.phone_number,u.phone) AS phone,
+           (SELECT i.team_name FROM order_items i WHERE i.order_id=o.id ORDER BY i.id LIMIT 1) AS team_name,
+           ARRAY(SELECT s.name FROM order_items i JOIN sports s ON s.id=i.sport_id WHERE i.order_id=o.id ORDER BY s.name) AS sports
+           FROM orders o JOIN users u ON u.id=o.user_id
+           WHERE EXISTS(SELECT 1 FROM order_items i WHERE i.order_id=o.id)
+           AND ($1::text IS NULL OR u.name ILIKE $1 OR u.email ILIKE $1 OR coalesce(o.phone_number,u.phone) ILIKE $1
+             OR EXISTS(SELECT 1 FROM order_items i JOIN sports s ON s.id=i.sport_id WHERE i.order_id=o.id AND (i.team_name ILIKE $1 OR s.name ILIKE $1)))
+           ORDER BY o.created_at DESC,o.id LIMIT $2 OFFSET $3`,
+          [q.search ? `%${q.search}%` : null, q.limit, q.offset],
+        )
+      ).rows,
+      limit: q.limit,
+      offset: q.offset,
+    };
+  });
+  app.get('/admin/teams/:id', { preHandler: guard.admin }, async (req) => {
+    const order = await detail(db, idOf(req.params));
+    assert(order.items.length, 404, 'not_found', 'Team not found');
+    return {
+      id: order.id,
+      team_name: order.company_name || order.items[0].team_name,
+      status: order.status,
+      created_at: order.created_at,
+      phone: order.phone_number,
+      contact: await one(db, 'SELECT name,email,phone FROM users WHERE id=$1', [order.user_id]),
+      items: order.items,
+    };
+  });
   app.get('/admin/users', { preHandler: guard.admin }, async (req) => {
     const q = listQuery.parse(req.query);
     return {

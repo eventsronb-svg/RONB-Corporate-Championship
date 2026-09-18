@@ -267,7 +267,7 @@ export async function buildApp(deps: {
     let input: z.infer<typeof profileInput> = {};
     let upload: { buffer: Buffer; mime: string } | undefined;
     if (req.isMultipart()) {
-      for await (const part of req.parts({ limits: { fields: 2, parts: 3 } })) {
+      for await (const part of req.parts({ limits: { fields: 3, parts: 4 } })) {
         if (part.type === 'file') {
           assert(
             part.fieldname === 'logo',
@@ -278,10 +278,10 @@ export async function buildApp(deps: {
           upload = await validateFile(await part.toBuffer(), part.mimetype, 'logo');
         } else {
           assert(
-            ['players', 'captain_position'].includes(part.fieldname),
+            ['players', 'captain_position', 'jersey_sizes'].includes(part.fieldname),
             400,
             'invalid_field',
-            'Only players, captain_position and logo fields are accepted',
+            'Only players, captain_position, jersey_sizes and logo fields are accepted',
           );
           let value: unknown;
           try {

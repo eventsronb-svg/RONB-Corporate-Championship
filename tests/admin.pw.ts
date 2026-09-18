@@ -110,10 +110,21 @@ test('reviews an order, changes settings, and manages organizer access', async (
   await expect(
     page.locator('.organizer-form').filter({ hasText: 'operations@example.com' }),
   ).toBeVisible();
-  await page.getByRole('link', { name: 'Captains', exact: true }).click();
-  await page.getByRole('textbox', { name: 'Search captains' }).fill('Anish');
+  await page.getByRole('link', { name: 'Teams', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Search teams' }).fill('Anish');
   await page.getByRole('button', { name: 'Search', exact: true }).click();
-  await expect(page.getByRole('link', { name: 'Anish Shrestha', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Valley Strikers', exact: true })).toBeVisible();
+  await page
+    .getByRole('row')
+    .filter({ hasText: 'Valley Strikers' })
+    .getByText('Anish Shrestha', { exact: true })
+    .click();
+  await expect(page.getByRole('heading', { name: 'Valley Strikers', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Cricket', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Football', exact: true })).toBeVisible();
+  await expect(page.getByText('No team members added yet.', { exact: false })).toHaveCount(2);
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Valley Strikers', exact: true })).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,

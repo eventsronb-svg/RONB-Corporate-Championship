@@ -133,7 +133,7 @@ function login() {
 function navigation() {
   const links = [
     ['orders', 'Registrations'],
-    ['users', 'Captains'],
+    ['teams', 'Teams'],
     ...(me.role === 'super_admin'
       ? [
           ['sports', 'Sports & pricing'],
@@ -297,32 +297,42 @@ async function eventView() {
     },
   };
 }
-async function usersView(params) {
+async function teamsView(params) {
   const q = new URLSearchParams(params);
   q.set('limit', '25');
-  const data = await api(`/admin/users?${q}`);
+  const data = await api(`/admin/teams?${q}`);
   const offset = Number(q.get('offset') || 0);
   return {
-    html: `${header('Captains', 'Find contact details and registration history.', 'PEOPLE')}<section class="surface"><form class="toolbar" id="user-search"><label>Search captains<input name="search" value="${e(q.get('search'))}" placeholder="Name, email or phone"></label><button class="primary">Search</button></form>${data.users.length ? `<div class="table-scroll"><table><thead><tr><th>Captain</th><th>Company</th><th>Email</th><th>Phone</th><th>Joined</th></tr></thead><tbody>${data.users.map((u) => `<tr><td><a href="#user/${u.id}" class="strong">${e(u.name)}</a></td><td>${u.companies?.length ? u.companies.map((c) => `<div class="strong">${e(c.company)}</div><span class="sub">${e(sportLabels(c.sports))}</span>`).join('') : '<span class="sub">Not registered yet</span>'}</td><td>${e(u.email)}</td><td>${e(u.phone || 'Not provided')}</td><td>${e(date(u.created_at))}</td></tr>`).join('')}</tbody></table></div>` : empty('No captains found.', 'Try a different name, email or phone number.')}<div class="pagination"><span>Showing ${data.users.length ? offset + 1 : 0}–${offset + data.users.length}</span><div><button id="prev" ${offset === 0 ? 'disabled' : ''}>Previous</button> <button id="next" ${data.users.length < 25 ? 'disabled' : ''}>Next</button></div></div></section>`,
+    html: `${header('Teams', 'Browse sports, team members and jersey sizes.', 'PARTICIPANTS')}<section class="surface"><form class="toolbar" id="team-search"><label>Search teams<input name="search" value="${e(q.get('search'))}" placeholder="Team, sport, captain, email or phone"></label><button class="primary">Search</button></form>${data.teams.length ? `<div class="table-scroll"><table><thead><tr><th>Team</th><th>Sports</th><th>Captain</th><th>Status</th><th>Registered</th></tr></thead><tbody>${data.teams.map((t) => `<tr class="clickable-row" data-team="${e(t.id)}"><td><a href="#team/${e(t.id)}" class="strong">${e(t.team_name)}</a></td><td>${e(sportLabels(t.sports))}</td><td><span class="strong">${e(t.captain_name)}</span><span class="sub">${e(t.email)}</span><span class="sub">${e(t.phone || 'No phone provided')}</span></td><td>${registrationStatus(t.status)}</td><td>${e(date(t.created_at))}</td></tr>`).join('')}</tbody></table></div>` : empty('No teams found.', 'Try a different team, sport or captain. Teams appear after sports are selected.')}<div class="pagination"><span>Showing ${data.teams.length ? offset + 1 : 0}–${offset + data.teams.length}</span><div><button id="prev" ${offset === 0 ? 'disabled' : ''}>Previous</button> <button id="next" ${data.teams.length < 25 ? 'disabled' : ''}>Next</button></div></div></section>`,
     bind() {
-      bindForm('#user-search', async (b) => {
-        location.hash = `users?${new URLSearchParams(b)}`;
+      bindForm('#team-search', async (b) => {
+        location.hash = `teams?${new URLSearchParams(b)}`;
+      });
+      document.querySelectorAll('[data-team]').forEach((row) => {
+        row.addEventListener('click', (event) => {
+          if (!event.target.closest('a') && !window.getSelection()?.toString())
+            location.hash = `team/${row.dataset.team}`;
+        });
       });
       document.querySelector('#prev').onclick = () => {
         q.set('offset', String(Math.max(0, offset - 25)));
-        location.hash = `users?${q}`;
+        location.hash = `teams?${q}`;
       };
       document.querySelector('#next').onclick = () => {
         q.set('offset', String(offset + 25));
-        location.hash = `users?${q}`;
+        location.hash = `teams?${q}`;
       };
     },
   };
 }
-async function userDetail(id) {
-  const u = await api(`/admin/users/${id}`);
+const jerseyBadge = (size) =>
+  size
+    ? `<span class="jersey-badge" aria-label="Jersey size ${e(size)}">${e(size)}</span>`
+    : '<span class="sub">Not provided</span>';
+async function teamDetail(id) {
+  const team = await api(`/admin/teams/${id}`);
   return {
-    html: `<a class="back" href="#users">← All captains</a>${header(u.name, `${u.email} · ${u.phone || 'No phone provided'}`, 'CAPTAIN PROFILE')}<section class="surface"><div class="table-scroll"><table><thead><tr><th>Order</th><th>Amount</th><th>Status</th><th>Created</th></tr></thead><tbody>${u.orders.map((o) => `<tr><td><a class="mono" href="#order/${o.id}">${e(o.id)}</a></td><td>${o.total_amount === null ? '—' : money(o.total_amount)}</td><td>${registrationStatus(o.status)}</td><td>${e(date(o.created_at))}</td></tr>`).join('')}</tbody></table></div>${!u.orders.length ? empty('No registrations yet.', 'This captain has signed in but has not started an order.') : ''}</section>`,
+    html: `<a class="back" href="#teams">← All teams</a>${header(team.team_name, `${team.contact.name} · ${team.contact.email} · ${team.phone || team.contact.phone || 'No phone provided'}`, 'TEAM PROFILE')}<div class="team-detail-meta">${registrationStatus(team.status)}<a href="#order/${e(team.id)}">View registration ↗</a></div><div class="stack">${team.items.map((item) => `<section class="surface panel sport-roster"><div class="team-row">${item.logo_url ? `<img class="team-logo" src="${e(item.logo_url)}" alt="${e(item.team_name)} logo">` : ''}<div><h2>${e(item.sport_name)}</h2><p>${e(item.team_name)} · ${item.players.length} members</p></div><span class="status ${item.profile_completed_at ? 'confirmed' : ''}">${item.profile_completed_at ? 'Profile complete' : 'Profile pending'}</span></div>${item.players.length ? `<div class="table-scroll"><table><thead><tr><th>Team member</th><th>Role</th><th>Jersey size</th></tr></thead><tbody>${item.players.map((name, index) => `<tr><td class="strong">${e(name)}</td><td>${item.captain_position === index ? 'Captain' : 'Player'}</td><td>${jerseyBadge(item.jersey_sizes[index])}</td></tr>`).join('')}</tbody></table></div>` : '<p class="form-note">No team members added yet. The captain can complete this roster after payment confirmation.</p>'}</section>`).join('')}</div>`,
   };
 }
 async function adminsView() {
@@ -358,7 +368,14 @@ async function render() {
   const [path, params = ''] = location.hash.slice(1).split('?');
   const [section = 'orders', id] = path ? path.split('/') : ['orders'];
   document.querySelectorAll('[data-nav]').forEach((a) => {
-    if (a.dataset.nav === (section === 'order' ? 'orders' : section === 'user' ? 'users' : section))
+    if (
+      a.dataset.nav ===
+      (section === 'order'
+        ? 'orders'
+        : section === 'team' || section === 'users'
+          ? 'teams'
+          : section)
+    )
       a.setAttribute('aria-current', 'page');
     else a.removeAttribute('aria-current');
   });
@@ -367,8 +384,8 @@ async function render() {
     let view;
     if (section === 'orders') view = await queue(params);
     else if (section === 'order' && id) view = await orderDetail(id);
-    else if (section === 'users') view = await usersView(params);
-    else if (section === 'user' && id) view = await userDetail(id);
+    else if (section === 'teams' || section === 'users') view = await teamsView(params);
+    else if (section === 'team' && id) view = await teamDetail(id);
     else if (section === 'sports') view = await sportsView();
     else if (section === 'event') view = await eventView();
     else if (section === 'admins') view = await adminsView();

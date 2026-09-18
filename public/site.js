@@ -463,7 +463,7 @@ function profileEditor(order, itemId) {
   if (!item) return;
   const required = MIN_ROSTER[item.sport_name.toLowerCase()] ?? 1;
   const target = document.querySelector('#registration-content');
-  target.innerHTML = `<button class="button" type="submit" form="profile-form" name="save" value="back">← Back to all sports</button><p class="eyebrow">${esc(item.sport_name)} / Team profile</p><h2>${esc(item.team_name)}</h2><p>Your roster is saved as a draft when you return to all sports.</p>${!item.logo_url ? '<p class="info-box">Add your company logo on the all-sports overview before marking this profile done.</p>' : ''}<form id="profile-form" class="form-stack"><fieldset class="roster-fields"><legend>Players</legend><p class="form-note">Add at least ${required} player${required > 1 ? 's' : ''}, including your team captain.</p><div id="player-fields" class="player-fields"></div><button class="button" id="add-player" type="button">Add player</button></fieldset><label class="input-group">Team captain<select name="captain_position" aria-describedby="captain-note"><option value="">Choose a player</option></select></label><p id="captain-note" class="form-note">Choose one of the players above. The captain counts as part of your roster.</p><p class="error" hidden></p><div class="form-actions"><button class="button" name="save" value="save">Save draft</button><button class="button primary" name="complete" value="complete">Save and mark done</button></div></form>`;
+  target.innerHTML = `<button class="button" type="submit" form="profile-form" name="save" value="back">← Back to all sports</button><p class="eyebrow">${esc(item.sport_name)} / Team profile</p><h2>${esc(item.team_name)}</h2><p>Your roster is saved as a draft when you return to all sports.</p>${!item.logo_url ? '<p class="info-box">Add your company logo on the all-sports overview before marking this profile done.</p>' : ''}<form id="profile-form" class="form-stack"><fieldset class="roster-fields"><legend>Players</legend><p class="form-note">Add at least ${required} player${required > 1 ? 's' : ''}, including your team captain. Choose a jersey size for each player.</p><div id="player-fields" class="player-fields"></div><button class="button" id="add-player" type="button">Add player</button></fieldset><label class="input-group">Team captain<select name="captain_position" aria-describedby="captain-note"><option value="">Choose a player</option></select></label><p id="captain-note" class="form-note">Choose one of the players above. The captain counts as part of your roster.</p><p class="error" hidden></p><div class="form-actions"><button class="button" name="save" value="save">Save draft</button><button class="button primary" name="complete" value="complete">Save and mark done</button></div></form>`;
   const fields = target.querySelector('#player-fields');
   const captain = target.querySelector('[name="captain_position"]');
   const addButton = target.querySelector('#add-player');
@@ -471,7 +471,7 @@ function profileEditor(order, itemId) {
     const selected = captain.value;
     captain.innerHTML =
       '<option value="">Choose a player</option>' +
-      [...fields.querySelectorAll('input')]
+      [...fields.querySelectorAll('input[name="player"]')]
         .map((input, index) =>
           input.value.trim()
             ? `<option value="${index}">${esc(input.value.trim())} (Player ${index + 1})</option>`
@@ -480,17 +480,20 @@ function profileEditor(order, itemId) {
         .join('');
     captain.value = selected;
   };
-  const addPlayer = (name = '') => {
+  const addPlayer = (name = '', size = null) => {
     const index = fields.children.length;
     fields.insertAdjacentHTML(
       'beforeend',
-      `<label class="input-group">Player ${index + 1}<input name="player" type="text" value="${esc(name)}" maxlength="120" autocomplete="off" placeholder="Full name"></label>`,
+      `<div class="player-row"><label class="input-group">Player ${index + 1}<input name="player" type="text" value="${esc(name)}" maxlength="120" autocomplete="off" placeholder="Full name"></label><fieldset class="jersey-selector"><legend>Jersey size <span class="sr-only">for player ${index + 1}</span></legend><div class="jersey-options">${['S', 'M', 'L', 'XL'].map((option) => `<label><input type="radio" name="jersey-${index}" value="${option}" ${size === option ? 'checked' : ''}><span>${option}</span></label>`).join('')}</div></fieldset></div>`,
     );
     addButton.disabled = fields.children.length >= 100;
   };
   for (let index = 0; index < Math.max(required, item.players.length); index++)
-    addPlayer(item.players[index] || '');
-  fields.addEventListener('input', syncCaptain);
+    addPlayer(item.players[index] || '', item.jersey_sizes?.[index]);
+  fields.addEventListener('input', () => {
+    syncCaptain();
+    target.querySelector('#profile-form .error').hidden = true;
+  });
   addButton.addEventListener('click', () => {
     addPlayer();
     fields.lastElementChild.querySelector('input').focus();
@@ -507,6 +510,9 @@ function profileEditor(order, itemId) {
     const fd = new FormData(form);
     const names = fd.getAll('player').map((name) => String(name).trim());
     const players = names.filter(Boolean);
+    const jerseySizes = names.flatMap((name, index) =>
+      name ? [fd.get(`jersey-${index}`) || null] : [],
+    );
     const selectedPosition = captain.value === '' ? null : Number(captain.value);
     const captainPosition =
       selectedPosition === null ? null : names.slice(0, selectedPosition).filter(Boolean).length;
@@ -522,7 +528,15 @@ function profileEditor(order, itemId) {
       captain.focus();
       return;
     }
+    if (action === 'complete' && jerseySizes.some((size) => size === null)) {
+      error.textContent = 'Choose a jersey size for every player.';
+      error.hidden = false;
+      const missingIndex = names.findIndex((name, index) => name && !fd.get(`jersey-${index}`));
+      fields.querySelector(`[name="jersey-${missingIndex}"]`).focus();
+      return;
+    }
     const update = new FormData();
+    update.append('jersey_sizes', JSON.stringify(jerseySizes));
     update.append('captain_position', JSON.stringify(captainPosition));
     update.append('players', JSON.stringify(players));
     await api(`/orders/${order.id}/items/${item.id}/profile`, { method: 'PATCH', body: update });

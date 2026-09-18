@@ -202,7 +202,16 @@ export async function setup() {
       f.headers,
     );
     if (r.statusCode !== 200) throw new Error(r.body);
-    return r.json();
+    const sized = await call(
+      'PATCH',
+      `/orders/${order.id}/items/${order.items[index].id}/profile`,
+      {
+        players: r.json().players,
+        jersey_sizes: ['S', 'M', 'XL'],
+      },
+    );
+    if (sized.statusCode !== 200) throw new Error(sized.body);
+    return sized.json();
   }
   return {
     db,

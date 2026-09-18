@@ -180,3 +180,9 @@ scripts/test-postgres.ts Disposable native PostgreSQL runner
 
 Google/Neon/Resend credentials, the bank's merchant QR payload, real event/sport details and prices, and the final email copy. Live OAuth, storage access policies, bank QR acceptance, and Resend delivery must be checked against those real accounts before launch. Automated tests use controlled provider substitutes; the source adapters are implemented but are not a claim of live account verification.
 fffsdf
+
+## Team jersey sizes migration
+
+Apply `migrations/005_player_jersey_size.sql` through `npm run migrate` before deploying the updated application. The runner applies pending migrations in order and records them transactionally. This adds nullable `team_players.jersey_size` with a database constraint allowing only `S`, `M`, `L`, or `XL`. Existing members keep their names and completion status; their sizes remain unknown (`NULL`) and display as “Not provided” in admin.
+
+No new team table is needed: the admin Teams page groups each company's sport entries by registration and opens its rosters. New profile completion requires each player to have a size. Drafts can still be saved without sizes. The SQL file is also suitable for manual application to a database that already has migrations 001–004; if applying manually, record `005_player_jersey_size.sql` in `schema_migrations` in the same transaction so the migration runner does not apply it again.

@@ -53,6 +53,10 @@ export const teamSelection = z
 export const profileInput = z
   .object({
     players: z.array(z.string().trim().min(1).max(120)).max(100).optional(),
+    jersey_sizes: z
+      .array(z.enum(['S', 'M', 'L', 'XL']).nullable())
+      .max(100)
+      .optional(),
     captain_position: z.number().int().min(0).max(99).nullable().optional(),
   })
   .strict();
@@ -77,7 +81,8 @@ export async function detail(tx: Queryable, id: string): Promise<Row & { items: 
   assert(order, 404, 'not_found', 'Order not found');
   const items = (
     await tx.query(
-      `SELECT i.*,s.name AS sport_name,coalesce((SELECT json_agg(p.player_name ORDER BY p.position,p.created_at,p.id) FROM team_players p WHERE p.order_item_id=i.id),'[]') AS players
+      `SELECT i.*,s.name AS sport_name,coalesce((SELECT json_agg(p.player_name ORDER BY p.position,p.created_at,p.id) FROM team_players p WHERE p.order_item_id=i.id),'[]') AS players,
+ coalesce((SELECT json_agg(p.jersey_size ORDER BY p.position,p.created_at,p.id) FROM team_players p WHERE p.order_item_id=i.id),'[]') AS jersey_sizes
  FROM order_items i JOIN sports s ON s.id=i.sport_id WHERE i.order_id=$1 ORDER BY s.name`,
       [id],
     )
@@ -400,7 +405,7 @@ export class Orders {
     userId: string,
     id: string,
     itemId: string,
-    input: { players?: string[]; logo_url?: string; captain_position?: number | null },
+    input: z.infer<typeof profileInput> & { logo_url?: string },
     complete = false,
   ) {
     return this.owned(userId, id, async (tx, o) => {
@@ -426,7 +431,7 @@ export class Orders {
         const requiredPlayers = MIN_ROSTER[sportName.toLowerCase()] ?? 1;
         const rosterRow = await one(
           tx,
-          'SELECT count(*)::int AS count FROM team_players WHERE order_item_id=$1',
+          'SELECT count(*)::int AS count, count(*) FILTER (WHERE jersey_size IS NULL)::int AS missing_sizes FROM team_players WHERE order_item_id=$1',
           [itemId],
         );
         const rosterCount = rosterRow!.count;
@@ -435,6 +440,12 @@ export class Orders {
           409,
           'profile_incomplete',
           `Add a logo and at least ${requiredPlayers} player${requiredPlayers > 1 ? 's' : ''} before completing the ${sportName} profile`,
+        );
+        assert(
+          rosterRow!.missing_sizes === 0,
+          409,
+          'jersey_sizes_required',
+          'Choose a jersey size for every player before completing the profile',
         );
         await tx.query(
           'UPDATE order_items SET profile_completed_at=coalesce(profile_completed_at,now()) WHERE id=$1',
@@ -447,6 +458,13 @@ export class Orders {
         );
         if (!incomplete) await queueEmail(tx, id);
       } else {
+        assert(
+          input.jersey_sizes === undefined ||
+            (input.players !== undefined && input.jersey_sizes.length === input.players.length),
+          400,
+          'invalid_jersey_sizes',
+          'Send one jersey size per player together with the roster',
+        );
         assert(
           input.players !== undefined ||
             input.logo_url !== undefined ||
@@ -485,9 +503,18 @@ export class Orders {
           await tx.query('DELETE FROM team_players WHERE order_item_id=$1', [itemId]);
           for (const [position, name] of input.players.entries())
             await tx.query(
-              'INSERT INTO team_players(order_item_id,player_name,position) VALUES($1,$2,$3)',
-              [itemId, name, position],
+              'INSERT INTO team_players(order_item_id,player_name,position,jersey_size) VALUES($1,$2,$3,$4)',
+              [itemId, name, position, input.jersey_sizes?.[position] ?? null],
             );
+          // An edited roster with missing sizes must be completed again.
+          if (
+            !input.jersey_sizes ||
+            input.jersey_sizes.some((size) => size === null) ||
+            !input.players.length
+          )
+            await tx.query('UPDATE order_items SET profile_completed_at=NULL WHERE id=$1', [
+              itemId,
+            ]);
         }
       }
       await tx.query('UPDATE orders SET updated_at=now() WHERE id=$1', [id]);

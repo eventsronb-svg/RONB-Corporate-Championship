@@ -53,10 +53,8 @@ Sports selection:
 
 ```json
 {
-  "sports": [
-    { "sport_id": "<cricket-uuid>", "team_name": "Valley Strikers" },
-    { "sport_id": "<football-uuid>", "team_name": "Kathmandu United" }
-  ]
+  "company_name": "Valley Strikers",
+  "sports": [{ "sport_id": "<cricket-uuid>" }, { "sport_id": "<football-uuid>" }]
 }
 ```
 
@@ -102,7 +100,11 @@ curl -X PATCH -b cookies.txt -H 'Origin: http://localhost:3000' \
   http://localhost:3000/orders/ORDER_ID/items/ITEM_ID/profile
 ```
 
-Profile JSON updates accept `{ "players": ["Suman Karki", "Pratik Gurung"] }`. The array replaces the roster and preserves its submitted order. Multipart updates accept one `logo` file, one JSON `players` field, or both. Arbitrary `logo_url` strings are not accepted; public logos must come through storage. Profiles require a stored logo and 1–100 nonblank player names before Done. A completed profile may be edited without queuing another automatic email.
+Profile JSON updates accept `{ "players": ["Suman Karki", "Pratik Gurung"], "jersey_sizes": ["M", "XL"], "captain_position": 0 }`. `jersey_sizes` contains one value per player in the same order: `S`, `M`, `L`, `XL`, or `null` for an unfinished draft. Send sizes together with the full `players` array; mismatched lengths and invalid sizes return `400`. Replacing a roster without sizes sets its sizes to `null`. Responses include both ordered arrays. `captain_position` refers to a player in that roster.
+
+Multipart updates accept one `logo` file and JSON fields `players`, `jersey_sizes`, and `captain_position`. A logo is shared across the company's sports in the registration. Arbitrary `logo_url` strings are not accepted. Completing a profile requires a stored logo, the sport's minimum roster (Futsal 5, Basketball 3, Crickshal 7; otherwise 1), and a jersey size for every player. Incomplete sizes return `409` with `jersey_sizes_required`. Editing a completed roster to remove sizes clears profile completion, so it must be completed again. Confirmation email remains idempotent.
+
+Existing completed rosters retain their status after migration, with unknown sizes returned as `null`. Jersey sizes are visible to the owner and admins, and are excluded from public `/teams` responses.
 
 ## Admin orders — staff and super admin
 
@@ -151,7 +153,16 @@ Event fields: `title`, `description`, `start_date`, `end_date`, `venue`. Supply 
 
 Organizer roles: `staff` and `super_admin`. Email matching is case-insensitive. Newly invited accounts have no Google subject until first verified login. No invitation email is sent. Removing/demoting the last active super admin returns `409`.
 
-## Admin captains — staff and super admin
+## Admin teams — staff and super admin
+
+| Method | Path                                  | Response                                                                        |
+| ------ | ------------------------------------- | ------------------------------------------------------------------------------- |
+| GET    | `/admin/teams?search=&limit=&offset=` | `{teams,limit,offset}`; one row per registration with selected sports           |
+| GET    | `/admin/teams/:id`                    | Team name, status, registration contact and all sport rosters with jersey sizes |
+
+Team IDs are order IDs. This keeps separate registrations distinct even if they share a company name. Search matches team name, sport, captain name, email, and phone. Pagination defaults to 50 rows, maximum 100. The admin Teams page uses 25 rows. Draft and historical registrations are included with their status. Empty orders without sports are excluded. Detail returns `404` for unknown IDs or orders without sports.
+
+## Legacy admin captain API — staff and super admin
 
 | Method | Path                                  | Response                                        |
 | ------ | ------------------------------------- | ----------------------------------------------- |

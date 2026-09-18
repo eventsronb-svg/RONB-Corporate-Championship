@@ -12,6 +12,72 @@ afterEach(async () => {
   await h?.close();
 });
 describe('registration and publication', () => {
+  it('persists jersey sizes, validates complete rosters, and exposes them only to authorized readers', async () => {
+    const order = await h.confirm();
+    await h.fill(order);
+    const path = `/orders/${order.id}/items/${order.items[0].id}/profile`;
+    const players = ['Small player', 'Medium player', 'Large player', 'Extra large player'];
+    const jersey_sizes = ['S', 'M', 'L', 'XL'];
+    for (const body of [
+      { players, jersey_sizes: ['XXL', 'M', 'L', 'XL'] },
+      { players, jersey_sizes: ['S'] },
+      { jersey_sizes },
+    ]) {
+      expect((await h.call('PATCH', path, body)).statusCode).toBe(400);
+    }
+    const saved = await h.call('PATCH', path, { players, jersey_sizes, captain_position: 2 });
+    expect(saved.statusCode).toBe(200);
+    expect(saved.json().jersey_sizes).toEqual(jersey_sizes);
+    expect((await h.call('GET', path)).json().jersey_sizes).toEqual(jersey_sizes);
+    expect((await h.call('GET', path, undefined, 'stranger')).statusCode).toBe(404);
+    expect((await h.call('POST', `${path}/complete`)).statusCode).toBe(200);
+    const team = (await h.call('GET', `/admin/teams/${order.id}`, undefined, 'staff')).json();
+    expect(team.items).toHaveLength(2);
+    expect(team.items[0]).toMatchObject({ players, jersey_sizes, captain_position: 2 });
+    expect((await h.call('GET', `/admin/teams/${order.id}`)).statusCode).toBe(401);
+    expect((await h.call('GET', '/admin/teams')).statusCode).toBe(401);
+    expect((await h.call('GET', '/teams')).json()[0]).not.toHaveProperty('jersey_sizes');
+    for (const search of ['Valley', 'Cricket', 'Anish', 'captain@example.com', '9800000000']) {
+      const list = (
+        await h.call('GET', `/admin/teams?search=${encodeURIComponent(search)}`, undefined, 'staff')
+      ).json();
+      expect(list.teams).toHaveLength(1);
+      expect(list.teams[0].id).toBe(order.id);
+      expect(list.teams[0].sports).toHaveLength(2);
+    }
+    expect(
+      (await h.call('GET', '/admin/teams?offset=1&limit=1', undefined, 'staff')).json().teams,
+    ).toEqual([]);
+    expect(
+      (await h.call('GET', `/admin/teams/${h.stranger.id}`, undefined, 'staff')).statusCode,
+    ).toBe(404);
+    await expect(
+      h.db.query('UPDATE team_players SET jersey_size=$1 WHERE order_item_id=$2', [
+        'XXL',
+        order.items[0].id,
+      ]),
+    ).rejects.toThrow();
+    const draft = await h.call('PATCH', path, { players, jersey_sizes: ['S', null, 'L', 'XL'] });
+    expect(draft.json().profile_completed_at).toBeNull();
+    expect((await h.call('POST', `${path}/complete`)).json().error).toBe('jersey_sizes_required');
+    expect((await h.call('GET', '/teams')).json()).toEqual([]);
+    expect((await h.call('PATCH', path, { players: ['Replacement'] })).json().jersey_sizes).toEqual(
+      [null],
+    );
+  });
+  it('migrates existing rosters without inventing sizes or changing completion status', async () => {
+    const order = await h.confirm(1);
+    await h.fill(order);
+    await h.call('POST', `/orders/${order.id}/items/${order.items[0].id}/profile/complete`);
+    await h.db.query('ALTER TABLE team_players DROP COLUMN jersey_size');
+    await h.db.query("DELETE FROM schema_migrations WHERE name='005_player_jersey_size.sql'");
+    await migrate(h.db);
+    await migrate(h.db);
+    const current = (await h.call('GET', `/orders/${order.id}/status`)).json();
+    expect(current.items[0].jersey_sizes).toEqual([null, null, null]);
+    expect(current.items[0].players).toHaveLength(3);
+    expect(current.items[0].profile_completed_at).toBeTruthy();
+  });
   it('runs the multi-sport flow, gates each team, and sends one asynchronous confirmation', async () => {
     const order = await h.confirm();
     expect(order.total_amount).toBe('3500.75');
@@ -403,8 +469,11 @@ describe('background jobs', () => {
     expect((await one(h.db, 'SELECT * FROM email_jobs'))?.last_error).toContain('Retry window');
   });
   it('applies migrations idempotently', async () => {
+    const before = (await h.db.query('SELECT name FROM schema_migrations ORDER BY name')).rows;
     await migrate(h.db);
-    expect((await h.db.query('SELECT * FROM schema_migrations')).rows).toHaveLength(4);
+    expect((await h.db.query('SELECT name FROM schema_migrations ORDER BY name')).rows).toEqual(
+      before,
+    );
   });
 });
 describe('Google OAuth sessions', () => {
