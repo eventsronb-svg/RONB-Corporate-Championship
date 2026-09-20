@@ -319,12 +319,40 @@ async function sportsStep(order) {
   const selected = new Set(order.items.map((item) => item.sport_id));
   const isFull = (sport) =>
     sport.max_teams !== null && Number(sport.filled_slots ?? 0) >= Number(sport.max_teams);
+  const registrations = await api('/orders');
+  const registered = new Map();
+  for (const other of registrations) {
+    if (other.id === order.id) continue;
+    if (['cancelled', 'expired'].includes(other.status)) continue;
+    for (const item of other.items)
+      registered.set(item.sport_id, other.resume_step === 'registered' ? 'verified' : 'pending');
+  }
   target.innerHTML = `<p class="eyebrow">Step 01 / Company & sport</p><h2>Register your company</h2><p>Enter your company name, then choose the sport you want to enter. To enter a second sport, register again for that sport.</p><form id="sports-form" class="form-stack"><label class="input-group">Company name<input name="company_name" aria-required="true" autocomplete="organization" value="${esc(order.company_name || '')}" placeholder="Your company name" maxlength="120"></label><h3>Select a sport</h3><div class="choice-list">${
     sports.length
       ? sports
           .map((sport) => {
             const full = isFull(sport);
-            return `<div class="sport-choice${full ? ' is-full' : ''}"><input type="radio" name="sport" id="sport-${sport.id}" value="${sport.id}" ${selected.has(sport.id) && !full ? 'checked' : ''} ${full ? 'disabled aria-disabled="true" title="No registration slots remaining"' : ''}><label class="sport-choice-label" for="sport-${sport.id}"><span class="sport-choice-copy"><strong>${esc(sport.name)}</strong><span class="${full ? 'slots-filled' : ''}">${full ? 'Slots filled' : money(sport.price)}</span></span>${sportIcon(sport, 'sport-choice-icon')}</label></div>`;
+            const state = registered.get(sport.id);
+            const disabled = full || !!state;
+            const cls = [
+              full && 'is-full',
+              state && `is-registered ${state === 'verified' ? 'is-verified' : 'is-pending'}`,
+            ]
+              .filter(Boolean)
+              .join(' ');
+            const label = state
+              ? state === 'verified'
+                ? 'Registered · Verified'
+                : 'Registered · Pending'
+              : full
+                ? 'Slots filled'
+                : money(sport.price);
+            const title = state
+              ? 'This company is already registered for this sport'
+              : full
+                ? 'No registration slots remaining'
+                : '';
+            return `<div class="sport-choice${cls ? ` ${cls}` : ''}"><input type="radio" name="sport" id="sport-${sport.id}" value="${sport.id}" ${selected.has(sport.id) && !disabled ? 'checked' : ''} ${state ? 'checked disabled aria-disabled="true"' : full ? 'disabled aria-disabled="true"' : ''}${title ? ` title="${title}"` : ''}><label class="sport-choice-label" for="sport-${sport.id}"><span class="sport-choice-copy"><strong>${esc(sport.name)}</strong><span class="${state ? 'registered-state' : full ? 'slots-filled' : ''}">${label}</span></span>${sportIcon(sport, 'sport-choice-icon')}</label></div>`;
           })
           .join('')
       : '<p class="teams-state">No sports are open yet. Ask the organizer to add the championship formats.</p>'
@@ -332,14 +360,17 @@ async function sportsStep(order) {
   const focus = new URLSearchParams(location.search).get('focus');
   if (!order.items.length && focus) {
     const sport = sports.find((item) => slugify(item.name) === focus);
-    if (sport && !isFull(sport)) document.querySelector(`#sport-${sport.id}`).checked = true;
+    if (sport && !isFull(sport) && !registered.get(sport.id))
+      document.querySelector(`#sport-${sport.id}`).checked = true;
   }
   bindSubmission('#sports-form', async (event) => {
     event.preventDefault();
     const companyName = event.currentTarget.elements.company_name.value.trim();
-    const picks = [...document.querySelectorAll('input[name=sport]:checked')].map((input) => ({
-      sport_id: input.value,
-    }));
+    const picks = [...document.querySelectorAll('input[name=sport]:checked')]
+      .filter((input) => !input.disabled)
+      .map((input) => ({
+        sport_id: input.value,
+      }));
     const error = document.querySelector('#form-error');
     if (!companyName || !picks.length) {
       error.textContent = 'Enter your company name and select a sport.';
@@ -556,9 +587,48 @@ function profileEditor(order, itemId) {
     }
   });
 }
-function doneStep(order) {
+async function doneStep(order) {
   const target = document.querySelector('#registration-content');
-  target.innerHTML = `<p class="eyebrow">Registration complete</p><h2>See you at the park.</h2><p>Your team profile is complete. Your confirmation email has been queued for delivery.</p><div class="form-actions"><a class="button primary" href="/">Return to championship</a><a class="button" href="/#teams">See team listing</a></div>`;
+  target.innerHTML = `<p class="eyebrow">Registration complete</p><h2>See you at the park.</h2><p>Your team profile is complete. Your confirmation email has been queued for delivery.</p>`;
+  let registrations = [];
+  try {
+    registrations = (await api('/orders')).filter(
+      (other) => other.items.length && !['cancelled', 'expired'].includes(other.status),
+    );
+  } catch (error) {
+    if (error.status === 401) return renderLogin();
+  }
+  const summaryFor = (other) => {
+    const item = other.items[0];
+    const verified = other.resume_step === 'registered';
+    const players = item.players || [];
+    const captainIndex = item.captain_position;
+    const captain =
+      captainIndex !== null && captainIndex !== undefined ? players[captainIndex] : undefined;
+    return `<h3>${esc(item.sport_name)}</h3>${item.team_name ? `<p class="team-name">${esc(item.team_name)}</p>` : ''}<span class="registered-state ${verified ? 'is-verified' : 'is-pending'}">${verified ? 'Verified' : 'Pending'}</span>${captain ? `<p class="captain-line">Captain: <strong>${esc(captain)}</strong> <span class="jersey-badge">${esc(item.jersey_sizes?.[captainIndex] || '—')}</span></p>` : ''}<div class="roster-list">${players.map((name, index) => `<div class="roster-row">${esc(name)}${index === captainIndex ? ' <span class="captain-tag">Captain</span>' : ''}<span class="jersey-badge">${esc(item.jersey_sizes?.[index] || '—')}</span></div>`).join('')}</div>`;
+  };
+  const selected =
+    registrations.find((other) => other.id === order.id) || registrations[0] || order;
+  const options = registrations
+    .map(
+      (other) =>
+        `<option value="${other.id}" ${other.id === selected.id ? 'selected' : ''}>${esc(other.items[0].sport_name)}</option>`,
+    )
+    .join('');
+  const heading = registrations.length > 1;
+  target.innerHTML = `<p class="eyebrow">Registration complete</p><h2>See you at the park.</h2><p>${heading ? 'Your teams are registered. Review your teams below or add another sport.' : 'Your team profile is complete. Your confirmation email has been queued for delivery.'}</p><div class="registration-panel"><label class="input-group">Your registrations${options ? `<select id="registration-select">${options}</select>` : ''}</label><div id="registration-summary" class="info-box registration-summary">${summaryFor(selected)}</div><div class="form-actions"><button class="button primary" id="add-sports">Add sports</button><a class="button primary" href="/">Return to championship</a><a class="button" href="/#teams">See team listing</a></div></div>`;
+  document.querySelector('#registration-select')?.addEventListener('change', (event) => {
+    const other = registrations.find((candidate) => candidate.id === event.target.value);
+    if (other) document.querySelector('#registration-summary').innerHTML = summaryFor(other);
+  });
+  document.querySelector('#add-sports')?.addEventListener('click', async () => {
+    try {
+      await resume(await post('/orders/start'));
+    } catch (error) {
+      if (error.status === 401) renderLogin();
+      else say(error.message);
+    }
+  });
 }
 async function render() {
   try {

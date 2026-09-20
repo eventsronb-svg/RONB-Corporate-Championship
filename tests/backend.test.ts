@@ -256,6 +256,32 @@ describe('registration and publication', () => {
     );
     expect((await h.call('GET', '/teams')).json()).toHaveLength(0);
   });
+  it('lists existing registrations and lets the captain start a fresh one for another sport', async () => {
+    const o = await h.confirm(1);
+    await h.fill(o);
+    await h.call('POST', `/orders/${o.id}/items/${o.items[0].id}/profile/complete`);
+    let list = (await h.call('GET', '/orders')).json();
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({ id: o.id, resume_step: 'registered' });
+    expect(list[0].items[0]).toMatchObject({ sport_name: 'Cricket' });
+    expect(list[0].items[0].players).toEqual(['Suman Karki', 'Pratik Gurung', 'Aarav Shah']);
+    expect((await h.call('GET', '/orders', undefined, 'stranger')).json()).toEqual([]);
+    // A confirmed order is still "open" for draft(), so Add sports must use start().
+    const second = (await h.call('POST', '/orders/start')).json();
+    expect(second.id).not.toBe(o.id);
+    expect(second.resume_step).toBe('sports');
+    expect((await h.call('POST', '/orders/start')).json().id).toBe(second.id);
+    const picked = await h.call('PATCH', `/orders/${second.id}/sports`, {
+      company_name: 'Valley Strikers',
+      sports: [{ sport_id: h.sports[1].id }],
+    });
+    expect(picked.statusCode).toBe(200);
+    list = (await h.call('GET', '/orders')).json();
+    expect(list).toHaveLength(2);
+    expect(
+      (list as { items: { sport_name: string }[] }[]).map((r) => r.items[0].sport_name).sort(),
+    ).toEqual(['Cricket', 'Football']);
+  });
 });
 describe('authorization and validation', () => {
   it('protects order ownership, profile ownership, roles, and same-origin mutations', async () => {

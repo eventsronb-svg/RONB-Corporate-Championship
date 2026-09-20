@@ -28,6 +28,10 @@
   --tint: oklch(0.95 0.004 20);
   --rule: oklch(0.84 0.006 20);
   --input-rule: oklch(0.62 0.008 20);
+  --verified: oklch(0.42 0.1 148);
+  --verified-soft: oklch(0.95 0.03 150);
+  --pending: oklch(0.44 0.1 75);
+  --pending-soft: oklch(0.96 0.045 90);
   --font-body: FuturaMaxiCG, Arial, sans-serif;
   --radius-panel: 20px;
   --radius-input: 10px;

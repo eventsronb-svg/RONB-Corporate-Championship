@@ -719,6 +719,33 @@ h2 {
   letter-spacing: 0.5px;
   font-size: 15.6px;
 }
+.sport-choice .registered-state {
+  color: var(--muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 15.6px;
+}
+.sport-choice.is-registered .sport-choice-label {
+  cursor: not-allowed;
+}
+.sport-choice.is-registered input[type='radio'],
+.sport-choice.is-registered input[type='checkbox'] {
+  accent-color: var(--muted);
+  cursor: not-allowed;
+}
+.sport-choice.is-verified {
+  background: var(--verified-soft);
+}
+.sport-choice.is-verified .registered-state {
+  color: var(--verified);
+}
+.sport-choice.is-pending {
+  background: var(--pending-soft);
+}
+.sport-choice.is-pending .registered-state {
+  color: var(--pending);
+}
 .sport-choice-label {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 48px;
@@ -753,6 +780,64 @@ h2 {
   background: oklch(0.52 0.2 25 / 0.1);
   padding: 2px 6px;
   border-radius: 6px;
+}
+.registration-panel {
+  margin: 24px 0;
+}
+.registration-summary h3,
+.registration-summary .team-name,
+.registration-summary .registered-state {
+  display: inline-block;
+  margin: 0 0 4px;
+}
+.registration-summary h3 {
+  margin-right: 8px;
+}
+.registration-summary .registered-state {
+  margin-left: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 15.6px;
+  font-weight: 600;
+}
+.registration-summary .registered-state.is-verified {
+  color: var(--verified);
+}
+.registration-summary .registered-state.is-pending {
+  color: var(--pending);
+}
+.registration-summary .captain-line {
+  margin-top: 12px;
+}
+.registration-summary .roster-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+.registration-summary .roster-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.captain-tag {
+  color: var(--muted);
+  font-size: 15.6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+.jersey-badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 38px;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--rule);
+  background: var(--white);
+  border-radius: 8px;
+  font-size: 15.6px;
+  font-weight: 700;
 }
 .remarks-copy {
   color: var(--accent);

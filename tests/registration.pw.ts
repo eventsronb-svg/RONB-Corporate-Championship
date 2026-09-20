@@ -235,6 +235,37 @@ test('new captain signs in, submits one team, corrects rejected payment, and fin
     await expect(admin.getByRole('status')).toHaveText('Registration updated.');
     await page.reload();
     await expect(page.getByRole('heading', { name: 'See you at the park.' })).toBeVisible();
+    // The done page lists the completed registration and its captain + jersey sizes.
+    const registration = page.getByRole('combobox', { name: 'Your registrations' });
+    await expect(registration).toHaveValue(orderId);
+    await expect(
+      page.locator('#registration-summary').getByRole('heading', { name: 'Basketball' }),
+    ).toBeVisible();
+    await expect(page.locator('#registration-summary').getByText('E2E Company')).toBeVisible();
+    await expect(page.locator('#registration-summary').getByText('Verified')).toBeVisible();
+    await expect(
+      page.locator('#registration-summary').getByText('Captain: Player 2'),
+    ).toBeVisible();
+    await expect(page.locator('#registration-summary .captain-line .jersey-badge')).toHaveText('M');
+    await expect(page.locator('#registration-summary .roster-list .jersey-badge')).toHaveText([
+      'S',
+      'M',
+      'XL',
+      'L',
+    ]);
+    // Adding another sport greys out the already-verified Basketball registration.
+    await page.getByRole('button', { name: 'Add sports' }).click();
+    await expect(
+      page.getByRole('heading', { name: 'Register your company', level: 2 }),
+    ).toBeVisible();
+    const registeredSport = page.locator('.sport-choice').filter({ hasText: 'Basketball' });
+    await expect(registeredSport.locator('[name="sport"]')).toBeDisabled();
+    await expect(registeredSport.locator('[name="sport"]')).toBeChecked();
+    await expect(registeredSport).toHaveClass(/is-registered/);
+    await expect(registeredSport).toHaveClass(/is-verified/);
+    await expect(registeredSport.getByText('Registered · Verified')).toBeVisible();
+    await page.goto(`/register?order=${orderId}`);
+    await expect(page.getByRole('heading', { name: 'See you at the park.' })).toBeVisible();
     await page.getByRole('link', { name: 'See team listing' }).click();
     await expect(page).toHaveURL(/\/#teams$/);
     await expect(page.getByRole('heading', { name: 'E2E Company' })).toBeVisible();

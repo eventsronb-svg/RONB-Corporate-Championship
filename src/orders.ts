@@ -204,6 +204,33 @@ export class Orders {
       return detail(tx, order!.id);
     });
   }
+  async list(userId: string) {
+    const orders = await this.db.query(
+      `SELECT o.id FROM orders o WHERE o.user_id=$1 AND o.status NOT IN ('cancelled','expired')
+   AND EXISTS (SELECT 1 FROM order_items i WHERE i.order_id=o.id) ORDER BY o.created_at DESC`,
+      [userId],
+    );
+    return Promise.all(orders.rows.map((row) => detail(this.db, row.id)));
+  }
+  async start(userId: string) {
+    return this.db.transaction(async (tx) => {
+      await tx.query('SELECT id FROM users WHERE id=$1 FOR UPDATE', [userId]);
+      // Reuse an empty draft so repeated clicks do not pile up clean orders, otherwise
+      // always open a fresh registration even when a paid order is still open.
+      const order = await one(
+        tx,
+        `SELECT id FROM orders o WHERE o.user_id=$1 AND o.status='draft'
+     AND NOT EXISTS (SELECT 1 FROM order_items i WHERE i.order_id=o.id) LIMIT 1`,
+        [userId],
+      );
+      if (order) return detail(tx, order.id);
+      const fresh = await one(tx, 'INSERT INTO orders(user_id) VALUES($1) RETURNING id', [userId]);
+      await tx.query("INSERT INTO order_status_history(order_id,to_status) VALUES($1,'draft')", [
+        fresh!.id,
+      ]);
+      return detail(tx, fresh!.id);
+    });
+  }
   async sports(userId: string, id: string, input: z.infer<typeof teamSelection>) {
     return this.owned(userId, id, async (tx, o) => {
       assert(

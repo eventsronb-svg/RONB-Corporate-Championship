@@ -168,6 +168,8 @@ export async function buildApp(deps: {
     ).rows;
   });
   app.get('/orders/current', { preHandler: guard.user }, (req) => orders.current(req.actor!.id));
+  app.get('/orders', { preHandler: guard.user }, (req) => orders.list(req.actor!.id));
+  app.post('/orders/start', { preHandler: guard.user }, (req) => orders.start(req.actor!.id));
   app.post('/orders/draft', { preHandler: guard.user }, (req) => orders.draft(req.actor!.id));
   app.patch('/orders/:id/sports', { preHandler: guard.user }, (req) =>
     orders.sports(req.actor!.id, id(req.params), teamSelection.parse(req.body)),
