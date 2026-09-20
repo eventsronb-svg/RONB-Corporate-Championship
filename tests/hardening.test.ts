@@ -11,23 +11,34 @@ afterEach(async () => {
   await h?.close();
 });
 
-it('requires one company name and preserves it across sports, reloads and revisions', async () => {
+it('requires one company name and exactly one sport, preserved across reloads and revisions', async () => {
   const draft = (await h.call('POST', '/orders/draft')).json();
-  const sports = h.sports.map((sport) => ({ sport_id: sport.id }));
+  const sport = { sport_id: h.sports[0].id };
   for (const company_name of ['', '   ', 'x'.repeat(121)]) {
     expect(
-      (await h.call('PATCH', `/orders/${draft.id}/sports`, { company_name, sports })).statusCode,
+      (await h.call('PATCH', `/orders/${draft.id}/sports`, { company_name, sports: [sport] }))
+        .statusCode,
     ).toBe(400);
   }
-  expect((await h.call('PATCH', `/orders/${draft.id}/sports`, { sports })).statusCode).toBe(400);
+  expect(
+    (await h.call('PATCH', `/orders/${draft.id}/sports`, { sports: [sport] })).statusCode,
+  ).toBe(400);
+  expect(
+    (
+      await h.call('PATCH', `/orders/${draft.id}/sports`, {
+        company_name: 'RONB Studios',
+        sports: h.sports.map((s) => ({ sport_id: s.id })),
+      })
+    ).statusCode,
+  ).toBe(400);
   const saved = await h.call('PATCH', `/orders/${draft.id}/sports`, {
     company_name: '  RONB Studios  ',
-    sports,
+    sports: [sport],
   });
   expect(saved.statusCode).toBe(200);
   const current = (await h.call('GET', '/orders/current')).json();
   expect(current.company_name).toBe('RONB Studios');
-  expect(current.items).toHaveLength(3);
+  expect(current.items).toHaveLength(1);
   expect(current.items.every((item: any) => item.team_name === 'RONB Studios')).toBe(true);
   await h.call('POST', `/orders/${draft.id}/phone`, { phone_number: '9800000000' });
   expect((await h.call('POST', `/orders/${draft.id}/invoice`)).statusCode).toBe(200);
@@ -35,7 +46,7 @@ it('requires one company name and preserves it across sports, reloads and revisi
     (
       await h.call('PATCH', `/orders/${draft.id}/sports`, {
         company_name: 'Different Company',
-        sports,
+        sports: [sport],
       })
     ).statusCode,
   ).toBe(409);

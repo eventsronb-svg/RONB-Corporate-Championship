@@ -66,7 +66,7 @@ test('reviews an order, changes settings, and manages organizer access', async (
   await expect(page.locator('.verification-card time')).toHaveAttribute('datetime', verifiedTime!);
   await page.getByText('Registration management', { exact: true }).click();
   await expect(page.getByRole('button', { name: 'Mark contacted' })).toBeVisible();
-  await expect(page.getByText('Profile pending', { exact: true })).toHaveCount(2);
+  await expect(page.getByText('Profile pending', { exact: true })).toHaveCount(1);
   await page
     .getByRole('textbox', { name: 'Review / contact notes' })
     .fill('Captain notified by phone.');
@@ -121,8 +121,7 @@ test('reviews an order, changes settings, and manages organizer access', async (
     .click();
   await expect(page.getByRole('heading', { name: 'Valley Strikers', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Cricket', exact: true })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Football', exact: true })).toBeVisible();
-  await expect(page.getByText('No team members added yet.', { exact: false })).toHaveCount(2);
+  await expect(page.getByText('No team members added yet.', { exact: false })).toHaveCount(1);
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Valley Strikers', exact: true })).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });

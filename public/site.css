@@ -694,6 +694,7 @@ h2 {
   display: block;
   margin-bottom: 10px;
 }
+.sport-choice input[type='radio'],
 .sport-choice input[type='checkbox'] {
   accent-color: var(--accent);
   width: 20px;
@@ -706,6 +707,7 @@ h2 {
 .sport-choice.is-full .sport-choice-label {
   cursor: not-allowed;
 }
+.sport-choice.is-full input[type='radio'],
 .sport-choice.is-full input[type='checkbox'] {
   accent-color: var(--muted);
   cursor: not-allowed;

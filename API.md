@@ -54,11 +54,11 @@ Sports selection:
 ```json
 {
   "company_name": "Valley Strikers",
-  "sports": [{ "sport_id": "<cricket-uuid>" }, { "sport_id": "<football-uuid>" }]
+  "sports": [{ "sport_id": "<cricket-uuid>" }]
 }
 ```
 
-Select 1–30 distinct active sports. Names are trimmed and limited to 120 characters. Selection replaces the previous draft items, so fetch the returned item IDs. After invoice, selection/name changes return `409`.
+Select exactly one active sport. Names are trimmed and limited to 120 characters. Registration is one sport per order; to enter several sports, create a separate registration for each. Selection replaces the previous draft items, so fetch the returned item IDs. After invoice, selection/name changes return `409`. Missing, multiple, or duplicate sports return `400`.
 
 An order response includes order columns plus:
 
@@ -85,7 +85,7 @@ An order response includes order columns plus:
 
 `resume_step` values: `sports`, `invoice`, `payment`, `receipt`, `awaiting_review`, `team_profile`, `registered`, `cancelled`, `expired`. An order in `phone_captured` resumes at `invoice`; the UI can still edit sports/contact details until invoice creation. A rejected order has `rejection: {notes, verified_at}`.
 
-The payment-request endpoint returns its stored `id`, `order_id`, `unique_code`, `qr_payload`, `expires_at`, `created_at`, plus `qr_data_url` (PNG data URL) and `instructions`. The same request never creates another code. The stored payload is also available in order detail for clients that render their own QR.
+The payment-request endpoint returns its stored `id`, `order_id`, `unique_code`, `qr_payload`, `expires_at`, `created_at`, plus `qr_data_url` (PNG data URL) and `instructions`. The same request never creates another code. The remarks code is stable per account: every registration from the same Google account reuses the same `unique_code`, so captains enter the same code in every transfer. The stored payload is also available in order detail for clients that render their own QR.
 
 Upload examples after obtaining a session cookie:
 
@@ -102,7 +102,7 @@ curl -X PATCH -b cookies.txt -H 'Origin: http://localhost:3000' \
 
 Profile JSON updates accept `{ "players": ["Suman Karki", "Pratik Gurung"], "jersey_sizes": ["M", "XL"], "captain_position": 0 }`. `jersey_sizes` contains one value per player in the same order: `S`, `M`, `L`, `XL`, or `null` for an unfinished draft. Send sizes together with the full `players` array; mismatched lengths and invalid sizes return `400`. Replacing a roster without sizes sets its sizes to `null`. Responses include both ordered arrays. `captain_position` refers to a player in that roster.
 
-Multipart updates accept one `logo` file and JSON fields `players`, `jersey_sizes`, and `captain_position`. A logo is shared across the company's sports in the registration. Arbitrary `logo_url` strings are not accepted. Completing a profile requires a stored logo, the sport's minimum roster (Futsal 5, Basketball 3, Crickshal 7; otherwise 1), and a jersey size for every player. Incomplete sizes return `409` with `jersey_sizes_required`. Editing a completed roster to remove sizes clears profile completion, so it must be completed again. Confirmation email remains idempotent.
+Multipart updates accept one `logo` file and JSON fields `players`, `jersey_sizes`, and `captain_position`. Arbitrary `logo_url` strings are not accepted. Completing a profile requires a stored logo, the sport's minimum roster (Futsal 5, Basketball 3, Crickshal 7; otherwise 1), and a jersey size for every player. Incomplete sizes return `409` with `jersey_sizes_required`. Editing a completed roster to remove sizes clears profile completion, so it must be completed again. Confirmation email remains idempotent.
 
 Existing completed rosters retain their status after migration, with unknown sizes returned as `null`. Jersey sizes are visible to the owner and admins, and are excluded from public `/teams` responses.
 

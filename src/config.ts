@@ -22,7 +22,7 @@ const envSchema = z.object({
   PAYMENT_INSTRUCTIONS: z
     .string()
     .default(
-      'Transfer the exact amount to the bank account below and enter the unique code in payment remarks.',
+      'Transfer the exact amount to the bank account below and enter the payment code in payment remarks. Use the same code for every transfer from your account.',
     ),
   PAYMENT_EXPIRY_MINUTES: z.coerce.number().int().min(5).max(10080).default(1440),
 });

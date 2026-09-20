@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import sharp from 'sharp';
 
-test('new captain signs in, submits two teams, corrects rejected payment, and finishes profiles', async ({
+test('new captain signs in, submits one team, corrects rejected payment, and finishes its profile', async ({
   browser,
   baseURL,
 }) => {
@@ -38,13 +38,9 @@ test('new captain signs in, submits two teams, corrects rejected payment, and fi
     const orderId = new URL(page.url()).searchParams.get('order')!;
     expect(orderId).toBeTruthy();
     await page.getByRole('button', { name: 'Continue to contact' }).click();
-    await expect(
-      page.getByText('Enter your company name and select at least one sport.'),
-    ).toBeVisible();
+    await expect(page.getByText('Enter your company name and select a sport.')).toBeVisible();
     await page.getByRole('textbox', { name: 'Company name' }).fill('E2E Company');
-    for (const sport of ['Basketball', 'Football']) {
-      await page.getByRole('checkbox', { name: new RegExp(`^${sport} `) }).check();
-    }
+    await page.getByRole('radio', { name: /^Basketball / }).check();
     await page.getByRole('button', { name: 'Continue to contact' }).click();
     await expect(
       page.getByRole('heading', { name: 'Where can we reach the captain?' }),
@@ -58,10 +54,10 @@ test('new captain signs in, submits two teams, corrects rejected payment, and fi
     await expect(page.locator('#phone-form .error')).toBeVisible();
     await page.getByRole('textbox', { name: 'Phone number' }).fill('9800000000');
     await page.getByRole('button', { name: 'Issue invoice' }).click();
-    await expect(page.getByRole('heading', { name: 'Transfer 3,000.50 NPR' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Transfer 1,000 NPR' })).toBeVisible();
     const paymentCode = await page.locator('code').textContent();
     await page.reload();
-    await expect(page.getByRole('heading', { name: 'Transfer 3,000.50 NPR' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Transfer 1,000 NPR' })).toBeVisible();
     await expect(page.locator('code')).toHaveText(paymentCode!);
     await page.getByRole('button', { name: 'I have paid, upload receipt' }).click();
     await page.getByLabel('Receipt file').setInputFiles({
@@ -121,14 +117,14 @@ test('new captain signs in, submits two teams, corrects rejected payment, and fi
     );
     await page.getByLabel('Company logo').setInputFiles(upload);
     await page.getByRole('button', { name: 'Save company logo', exact: true }).click();
-    await expect(page.getByRole('status')).toHaveText('Company logo saved for all sports.');
+    await expect(page.getByRole('status')).toHaveText('Company logo saved.');
     await page
       .locator('.sport-choice')
       .filter({ hasText: 'Basketball' })
       .getByRole('link', { name: 'Complete profile' })
       .click();
     await page.getByRole('textbox', { name: 'Player 1', exact: true }).fill('Draft player');
-    await page.getByRole('button', { name: 'Back to all sports' }).click();
+    await page.getByRole('button', { name: 'Back to overview' }).click();
     await expect(page.getByRole('heading', { name: 'Finish your team' })).toBeVisible();
     await page
       .locator('.sport-choice')
@@ -139,102 +135,78 @@ test('new captain signs in, submits two teams, corrects rejected payment, and fi
       'Draft player',
     );
     await expect(page.getByLabel('Company logo')).toHaveCount(0);
-    await page.getByRole('button', { name: 'Back to all sports' }).click();
-    const rosterNames: Record<string, number> = { Basketball: 3, Football: 2 };
-    for (const sport of Object.keys(rosterNames)) {
-      await page
-        .locator('.sport-choice')
-        .filter({ hasText: sport })
-        .getByRole('link', { name: 'Complete profile' })
-        .click();
-      await expect(page.getByRole('heading', { name: 'E2E Company' })).toBeVisible();
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
-        true,
-      );
-      for (let i = 0; i < rosterNames[sport]; i++) {
-        if (
-          (await page.getByRole('textbox', { name: `Player ${i + 1}`, exact: true }).count()) === 0
-        ) {
-          await page.getByRole('button', { name: 'Add player', exact: true }).click();
-        }
-        await page
-          .getByRole('textbox', { name: `Player ${i + 1}`, exact: true })
-          .fill(`Player ${i + 1}`);
-        if (i > 0)
-          await page
-            .getByRole('group', { name: `Jersey size for player ${i + 1}`, exact: true })
-            .getByRole('radio', { name: ['S', 'M', 'XL'][i], exact: true })
-            .check();
-      }
-      await page.getByRole('combobox', { name: 'Team captain', exact: true }).selectOption('1');
-      await page.getByRole('button', { name: 'Save and mark done' }).click();
-      await expect(
-        page.getByText('Choose a jersey size for every player.', { exact: true }),
-      ).toBeVisible();
-      await page
-        .getByRole('group', { name: 'Jersey size for player 1', exact: true })
-        .getByRole('radio', { name: 'S', exact: true })
-        .check();
-      if (sport === 'Basketball') {
-        await page.screenshot({
-          path: 'test-results/jersey-onboarding-mobile.png',
-          fullPage: true,
-        });
-        await page.setViewportSize({ width: 1280, height: 900 });
-        const nameBox = await page
-          .getByRole('textbox', { name: 'Player 1', exact: true })
-          .boundingBox();
-        const sizeBox = await page
-          .getByRole('group', { name: 'Jersey size for player 1', exact: true })
-          .boundingBox();
-        expect(sizeBox!.x).toBeGreaterThan(nameBox!.x + nameBox!.width);
-        await page.screenshot({
-          path: 'test-results/jersey-onboarding-desktop.png',
-          fullPage: true,
-        });
-        await page.setViewportSize({ width: 390, height: 844 });
+    await expect(page.getByRole('heading', { name: 'E2E Company' })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    for (let i = 0; i < 3; i++) {
+      if (
+        (await page.getByRole('textbox', { name: `Player ${i + 1}`, exact: true }).count()) === 0
+      ) {
         await page.getByRole('button', { name: 'Add player', exact: true }).click();
+      }
+      await page
+        .getByRole('textbox', { name: `Player ${i + 1}`, exact: true })
+        .fill(`Player ${i + 1}`);
+      if (i > 0)
         await page
-          .getByRole('group', { name: 'Jersey size for player 4', exact: true })
-          .getByRole('radio', { name: 'L', exact: true })
+          .getByRole('group', { name: `Jersey size for player ${i + 1}`, exact: true })
+          .getByRole('radio', { name: ['S', 'M', 'XL'][i], exact: true })
           .check();
-      }
-      await page.getByRole('button', { name: 'Save draft', exact: true }).click();
-      await expect(page.getByRole('status')).toHaveText('Profile saved.');
-      await page.reload();
-      for (let i = 0; i < rosterNames[sport]; i++) {
-        await expect(
-          page.getByRole('textbox', { name: `Player ${i + 1}`, exact: true }),
-        ).toHaveValue(`Player ${i + 1}`);
-        await expect(
-          page
-            .getByRole('group', { name: `Jersey size for player ${i + 1}`, exact: true })
-            .getByRole('radio', { name: ['S', 'M', 'XL'][i], exact: true }),
-        ).toBeChecked();
-      }
-      await expect(page.getByRole('combobox', { name: 'Team captain', exact: true })).toHaveValue(
-        '1',
-      );
-      await page.getByRole('button', { name: 'Save and mark done' }).click();
-      await expect(page.getByRole('status')).toHaveText('Team profile completed.');
     }
+    await page.getByRole('combobox', { name: 'Team captain', exact: true }).selectOption('1');
+    await page.getByRole('button', { name: 'Save and mark done' }).click();
+    await expect(
+      page.getByText('Choose a jersey size for every player.', { exact: true }),
+    ).toBeVisible();
+    await page
+      .getByRole('group', { name: 'Jersey size for player 1', exact: true })
+      .getByRole('radio', { name: 'S', exact: true })
+      .check();
+    await page.screenshot({ path: 'test-results/jersey-onboarding-mobile.png', fullPage: true });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const nameBox = await page
+      .getByRole('textbox', { name: 'Player 1', exact: true })
+      .boundingBox();
+    const sizeBox = await page
+      .getByRole('group', { name: 'Jersey size for player 1', exact: true })
+      .boundingBox();
+    expect(sizeBox!.x).toBeGreaterThan(nameBox!.x + nameBox!.width);
+    await page.screenshot({ path: 'test-results/jersey-onboarding-desktop.png', fullPage: true });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByRole('button', { name: 'Add player', exact: true }).click();
+    await page.getByRole('textbox', { name: 'Player 4', exact: true }).fill('Player 4');
+    await page
+      .getByRole('group', { name: 'Jersey size for player 4', exact: true })
+      .getByRole('radio', { name: 'L', exact: true })
+      .check();
+    await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+    await expect(page.getByRole('status')).toHaveText('Profile saved.');
+    await page.reload();
+    for (let i = 0; i < 4; i++) {
+      await expect(page.getByRole('textbox', { name: `Player ${i + 1}`, exact: true })).toHaveValue(
+        `Player ${i + 1}`,
+      );
+      await expect(
+        page
+          .getByRole('group', { name: `Jersey size for player ${i + 1}`, exact: true })
+          .getByRole('radio', { name: ['S', 'M', 'XL', 'L'][i], exact: true }),
+      ).toBeChecked();
+    }
+    await expect(page.getByRole('combobox', { name: 'Team captain', exact: true })).toHaveValue(
+      '1',
+    );
+    await page.getByRole('button', { name: 'Save and mark done' }).click();
+    await expect(page.getByRole('status')).toHaveText('Team profile completed.');
     await expect(page.getByRole('heading', { name: 'See you at the park.' })).toBeVisible();
     const status = await (await captain.request.get(`/orders/${orderId}/status`)).json();
     expect(status.company_name).toBe('E2E Company');
+    expect(status.items).toHaveLength(1);
     expect(status.items[0].logo_url).toBeTruthy();
-    expect(new Set(status.items.map((item: any) => item.logo_url)).size).toBe(1);
-    expect(status.items.every((item: any) => item.team_name === 'E2E Company')).toBe(true);
-    expect(
-      status.items.every(
-        (item: any) =>
-          item.players.length === rosterNames[item.sport_name] &&
-          item.jersey_sizes.every(
-            (size: string, index: number) => size === ['S', 'M', 'XL'][index],
-          ) &&
-          item.captain_position === 1 &&
-          item.profile_completed_at,
-      ),
-    ).toBe(true);
+    expect(status.items[0].players).toHaveLength(4);
+    expect(status.items[0].jersey_sizes).toEqual(['S', 'M', 'XL', 'L']);
+    expect(status.items[0].captain_position).toBe(1);
+    expect(status.items[0].profile_completed_at).toBeTruthy();
     const headers = { origin: baseURL! };
     const firstDelivery = await captain.request.post('/__test/deliver', { headers });
     expect((await firstDelivery.json()).sent).toBe(1);
@@ -242,13 +214,13 @@ test('new captain signs in, submits two teams, corrects rejected payment, and fi
       1,
     );
     await admin.reload();
-    await expect(admin.getByText('Profile complete', { exact: true })).toHaveCount(2);
+    await expect(admin.getByText('Profile complete', { exact: true })).toHaveCount(1);
     await admin.getByRole('link', { name: 'Teams', exact: true }).click();
     await admin.getByRole('link', { name: 'E2E Company', exact: true }).click();
     await expect(admin.getByRole('heading', { name: 'E2E Company', exact: true })).toBeVisible();
-    await expect(admin.locator('.sport-roster')).toHaveCount(2);
-    await expect(admin.locator('.jersey-badge')).toHaveText(['S', 'M', 'XL', 'S', 'M']);
-    await expect(admin.getByRole('cell', { name: 'Captain', exact: true })).toHaveCount(2);
+    await expect(admin.locator('.sport-roster')).toHaveCount(1);
+    await expect(admin.locator('.jersey-badge')).toHaveText(['S', 'M', 'XL', 'L']);
+    await expect(admin.getByRole('cell', { name: 'Captain', exact: true })).toHaveCount(1);
     await admin.setViewportSize({ width: 390, height: 844 });
     expect(await admin.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
@@ -267,7 +239,7 @@ test('new captain signs in, submits two teams, corrects rejected payment, and fi
     await expect(page).toHaveURL(/\/#teams$/);
     await expect(page.getByRole('heading', { name: 'E2E Company' })).toBeVisible();
     await page.getByRole('tab', { name: 'Football' }).click();
-    await expect(page.getByRole('heading', { name: 'E2E Company' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'E2E Company' })).not.toBeVisible();
     await admin.getByRole('button', { name: 'Sign out' }).click();
     await expect(admin.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
     expect((await organizer.request.get('/admin/orders')).status()).toBe(401);
@@ -290,7 +262,7 @@ test('mobile captain can revise an expired payment and recover from session expi
     page.getByRole('heading', { name: 'Register your company', level: 2 }),
   ).toBeVisible();
   await page.getByRole('textbox', { name: 'Company name' }).fill('Mobile Company');
-  await page.getByRole('checkbox', { name: /^Basketball / }).check();
+  await page.getByRole('radio', { name: /^Basketball / }).check();
   await page.getByRole('button', { name: 'Continue to contact' }).click();
   await page.getByRole('textbox', { name: 'Phone number' }).fill('9800000000');
   await page.route(

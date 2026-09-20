@@ -40,16 +40,9 @@ export const uuid = z.string().uuid();
 export const teamSelection = z
   .object({
     company_name: z.string().trim().min(1).max(120),
-    sports: z
-      .array(z.object({ sport_id: uuid }).strict())
-      .min(1)
-      .max(30),
+    sports: z.array(z.object({ sport_id: uuid }).strict()).length(1),
   })
-  .strict()
-  .refine(
-    (v) => new Set(v.sports.map((s) => s.sport_id)).size === v.sports.length,
-    'Each sport can be selected once',
-  );
+  .strict();
 export const profileInput = z
   .object({
     players: z.array(z.string().trim().min(1).max(120)).max(100).optional(),
@@ -257,7 +250,7 @@ export class Orders {
         await one(tx, 'SELECT id FROM order_items WHERE order_id=$1 LIMIT 1', [id]),
         409,
         'no_sports',
-        'Select at least one sport first',
+        'Select a sport first',
       );
       await tx.query('UPDATE orders SET phone_number=$2,updated_at=now() WHERE id=$1', [id, phone]);
       await tx.query('UPDATE users SET phone=$2 WHERE id=$1', [userId, phone]);
@@ -316,7 +309,18 @@ export class Orders {
         'payment_unconfigured',
         'The merchant bank details have not been configured',
       );
-      const code = `RONB-${String(Math.floor(Math.random() * 100000)).padStart(5, '0')}`;
+      // The remarks code is stable per account: every registration from the same
+      // Google account reuses the same unique code.
+      const user = (await one(tx, 'SELECT * FROM users WHERE id=$1 FOR UPDATE', [userId]))!;
+      let code = user.payment_code;
+      if (!code) {
+        code = `RONB-${String(Math.floor(Math.random() * 100000)).padStart(5, '0')}`;
+        for (let attempt = 0; attempt < 10; attempt++) {
+          if (!(await one(tx, 'SELECT id FROM users WHERE payment_code=$1', [code]))) break;
+          code = `RONB-${String(Math.floor(Math.random() * 100000)).padStart(5, '0')}`;
+        }
+        await tx.query('UPDATE users SET payment_code=$2 WHERE id=$1', [userId, code]);
+      }
       const p = await one(
         tx,
         `INSERT INTO payment_requests(order_id,unique_code,qr_payload,expires_at) VALUES($1,$2,$3,now()+($4*interval '1 minute')) RETURNING *`,

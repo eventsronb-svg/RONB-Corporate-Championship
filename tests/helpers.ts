@@ -154,7 +154,7 @@ export async function setup() {
       headers: { 'content-type': `multipart/form-data; boundary=${boundary}` },
     };
   }
-  async function invoice(count = 2) {
+  async function invoice(count = 1) {
     const draft = await call('POST', '/orders/draft');
     const id = draft.json().id;
     const selection = await call('PATCH', `/orders/${id}/sports`, {
@@ -169,7 +169,7 @@ export async function setup() {
     if (r.statusCode !== 200) throw new Error(r.body);
     return r.json();
   }
-  async function submit(count = 2) {
+  async function submit(count = 1) {
     const o = await invoice(count);
     const p = await call('POST', `/orders/${o.id}/payment-request`);
     if (p.statusCode !== 200) throw new Error(p.body);
@@ -178,7 +178,7 @@ export async function setup() {
     if (r.statusCode !== 200) throw new Error(r.body);
     return r.json();
   }
-  async function confirm(count = 2) {
+  async function confirm(count = 1) {
     const o = await submit(count);
     const r = await call(
       'POST',

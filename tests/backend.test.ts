@@ -32,7 +32,7 @@ describe('registration and publication', () => {
     expect((await h.call('GET', path, undefined, 'stranger')).statusCode).toBe(404);
     expect((await h.call('POST', `${path}/complete`)).statusCode).toBe(200);
     const team = (await h.call('GET', `/admin/teams/${order.id}`, undefined, 'staff')).json();
-    expect(team.items).toHaveLength(2);
+    expect(team.items).toHaveLength(1);
     expect(team.items[0]).toMatchObject({ players, jersey_sizes, captain_position: 2 });
     expect((await h.call('GET', `/admin/teams/${order.id}`)).statusCode).toBe(401);
     expect((await h.call('GET', '/admin/teams')).statusCode).toBe(401);
@@ -43,7 +43,7 @@ describe('registration and publication', () => {
       ).json();
       expect(list.teams).toHaveLength(1);
       expect(list.teams[0].id).toBe(order.id);
-      expect(list.teams[0].sports).toHaveLength(2);
+      expect(list.teams[0].sports).toHaveLength(1);
     }
     expect(
       (await h.call('GET', '/admin/teams?offset=1&limit=1', undefined, 'staff')).json().teams,
@@ -78,9 +78,9 @@ describe('registration and publication', () => {
     expect(current.items[0].players).toHaveLength(3);
     expect(current.items[0].profile_completed_at).toBeTruthy();
   });
-  it('runs the multi-sport flow, gates each team, and sends one asynchronous confirmation', async () => {
+  it('gates a team until its profile is complete and sends one asynchronous confirmation', async () => {
     const order = await h.confirm();
-    expect(order.total_amount).toBe('3500.75');
+    expect(order.total_amount).toBe('1500.25');
     expect((await h.call('GET', '/teams')).json()).toEqual([]);
     expect((await h.db.query('SELECT * FROM email_jobs')).rows).toHaveLength(0);
     expect((await h.call('GET', '/orders/current')).json().resume_step).toBe('team_profile');
@@ -96,18 +96,9 @@ describe('registration and publication', () => {
     expect(first[0].team_name).toBe('Valley Strikers');
     expect(first[0]).not.toHaveProperty('user_id');
     expect(first[0].players).toEqual(['Suman Karki', 'Pratik Gurung', 'Aarav Shah']);
-    expect((await h.db.query('SELECT * FROM email_jobs')).rows).toHaveLength(0);
-    await h.fill(order, 1);
-    const finish = await Promise.all(
-      [0, 1, 1].map((i) =>
-        h.call('POST', `/orders/${order.id}/items/${order.items[i].id}/profile/complete`),
-      ),
-    );
-    expect(finish.map((r) => r.statusCode)).toEqual([200, 200, 200]);
     expect((await h.db.query('SELECT * FROM email_jobs')).rows).toHaveLength(1);
     expect(h.sent).toHaveLength(0);
-    expect((await h.call('GET', `/teams?sport_id=${h.sports[1].id}`)).json()).toHaveLength(1);
-    await deliverOne(h.db, h.mailer);
+    expect((await h.call('GET', `/teams?sport_id=${h.sports[0].id}`)).json()).toHaveLength(1);
     await deliverOne(h.db, h.mailer);
     expect(h.sent).toHaveLength(1);
     const logs = (await h.db.query('SELECT * FROM email_log')).rows;
@@ -119,29 +110,22 @@ describe('registration and publication', () => {
     expect(detail.receipts[0]).not.toHaveProperty('file_url');
     expect(detail.timeline.at(-1).to_status).toBe('confirmed');
   });
-  it('shares and replaces company logos across sports while keeping rosters separate', async () => {
+  it('shares and replaces a company logo, then completes the single team profile', async () => {
     const order = await h.confirm();
     const first = await h.fill(order, 0);
-    let current = (await h.call('GET', `/orders/${order.id}/status`)).json();
-    expect(current.items.every((item: any) => item.logo_url === first.logo_url)).toBe(true);
-    expect(current.items[1].players).toEqual([]);
-    expect(
-      (await h.call('POST', `/orders/${order.id}/items/${order.items[1].id}/profile/complete`))
-        .statusCode,
-    ).toBe(409);
-    const replacement = await h.fill(order, 1);
+    const current = (await h.call('GET', `/orders/${order.id}/status`)).json();
+    expect(current.items[0].logo_url).toBe(first.logo_url);
+    const replacement = await h.fill(order, 0);
     expect(replacement.logo_url).not.toBe(first.logo_url);
-    current = (await h.call('GET', `/orders/${order.id}/status`)).json();
-    expect(current.items.every((item: any) => item.logo_url === replacement.logo_url)).toBe(true);
-    expect(current.items[0].players).toEqual(first.players);
-    for (const item of order.items) {
-      expect(
-        (await h.call('POST', `/orders/${order.id}/items/${item.id}/profile/complete`)).statusCode,
-      ).toBe(200);
-    }
+    const after = (await h.call('GET', `/orders/${order.id}/status`)).json();
+    expect(after.items[0].logo_url).toBe(replacement.logo_url);
+    expect(
+      (await h.call('POST', `/orders/${order.id}/items/${order.items[0].id}/profile/complete`))
+        .statusCode,
+    ).toBe(200);
     const teams = (await h.call('GET', '/teams')).json();
-    expect(teams).toHaveLength(2);
-    expect(teams.every((team: any) => team.logo_url === replacement.logo_url)).toBe(true);
+    expect(teams).toHaveLength(1);
+    expect(teams[0].logo_url).toBe(replacement.logo_url);
   });
   it('stores the captain as a roster member and rejects positions outside the roster', async () => {
     const order = await h.confirm();
@@ -177,7 +161,7 @@ describe('registration and publication', () => {
       ).statusCode,
     ).toBe(409);
     await h.call('PATCH', `/admin/sports/${h.sports[0].id}`, { price: '1700.00' }, 'admin');
-    expect((await h.call('POST', `/orders/${o.id}/invoice`)).json().total_amount).toBe('3500.75');
+    expect((await h.call('POST', `/orders/${o.id}/invoice`)).json().total_amount).toBe('1500.25');
     for (const sql of [
       'UPDATE orders SET total_amount=1 WHERE id=$1',
       'UPDATE orders SET invoiced_at=NULL,total_amount=NULL WHERE id=$1',
@@ -191,7 +175,7 @@ describe('registration and publication', () => {
     expect(revised.status).toBe('draft');
     expect(revised.items[0].price_at_purchase).toBe('1700.00');
     expect((await one(h.db, 'SELECT * FROM orders WHERE id=$1', [o.id]))?.total_amount).toBe(
-      '3500.75',
+      '1500.25',
     );
   });
   it('takes current prices at invoice time and refuses inactive sports', async () => {
@@ -354,6 +338,32 @@ describe('authorization and validation', () => {
       (await h.call('POST', `/orders/${o.id}/receipt`, f.payload, 'user', f.headers)).statusCode,
     ).toBe(409);
   });
+  it('issues the same payment code to the same account across separate single-sport registrations', async () => {
+    const codes: string[] = [];
+    let order = (await h.call('POST', '/orders/draft')).json();
+    for (let i = 0; i < 3; i++) {
+      const selection = await h.call('PATCH', `/orders/${order.id}/sports`, {
+        company_name: `Valley Strikers ${i + 1}`,
+        sports: [{ sport_id: h.sports[i].id }],
+      });
+      expect(selection.statusCode).toBe(200);
+      expect(selection.json().items).toHaveLength(1);
+      expect(selection.json().items[0].sport_id).toBe(h.sports[i].id);
+      await h.call('POST', `/orders/${order.id}/phone`, { phone_number: '+977 9800000000' });
+      await h.call('POST', `/orders/${order.id}/invoice`);
+      const payment = await h.call('POST', `/orders/${order.id}/payment-request`);
+      expect(payment.statusCode).toBe(200);
+      codes.push(payment.json().unique_code);
+      expect(codes[i]).toMatch(/^RONB-\d{5}$/);
+      if (i < 2) {
+        order = (
+          await h.call('POST', `/orders/${order.id}/cancel-and-revise`, undefined, 'user')
+        ).json();
+      }
+    }
+    expect(codes[0]).toBe(codes[1]);
+    expect(codes[1]).toBe(codes[2]);
+  });
   it('prevents removal of the last super admin and revokes inactive admins immediately', async () => {
     expect(
       (await h.call('PATCH', `/admin/admins/${h.admin.id}`, { active: false }, 'admin')).statusCode,
@@ -403,7 +413,7 @@ describe('background jobs', () => {
     ]);
     expect(await expireOrders(h.db)).toBe(2);
     expect((await one(h.db, 'SELECT * FROM orders WHERE id=$1', [o.id]))?.total_amount).toBe(
-      '3500.75',
+      '1500.25',
     );
     const revised = (await h.call('POST', `/orders/${o.id}/cancel-and-revise`)).json();
     expect(revised.status).toBe('draft');

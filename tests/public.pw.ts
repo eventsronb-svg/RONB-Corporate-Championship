@@ -79,6 +79,6 @@ test('supports keyboard tabs and reduced motion with a dark system preference', 
   ).toBe(false);
   await page.getByText('Can a company enter more than one sport?', { exact: true }).click();
   await expect(
-    page.getByText('Yes. A captain can select every available sport', { exact: false }),
+    page.getByText('Each registration covers one sport, so register again', { exact: false }),
   ).toBeVisible();
 });

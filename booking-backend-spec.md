@@ -9,12 +9,14 @@
 
 ## 1. Overview
 
-A public event registration site: teams sign in with Google, register for
-one or more sports, and pay via a manually-verified QR/remarks-code transfer
-(no payment gateway integration). After admin approves payment, the captain
+A public event registration site: teams sign in with Google, register for a
+sport, and pay via a manually-verified remarks-code transfer (no payment
+gateway integration). Each registration covers one sport; entering more
+sports means another registration from the same account, which reuses the
+same payment code. After admin approves payment, the captain
 completes their team's public profile (logo + roster). A team appears on the
 homepage, segmented by sport, only once **both** payment is confirmed **and**
-the profile is complete. Once every team on an order is fully done, one
+the profile is complete. Once the team on an order is fully done, one
 confirmation email goes out (Section 8) — content/template supplied
 separately.
 
@@ -72,16 +74,16 @@ against the `admins` allowlist table from Section 11.1).
 |---|--------|--------|-----------------|
 | 0 | **Landing page (public, no login)** | Views event info + teams, segmented by sport (cricket / football / basketball tabs) | `GET /event` for event details, `GET /teams?sport_id=` per tab. No auth required. |
 | 1 | Login | Signs in with Google | User created/fetched. `GET /orders/current` checked — if an open registration exists, captain is routed straight to its matching screen. |
-| 2 | Sport selection & team naming | Picks sport(s) to register for; **names a team for each sport individually** — a captain can run different-named teams in different sports | Draft order created on first pick (`POST /orders/draft`). Each pick is an `order_item` carrying its own `team_name` (`PATCH /orders/:id/sports`). Fully editable at this stage. |
+| 2 | Sport selection & team naming | Picks one sport to register for; names the team for that sport | Draft order created on first pick (`POST /orders/draft`). The single pick is an `order_item` carrying its own `team_name` (`PATCH /orders/:id/sports`). Registration is one sport per order; entering more sports means a new registration from the same account. Fully editable at this stage. |
 | 3 | Contact number | Enters phone, proceeds | `POST /orders/:id/phone` → order moves to `phone_captured`. |
-| 4 | Amount shown | Proceeds | `POST /orders/:id/invoice` computes and **permanently locks** `total_amount` across all registered teams/sports. Order → `invoiced`. |
-| 5 | QR + code | Sees unique code + QR | `POST /orders/:id/payment-request` generates code, QR payload, expiry. Order → `payment_pending`. |
+| 4 | Amount shown | Proceeds | `POST /orders/:id/invoice` computes and **permanently locks** `total_amount` for the registered sport. Order → `invoiced`. |
+| 5 | Payment code | Sees account code + bank details | `POST /orders/:id/payment-request` looks up the captain's account code, generating and storing it on the user on first use; returns the code, bank details, expiry. Order → `payment_pending`. The same code is reused for every registration from the same account. |
 | 6 | (external) | Pays via QR, types code into transfer remarks | — |
 | 7 | Receipt upload | Uploads payment receipt | `POST /orders/:id/receipt` (file → Neon Object Storage `receipts/`) → order → `receipt_submitted`. Repeatable if rejected. |
 | 8 | "We'll contact you" | Waits, screen polls status | `GET /orders/:id/status` polled. |
 | 9 | (admin side) | Admin reviews receipt vs. expected amount/code | `POST /admin/orders/:id/verify` → `confirmed` or `rejected`. Confirming does not publish the team yet — see step 10. |
-| 10 | **Team profile** (per sport, unlocked after confirm) | Captain uploads logo (→ Neon Object Storage `team-logos/`) + enters player names for each registered team, then hits "Done" | `PATCH /orders/:id/items/:item_id/profile`, then `POST /orders/:id/items/:item_id/profile/complete` when finished. |
-| 11 | **Listed & confirmed** | Team now appears on the homepage under its sport's tab | Automatic — no separate publish action (Business Rule 6). **Once every team on this order has completed its profile, the one confirmation email fires via Resend** (Section 8). |
+| 10 | **Team profile** (per sport, unlocked after confirm) | Captain uploads logo (→ Neon Object Storage `team-logos/`) + enters player names for the registered team, then hits "Done" | `PATCH /orders/:id/items/:item_id/profile`, then `POST /orders/:id/items/:item_id/profile/complete` when finished. |
+| 11 | **Listed & confirmed** | Team now appears on the homepage under its sport's tab | Automatic — no separate publish action (Business Rule 6). When the team's profile is complete, the confirmation email fires via Resend (Section 8). |
 | — | Contacted | Team follows up | Order → `contacted` → `completed`, independent of profile completion timing. |
 
 **Editing sports/team names after step 4 is not allowed** (price is locked).
@@ -106,10 +108,8 @@ Terminal states: `completed`, `cancelled`, `expired`, `rejected` (rejected is
 terminal only if the captain never re-uploads).
 
 **Note:** team profile completion (logo + roster) is *not* an order status —
-it's a per-`order_item` flag (`profile_completed_at`) that runs in parallel,
-since a single order can hold several teams (one per sport) completing their
-profiles independently and at different times. The confirmation email fires
-once the *last* of them finishes.
+it's a per-`order_item` flag (`profile_completed_at`). Since one order holds
+exactly one sport/team, the confirmation email fires once that profile finishes.
 
 ---
 
@@ -117,7 +117,7 @@ once the *last* of them finishes.
 
 ```sql
 users
-  id, google_id, email, name, phone (nullable), created_at
+  id, google_id, email, name, phone (nullable), payment_code (nullable, unique), created_at
 
 sports
   id, name, price, description, active (bool)
@@ -134,7 +134,7 @@ orders
   cancellation_reason (nullable enum: revised | expired | admin_rejected),
   created_at, updated_at
 
-order_items                        -- one row per sport = one team registration
+order_items                        -- one row = the single registered sport/team
   id, order_id, sport_id, price_at_purchase,
   team_name,
   logo_url (nullable),             -- Neon Object Storage, `team-logos/` (public)
@@ -145,6 +145,7 @@ team_players
 
 payment_requests
   id, order_id, unique_code, qr_payload, expires_at, created_at
+  -- unique_code is the captain's account payment_code (per-user stable, not per-order-unique)
 
 receipts
   id, order_id, file_url, uploaded_at
@@ -194,17 +195,17 @@ GET  /sports
 ```
 GET   /orders/current                       → resume point on login; null if none open
 POST  /orders/draft                         → create, or return existing open draft
-PATCH /orders/:id/sports                    → add/remove sport registrations, each with a team_name — 409 if past 'invoiced'
+PATCH /orders/:id/sports                    → replace with exactly one sport + its team_name — 409 if past 'invoiced'
 POST  /orders/:id/phone                     → set phone → phone_captured
 POST  /orders/:id/invoice                   → compute + lock total_amount → invoiced
-POST  /orders/:id/payment-request           → generate code + QR + expiry → payment_pending
+POST  /orders/:id/payment-request           → look up/reuse account payment code + expiry → payment_pending
 POST  /orders/:id/receipt                   → upload receipt to Neon Object Storage → receipt_submitted
 GET   /orders/:id/status                    → poll target for the "we'll contact you" screen
 POST  /orders/:id/cancel-and-revise         → cancel this order, spawn pre-filled draft
 
 GET   /orders/:id/items/:item_id/profile           → fetch current profile draft
 PATCH /orders/:id/items/:item_id/profile           → save logo (→ Neon Object Storage) + players[] — only allowed once order is confirmed+
-POST  /orders/:id/items/:item_id/profile/complete  → sets profile_completed_at; team becomes publicly visible; if this was the last incomplete item on the order, queues the Resend confirmation email
+POST  /orders/:id/items/:item_id/profile/complete  → sets profile_completed_at; team becomes publicly visible; queues the Resend confirmation email
 ```
 
 **Admin — auth**
@@ -270,11 +271,13 @@ PATCH /admin/admins/:id               → change role / deactivate
    payment is necessary but not sufficient — the captain still has to finish
    their team's profile before it shows up. `/teams` simply filters on both
    conditions; there's no manual "publish" toggle anywhere.
-7. **A team is per sport, not per order.** A captain registering for cricket
-   and football has two independent `order_items` — separate name, logo,
-   and roster — even though they're one payment/order.
+7. **One sport per registration.** An order holds exactly one `order_item`.
+   A captain who wants several sports creates a separate registration for each.
+   The payment code is stable **per account** (`users.payment_code`); every
+   registration from the same Google account reuses the same code in payment
+   remarks, then submits a separate receipt per order.
 8. **Exactly one confirmation email per order, fired once, at the very end**
-   — when every `order_item` on the order has `profile_completed_at` set.
+   — when the order's single `order_item` has `profile_completed_at` set.
    Nothing goes out earlier in the flow. Email delivery failure never blocks
    or alters the order's actual status.
 
