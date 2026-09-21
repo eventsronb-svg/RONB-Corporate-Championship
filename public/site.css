@@ -1123,6 +1123,9 @@ h2 {
     gap: 32px;
     min-height: 0;
   }
+  .hero-visual {
+    order: -1;
+  }
   .hero-title {
     font-size: clamp(44px, 9.5vw, 75.4px);
     letter-spacing: -1.7px;
