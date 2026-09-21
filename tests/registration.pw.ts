@@ -170,6 +170,8 @@ test('new captain signs in, submits one team, corrects rejected payment, and fin
       .getByRole('radio', { name: 'S', exact: true })
       .check();
     await page.getByLabel('Photo for player 1', { exact: true }).setInputFiles(upload);
+    await page.getByLabel('Photo for player 2', { exact: true }).setInputFiles(upload);
+    await page.getByLabel('Photo for player 3', { exact: true }).setInputFiles(upload);
     await expect(
       page.locator('.player-row').first().locator('.player-photo-preview'),
     ).toBeVisible();
@@ -199,6 +201,7 @@ test('new captain signs in, submits one team, corrects rejected payment, and fin
       .getByRole('group', { name: 'Jersey size for player 4', exact: true })
       .getByRole('radio', { name: 'L', exact: true })
       .check();
+    await page.getByLabel('Photo for player 4', { exact: true }).setInputFiles(upload);
     const profileSaved = page.waitForResponse(
       (response) =>
         response.url().includes(`/orders/${orderId}/items/`) &&
@@ -249,7 +252,7 @@ test('new captain signs in, submits one team, corrects rejected payment, and fin
     await admin.getByRole('link', { name: 'E2E Company', exact: true }).click();
     await expect(admin.getByRole('heading', { name: 'E2E Company', exact: true })).toBeVisible();
     await expect(admin.locator('.sport-roster')).toHaveCount(1);
-    await expect(admin.locator('.player-photo[src]')).toHaveCount(1);
+    await expect(admin.locator('.player-photo[src]')).toHaveCount(4);
     await expect(admin.locator('.player-photo[src]').first()).toHaveAttribute(
       'src',
       new RegExp(await uploadedPhotoUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),

@@ -506,7 +506,7 @@ export class Orders {
         const requiredPlayers = MIN_ROSTER[sportName.toLowerCase()] ?? 1;
         const rosterRow = await one(
           tx,
-          'SELECT count(*)::int AS count, count(*) FILTER (WHERE jersey_size IS NULL)::int AS missing_sizes FROM team_players WHERE order_item_id=$1',
+          'SELECT count(*)::int AS count, count(*) FILTER (WHERE jersey_size IS NULL)::int AS missing_sizes, count(*) FILTER (WHERE photo_url IS NULL)::int AS missing_photos FROM team_players WHERE order_item_id=$1',
           [itemId],
         );
         const rosterCount = rosterRow!.count;
@@ -521,6 +521,12 @@ export class Orders {
           409,
           'jersey_sizes_required',
           'Choose a jersey size for every player before completing the profile',
+        );
+        assert(
+          rosterRow!.missing_photos === 0,
+          409,
+          'player_photos_required',
+          'Add a photo for every player before completing the profile',
         );
         await tx.query(
           'UPDATE order_items SET profile_completed_at=coalesce(profile_completed_at,now()) WHERE id=$1',

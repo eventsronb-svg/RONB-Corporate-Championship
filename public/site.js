@@ -523,7 +523,7 @@ function profileEditor(order, itemId) {
   if (!item) return;
   const required = MIN_ROSTER[item.sport_name.toLowerCase()] ?? 1;
   const target = document.querySelector('#registration-content');
-  target.innerHTML = `<button class="button" type="submit" form="profile-form" name="save" value="back">← Back to overview</button><p class="eyebrow">${esc(item.sport_name)} / Team profile</p><h2>${esc(item.team_name)}</h2><p>Your roster is saved as a draft when you return to the overview.</p>${!item.logo_url ? '<p class="info-box">Add your company logo on the overview before marking this profile done.</p>' : ''}<form id="profile-form" class="form-stack"><fieldset class="roster-fields"><legend>Players</legend><p class="form-note">Add at least ${required} player${required > 1 ? 's' : ''}, including your team captain. Choose a jersey size for each player. You can optionally add a photo (JPG, PNG or WebP, under 4 MB) for each player.</p><div id="player-fields" class="player-fields"></div><button class="button" id="add-player" type="button">Add player</button></fieldset><label class="input-group">Team captain<select name="captain_position" aria-describedby="captain-note"><option value="">Choose a player</option></select></label><p id="captain-note" class="form-note">Choose one of the players above. The captain counts as part of your roster.</p><p class="error" hidden></p><div class="form-actions"><button class="button" name="save" value="save">Save draft</button><button class="button primary" name="complete" value="complete">Save and mark done</button></div></form>`;
+  target.innerHTML = `<button class="button" type="submit" form="profile-form" name="save" value="back">← Back to overview</button><p class="eyebrow">${esc(item.sport_name)} / Team profile</p><h2>${esc(item.team_name)}</h2><p>Your roster is saved as a draft when you return to the overview.</p>${!item.logo_url ? '<p class="info-box">Add your company logo on the overview before marking this profile done.</p>' : ''}<form id="profile-form" class="form-stack"><fieldset class="roster-fields"><legend>Players</legend><p class="form-note">Add at least ${required} player${required > 1 ? 's' : ''}, including your team captain. Choose a jersey size and add a photo (JPG, PNG or WebP, under 4 MB) for every player.</p><div id="player-fields" class="player-fields"></div><button class="button" id="add-player" type="button">Add player</button></fieldset><label class="input-group">Team captain<select name="captain_position" aria-describedby="captain-note"><option value="">Choose a player</option></select></label><p id="captain-note" class="form-note">Choose one of the players above. The captain counts as part of your roster.</p><p class="error" hidden></p><div class="form-actions"><button class="button" name="save" value="save">Save draft</button><button class="button primary" name="complete" value="complete">Save and mark done</button></div></form>`;
   const fields = target.querySelector('#player-fields');
   const captain = target.querySelector('[name="captain_position"]');
   const addButton = target.querySelector('#add-player');
@@ -633,6 +633,24 @@ function profileEditor(order, itemId) {
       error.hidden = false;
       const missingIndex = names.findIndex((name, index) => name && !fd.get(`jersey-${index}`));
       fields.querySelector(`[name="jersey-${missingIndex}"]`).focus();
+      return;
+    }
+    if (
+      action === 'complete' &&
+      names.some(
+        (name, index) =>
+          name &&
+          !(photoSelections.has(index) ? photoSelections.get(index) : item.photo_urls?.[index]),
+      )
+    ) {
+      error.textContent = 'Add a photo for every player.';
+      error.hidden = false;
+      const missingIndex = names.findIndex(
+        (name, index) =>
+          name &&
+          !(photoSelections.has(index) ? photoSelections.get(index) : item.photo_urls?.[index]),
+      );
+      fields.querySelector(`[name="photo-${missingIndex}"]`).focus();
       return;
     }
     const playerPhotos = new Array(fields.children.length);

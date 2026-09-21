@@ -25,7 +25,13 @@ describe('registration and publication', () => {
     ]) {
       expect((await h.call('PATCH', path, body)).statusCode).toBe(400);
     }
-    const saved = await h.call('PATCH', path, { players, jersey_sizes, captain_position: 2 });
+    const player_photos = await h.uploadPlayerPhotos(order, 0, players.length);
+    const saved = await h.call('PATCH', path, {
+      players,
+      jersey_sizes,
+      captain_position: 2,
+      player_photos,
+    });
     expect(saved.statusCode).toBe(200);
     expect(saved.json().jersey_sizes).toEqual(jersey_sizes);
     expect((await h.call('GET', path)).json().jersey_sizes).toEqual(jersey_sizes);
@@ -181,9 +187,11 @@ describe('registration and publication', () => {
     expect(replaced.statusCode).toBe(409);
     expect(replaced.json().error).toBe('logo_locked');
 
+    const player_photos = await h.uploadPlayerPhotos({ ...second, items: [secondItem] });
     const saved = await h.call('PATCH', path, {
       players: ['Suman Karki', 'Pratik Gurung', 'Aarav Shah'],
       jersey_sizes: ['S', 'M', 'XL'],
+      player_photos,
     });
     expect(saved.statusCode).toBe(200);
     expect(saved.json().logo_url).toBe(original[0].logo_url);
@@ -231,10 +239,19 @@ describe('registration and publication', () => {
       h.multipart('logo').headers,
     );
     expect(logo.statusCode).toBe(200);
+    const path = `/orders/${order.id}/items/${order.items[0].id}/profile`;
+    expect((await h.call('POST', `${path}/complete`)).json().error).toBe('player_photos_required');
+    const player_photos = await h.uploadPlayerPhotos(order);
     expect(
-      (await h.call('POST', `/orders/${order.id}/items/${order.items[0].id}/profile/complete`))
-        .statusCode,
+      (
+        await h.call('PATCH', path, {
+          players: ['Suman Karki', 'Pratik Gurung', 'Aarav Shah'],
+          jersey_sizes: ['S', 'M', 'XL'],
+          player_photos,
+        })
+      ).statusCode,
     ).toBe(200);
+    expect((await h.call('POST', `${path}/complete`)).statusCode).toBe(200);
     expect((await h.call('GET', '/teams')).json()[0]).not.toHaveProperty('player_photos');
   });
   it('stores the captain as a roster member and rejects positions outside the roster', async () => {

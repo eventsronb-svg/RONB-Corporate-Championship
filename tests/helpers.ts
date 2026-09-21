@@ -197,6 +197,22 @@ export async function setup() {
     if (r.statusCode !== 200) throw new Error(r.body);
     return r.json();
   }
+  async function uploadPlayerPhotos(order: any, index = 0, count = 3) {
+    const playerPhotos = [];
+    for (let position = 0; position < count; position++) {
+      const upload = multipart('photo');
+      const photo = await call(
+        'POST',
+        `/orders/${order.id}/items/${order.items[index].id}/player-photos/${position}`,
+        upload.payload,
+        'user',
+        upload.headers,
+      );
+      if (photo.statusCode !== 200) throw new Error(photo.body);
+      playerPhotos.push(photo.json().photo_url);
+    }
+    return playerPhotos;
+  }
   async function fill(order: any, index = 0) {
     const f = multipart('logo', png, {
       name: 'players',
@@ -210,12 +226,14 @@ export async function setup() {
       f.headers,
     );
     if (r.statusCode !== 200) throw new Error(r.body);
+    const playerPhotos = await uploadPlayerPhotos(order, index, r.json().players.length);
     const sized = await call(
       'PATCH',
       `/orders/${order.id}/items/${order.items[index].id}/profile`,
       {
         players: r.json().players,
         jersey_sizes: ['S', 'M', 'XL'],
+        player_photos: playerPhotos,
       },
     );
     if (sized.statusCode !== 200) throw new Error(sized.body);
@@ -237,6 +255,7 @@ export async function setup() {
     submit,
     confirm,
     fill,
+    uploadPlayerPhotos,
     setIdentity: (i: typeof identity) => {
       identity = i;
     },
