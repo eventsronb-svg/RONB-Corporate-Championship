@@ -127,6 +127,69 @@ describe('registration and publication', () => {
     expect(teams).toHaveLength(1);
     expect(teams[0].logo_url).toBe(replacement.logo_url);
   });
+  it('locks the company identity and reuses its logo when registering another sport', async () => {
+    const first = await h.confirm();
+    await h.fill(first);
+    await h.call('POST', `/orders/${first.id}/items/${first.items[0].id}/profile/complete`);
+    const original = (await h.call('GET', '/teams')).json();
+    expect(original).toHaveLength(1);
+    expect(original[0].logo_url).toBeTruthy();
+
+    const start = (await h.call('POST', '/orders/start')).json();
+    const secondId = start.id;
+    expect(start.company_locked).toBe(true);
+
+    const renamed = await h.call('PATCH', `/orders/${secondId}/sports`, {
+      company_name: 'Another Venture',
+      sports: [{ sport_id: h.sports[1].id }],
+    });
+    expect(renamed.statusCode).toBe(409);
+    expect(renamed.json().error).toBe('company_locked');
+
+    const selection = await h.call('PATCH', `/orders/${secondId}/sports`, {
+      company_name: 'Valley Strikers',
+      sports: [{ sport_id: h.sports[1].id }],
+    });
+    expect(selection.statusCode).toBe(200);
+    const second = selection.json();
+    expect(second.company_name).toBe('Valley Strikers');
+    expect(second.company_locked).toBe(true);
+    expect(second.items[0].team_name).toBe('Valley Strikers');
+    expect(second.items[0].logo_url).toBe(original[0].logo_url);
+
+    await h.call('POST', `/orders/${secondId}/phone`, { phone_number: '+977 9800000000' });
+    await h.call('POST', `/orders/${secondId}/invoice`);
+    await h.call('POST', `/orders/${secondId}/payment-request`);
+    const f = h.multipart('receipt');
+    expect(
+      (await h.call('POST', `/orders/${secondId}/receipt`, f.payload, 'user', f.headers)).statusCode,
+    ).toBe(200);
+    const confirmed = await h.call(
+      'POST',
+      `/admin/orders/${secondId}/verify`,
+      { decision: 'confirmed' },
+      'staff',
+    );
+    expect(confirmed.statusCode).toBe(200);
+    const secondItem = confirmed.json().items[0];
+
+    const path = `/orders/${secondId}/items/${secondItem.id}/profile`;
+    const logo = h.multipart('logo');
+    const replaced = await h.call('PATCH', path, logo.payload, 'user', logo.headers);
+    expect(replaced.statusCode).toBe(409);
+    expect(replaced.json().error).toBe('logo_locked');
+
+    const saved = await h.call('PATCH', path, {
+      players: ['Suman Karki', 'Pratik Gurung', 'Aarav Shah'],
+      jersey_sizes: ['S', 'M', 'XL'],
+    });
+    expect(saved.statusCode).toBe(200);
+    expect(saved.json().logo_url).toBe(original[0].logo_url);
+    expect(
+      (await h.call('POST', `${path}/complete`)).statusCode,
+    ).toBe(200);
+    expect((await h.call('GET', '/teams')).json()).toHaveLength(2);
+  });
   it('uploads player photos, renders them with the roster, and keeps them private before payment', async () => {
     const order = await h.submit();
     const photo = h.multipart('photo');

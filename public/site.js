@@ -327,7 +327,13 @@ async function sportsStep(order) {
     for (const item of other.items)
       registered.set(item.sport_id, other.resume_step === 'registered' ? 'verified' : 'pending');
   }
-  target.innerHTML = `<p class="eyebrow">Step 01 / Company & sport</p><h2>Register your company</h2><p>Enter your company name, then choose the sport you want to enter. To enter a second sport, register again for that sport.</p><form id="sports-form" class="form-stack"><label class="input-group">Company name<input name="company_name" aria-required="true" autocomplete="organization" value="${esc(order.company_name || '')}" placeholder="Your company name" maxlength="120"></label><h3>Select a sport</h3><div class="choice-list">${
+  const companyLocked = order.company_locked;
+  const lockedCompany =
+    registrations.find((other) => other.company_name)?.company_name || order.company_name || '';
+  const companyField = companyLocked
+    ? `<p class="form-note" id="company-locked-note">Your company ${esc(lockedCompany)} is already registered and is used for every registration.</p><input name="company_name" aria-required="true" autocomplete="organization" value="${esc(lockedCompany)}" maxlength="120" readonly>`
+    : `<input name="company_name" aria-required="true" autocomplete="organization" value="${esc(order.company_name || '')}" placeholder="Your company name" maxlength="120">`;
+  target.innerHTML = `<p class="eyebrow">Step 01 / Company & sport</p><h2>${companyLocked ? 'Register another sport' : 'Register your company'}</h2><p>${companyLocked ? 'Your company is already registered. Choose the sport you want to enter for it.' : 'Enter your company name, then choose the sport you want to enter. To enter a second sport, register again for that sport.'}</p><form id="sports-form" class="form-stack"><label class="input-group">Company name${companyField}</label><h3>Select a sport</h3><div class="choice-list">${
     sports.length
       ? sports
           .map((sport) => {
@@ -465,25 +471,35 @@ function profileStep(order) {
   profileOrder = order;
   const target = document.querySelector('#registration-content');
   const pending = order.items.filter((item) => !item.profile_completed_at);
-  target.innerHTML = `<p class="eyebrow">Step 05 / Team profile</p><h2>Finish your team</h2><p>Payment is confirmed. Upload your company logo, then complete the roster for your team. A confirmed team appears on the public listing after you mark its profile done.</p><div class="choice-list">${pending.map((item) => `<div class="sport-choice"><div><strong>${esc(item.team_name)}</strong><span>${esc(item.sport_name)}</span></div><a class="button primary" href="#profile/${item.id}">Complete profile</a></div>`).join('')}</div>`;
+  const companyLocked = order.company_locked;
+  target.innerHTML = `<p class="eyebrow">Step 05 / Team profile</p><h2>Finish your team</h2><p>${companyLocked ? 'Payment is confirmed. Complete the roster for your team with your saved company logo. A confirmed team appears on the public listing after you mark its profile done.' : 'Payment is confirmed. Upload your company logo, then complete the roster for your team. A confirmed team appears on the public listing after you mark its profile done.'}</p><div class="choice-list">${pending.map((item) => `<div class="sport-choice"><div><strong>${esc(item.team_name)}</strong><span>${esc(item.sport_name)}</span></div><a class="button primary" href="#profile/${item.id}">Complete profile</a></div>`).join('')}</div>`;
   const companyItem = order.items.find((item) => item.logo_url) || order.items[0];
   if (companyItem) {
-    target
-      .querySelector('.choice-list')
-      .insertAdjacentHTML(
-        'beforebegin',
-        `<form id="company-logo-form" class="form-stack">${companyItem.logo_url ? `<img class="company-logo-preview" src="${esc(companyItem.logo_url)}" alt="${esc(companyItem.team_name)} company logo" />` : ''}<label class="input-group">Company logo<input name="logo" type="file" accept="image/png,image/jpeg,image/webp" required aria-describedby="company-logo-note"></label><p id="company-logo-note">${companyItem.logo_url ? 'Your company logo is saved for this team. You can replace it here.' : 'Upload your company logo. It will appear on the team listing.'}</p><p class="error" hidden></p><div><button class="button" type="submit">${companyItem.logo_url ? 'Replace company logo' : 'Save company logo'}</button></div></form>`,
-      );
-    bindSubmission('#company-logo-form', async (event) => {
-      event.preventDefault();
-      await api(`/orders/${order.id}/items/${companyItem.id}/profile`, {
-        method: 'PATCH',
-        body: new FormData(event.currentTarget),
+    if (companyLocked && companyItem.logo_url) {
+      target
+        .querySelector('.choice-list')
+        .insertAdjacentHTML(
+          'beforebegin',
+          `<div class="form-stack" id="company-logo-fixed"><img class="company-logo-preview" src="${esc(companyItem.logo_url)}" alt="${esc(companyItem.team_name)} company logo" /><p id="company-logo-note">Your company logo is already saved and is used for every registration. It cannot be changed here.</p></div>`,
+        );
+    } else {
+      target
+        .querySelector('.choice-list')
+        .insertAdjacentHTML(
+          'beforebegin',
+          `<form id="company-logo-form" class="form-stack">${companyItem.logo_url ? `<img class="company-logo-preview" src="${esc(companyItem.logo_url)}" alt="${esc(companyItem.team_name)} company logo" />` : ''}<label class="input-group">Company logo<input name="logo" type="file" accept="image/png,image/jpeg,image/webp" required aria-describedby="company-logo-note"></label><p id="company-logo-note">${companyItem.logo_url ? 'Your company logo is saved for this team. You can replace it here.' : 'Upload your company logo. It will appear on the team listing.'}</p><p class="error" hidden></p><div><button class="button" type="submit">${companyItem.logo_url ? 'Replace company logo' : 'Save company logo'}</button></div></form>`,
+        );
+      bindSubmission('#company-logo-form', async (event) => {
+        event.preventDefault();
+        await api(`/orders/${order.id}/items/${companyItem.id}/profile`, {
+          method: 'PATCH',
+          body: new FormData(event.currentTarget),
+        });
+        const current = await api(`/orders/${order.id}/status`);
+        profileStep(current);
+        say('Company logo saved.');
       });
-      const current = await api(`/orders/${order.id}/status`);
-      profileStep(current);
-      say('Company logo saved.');
-    });
+    }
   }
   const itemId = location.hash.split('/')[1];
   if (itemId) profileEditor(order, itemId);

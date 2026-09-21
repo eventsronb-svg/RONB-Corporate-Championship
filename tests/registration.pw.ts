@@ -278,8 +278,12 @@ test('new captain signs in, submits one team, corrects rejected payment, and fin
     await expect(football.getByRole('button', { name: 'Register for Football' })).toBeVisible();
     await football.getByRole('button', { name: 'Register for Football' }).click();
     await expect(
-      page.getByRole('heading', { name: 'Register your company', level: 2 }),
+      page.getByRole('heading', { name: 'Register another sport', level: 2 }),
     ).toBeVisible();
+    // The company is carried over from the first registration and cannot be changed.
+    const companyInput = page.getByRole('textbox', { name: 'Company name' });
+    await expect(companyInput).toHaveValue('E2E Company');
+    await expect(companyInput).toHaveAttribute('readonly', '');
     await expect(page.getByRole('radio', { name: /^Football / })).toBeChecked();
     // The existing Basketball registration remains unavailable in the new order.
     const registeredSport = page.locator('.sport-choice').filter({ hasText: 'Basketball' });

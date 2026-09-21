@@ -94,6 +94,7 @@ export async function detail(tx: Queryable, id: string): Promise<Row & { items: 
       items.length && items.every((item) => item.team_name === items[0].team_name)
         ? items[0].team_name
         : '',
+    company_locked: Boolean(await priorCompany(tx, order)),
     items,
     payment_request: payment ?? null,
     rejection: order.status === 'rejected' ? (rejection ?? null) : null,
@@ -116,6 +117,20 @@ function resume(order: Row, items: Row[]) {
       expired: 'expired',
     } as Record<string, string>
   )[order.status];
+}
+// The first registration on an account fixes the company identity: later registrations must
+// reuse the same company name and logo. Only orders created strictly before this one count.
+async function priorCompany(tx: Queryable, order: Row): Promise<Row | undefined> {
+  return one(
+    tx,
+    `SELECT i.team_name AS company_name,i.logo_url
+     FROM order_items i JOIN orders o ON o.id=i.order_id
+     WHERE o.user_id=$1 AND o.id<>$2 AND o.created_at<$3
+       AND o.status NOT IN ('draft','cancelled','expired')
+       AND i.team_name IS NOT NULL AND i.team_name<>''
+     ORDER BY o.created_at DESC,i.id LIMIT 1`,
+    [order.user_id, order.id, order.created_at],
+  );
 }
 export async function audit(
   tx: Queryable,
@@ -252,14 +267,25 @@ export class Orders {
         'inactive_sport',
         'A selected sport does not exist or is inactive',
       );
+      const prior = await priorCompany(tx, o);
+      if (prior)
+        assert(
+          input.company_name === prior.company_name,
+          409,
+          'company_locked',
+          `Your company is already registered as ${prior.company_name} and cannot be changed`,
+        );
+      const teamName = prior?.company_name ?? input.company_name;
       await tx.query('DELETE FROM order_items WHERE order_id=$1', [id]);
       for (const pick of input.sports)
         await tx.query(
-          'INSERT INTO order_items(order_id,sport_id,team_name,price_at_purchase) VALUES($1,$2,$3,$4)',
+          'INSERT INTO order_items(order_id,sport_id,team_name,logo_url,price_at_purchase) VALUES($1,$2,$3,$4,$5)',
           [
             id,
             pick.sport_id,
-            input.company_name,
+            teamName,
+            // Reuse the company logo from the earlier registration so it is never re-uploaded.
+            prior?.logo_url ?? null,
             sports.find((s) => s.id === pick.sport_id)!.price,
           ],
         );
@@ -526,12 +552,22 @@ export class Orders {
           itemId,
           captainPosition,
         ]);
-        if (input.logo_url)
+        if (input.logo_url) {
+          if (item.logo_url) {
+            const prior = await priorCompany(tx, o);
+            assert(
+              !prior,
+              409,
+              'logo_locked',
+              'Your company logo is shared across all registrations and cannot be replaced',
+            );
+          }
           await tx.query('UPDATE order_items SET logo_url=$2 WHERE order_id=$1 AND team_name=$3', [
             id,
             input.logo_url,
             item.team_name,
           ]);
+        }
         if (input.players) {
           await tx.query('DELETE FROM team_players WHERE order_item_id=$1', [itemId]);
           for (const [position, name] of input.players.entries())
