@@ -36,6 +36,7 @@ export interface EmailPayload {
   userId: string;
   subject: string;
   text: string;
+  html?: string;
 }
 export interface Mailer {
   send(payload: EmailPayload, idempotencyKey: string): Promise<string>;
@@ -238,7 +239,13 @@ export function resendMailer(c: Config): Mailer {
         throw new DeliveryError('Email is not configured', false);
       try {
         const { data, error } = await client.emails.send(
-          { from: c.EMAIL_FROM, to: payload.to, subject: payload.subject, text: payload.text },
+          {
+            from: c.EMAIL_FROM,
+            to: payload.to,
+            subject: payload.subject,
+            text: payload.text,
+            html: payload.html,
+          },
           { idempotencyKey: key },
         );
         if (error)

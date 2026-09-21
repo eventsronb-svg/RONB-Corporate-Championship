@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { type Database, type Queryable, type Row, one } from './db.js';
 import type { Config } from './config.js';
 import { assert } from './errors.js';
+import { confirmationEmail } from './email-templates.js';
 export const paid = ['confirmed', 'contacted', 'completed'];
 export const openSql = "status NOT IN ('completed','cancelled','expired','rejected')";
 // Minimum roster size required to complete a team profile, keyed by sport slug/name.
@@ -149,6 +150,7 @@ export async function queueEmail(
   tx: Queryable,
   id: string,
   kind: 'confirmation' | 'manual' = 'confirmation',
+  options: { appOrigin?: string; fromAddress?: string } = {},
 ) {
   const order = await detail(tx, id);
   assert(
@@ -161,19 +163,45 @@ export async function queueEmail(
   );
   const user = (await one(tx, 'SELECT * FROM users WHERE id=$1', [order.user_id]))!;
   const event = await one(tx, 'SELECT * FROM events WHERE active');
-  // Default plain-text template; replace this function when final event copy is supplied.
-  const teams = order.items
-    .map(
-      (i) =>
-        `${i.team_name} — ${i.sport_name}\nPlayers: ${i.players.join(', ')}\nLogo: ${i.logo_url}`,
-    )
-    .join('\n\n');
+  const companyName = order.company_name || order.items[0]?.team_name || user.name;
   const amount = `${Number(order.total_amount).toLocaleString('en-US', { minimumFractionDigits: Number.isInteger(Number(order.total_amount)) ? 0 : 2, maximumFractionDigits: 2 })} NPR`;
+  const fmtDate = (value: unknown) =>
+    new Date(value as string).toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+      timeZone: 'UTC',
+    });
+  const siteUrl = options.appOrigin ?? '';
+  const supportEmail =
+    /<([^>]+)>/.exec(options.fromAddress ?? '')?.[1] ?? options.fromAddress ?? '';
+  const { subject, text, html } = confirmationEmail({
+    companyName,
+    orderId: id,
+    amount,
+    teams: order.items.map((i) => ({
+      teamName: i.team_name,
+      sportName: i.sport_name,
+      players: i.players,
+    })),
+    event: event
+      ? {
+          title: event.title,
+          venue: event.venue,
+          startDate: fmtDate(event.start_date),
+          endDate: fmtDate(event.end_date),
+        }
+      : null,
+    logoUrl: `${siteUrl}/assets/images/logo.png`,
+    siteUrl,
+    supportEmail,
+  });
   const payload = {
     to: user.email,
     userId: user.id,
-    subject: `Registration confirmed${event ? `: ${event.title}` : ''}`,
-    text: `Hi ${user.name},\n\nYour registration is confirmed.\nOrder: ${id}\nAmount paid: ${amount}\n\n${teams}\n\n${event ? `${event.title}\n${event.description}\nVenue: ${event.venue}\nStarts: ${new Date(event.start_date).toISOString()}\nEnds: ${new Date(event.end_date).toISOString()}` : ''}`,
+    subject,
+    text,
+    html,
   };
   return one(
     tx,
@@ -560,7 +588,11 @@ export class Orders {
         'SELECT id FROM order_items WHERE order_id=$1 AND profile_completed_at IS NULL LIMIT 1',
         [id],
       );
-      if (!incomplete) await queueEmail(tx, id);
+      if (!incomplete)
+        await queueEmail(tx, id, 'confirmation', {
+          appOrigin: this.config.APP_ORIGIN,
+          fromAddress: this.config.EMAIL_FROM,
+        });
     } else {
       assert(
         input.jersey_sizes === undefined ||

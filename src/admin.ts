@@ -261,7 +261,10 @@ export async function registerAdmin(
               'resend_throttled',
               'Wait one minute before requesting another resend',
             );
-            await queueEmail(tx, id, 'manual');
+            await queueEmail(tx, id, 'manual', {
+              appOrigin: c.APP_ORIGIN,
+              fromAddress: c.EMAIL_FROM,
+            });
           }
           await audit(tx, adminId, `order.${action}`, 'order', id, body);
           return detail(tx, id);
