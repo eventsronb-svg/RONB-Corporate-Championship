@@ -127,6 +127,53 @@ describe('registration and publication', () => {
     expect(teams).toHaveLength(1);
     expect(teams[0].logo_url).toBe(replacement.logo_url);
   });
+  it('uploads player photos, renders them with the roster, and keeps them private before payment', async () => {
+    const order = await h.submit();
+    const photo = h.multipart('photo');
+    const unconfirmed = await h.call(
+      'POST',
+      `/orders/${order.id}/items/${order.items[0].id}/player-photos/1`,
+      photo.payload,
+      'user',
+      photo.headers,
+    );
+    expect(unconfirmed.statusCode).toBe(409);
+    await h.call('POST', `/admin/orders/${order.id}/verify`, { decision: 'confirmed' }, 'staff');
+    const uploaded = await h.call(
+      'POST',
+      `/orders/${order.id}/items/${order.items[0].id}/player-photos/1`,
+      photo.payload,
+      'user',
+      photo.headers,
+    );
+    expect(uploaded.statusCode).toBe(200);
+    expect(uploaded.json().photo_url).toMatch(/^https:\/\/player-photos\.example\/player-photos\//);
+    const saved = await h.call('PATCH', `/orders/${order.id}/items/${order.items[0].id}/profile`, {
+      players: ['Suman Karki', 'Pratik Gurung', 'Aarav Shah'],
+      jersey_sizes: ['S', 'M', 'XL'],
+      player_photos: [null, uploaded.json().photo_url, null],
+    });
+    expect(saved.statusCode).toBe(200);
+    expect(saved.json().photo_urls).toEqual([null, uploaded.json().photo_url, null]);
+    const status = (await h.call('GET', `/orders/${order.id}/status`)).json();
+    expect(status.items[0].photo_urls[1]).toBe(uploaded.json().photo_url);
+    expect(status.items[0].players[1]).toBe('Pratik Gurung');
+    const detail = (await h.call('GET', `/admin/orders/${order.id}`, undefined, 'staff')).json();
+    expect(detail.items[0].photo_urls[1]).toBe(uploaded.json().photo_url);
+    const logo = await h.call(
+      'PATCH',
+      `/orders/${order.id}/items/${order.items[0].id}/profile`,
+      h.multipart('logo').payload,
+      'user',
+      h.multipart('logo').headers,
+    );
+    expect(logo.statusCode).toBe(200);
+    expect(
+      (await h.call('POST', `/orders/${order.id}/items/${order.items[0].id}/profile/complete`))
+        .statusCode,
+    ).toBe(200);
+    expect((await h.call('GET', '/teams')).json()[0]).not.toHaveProperty('player_photos');
+  });
   it('stores the captain as a roster member and rejects positions outside the roster', async () => {
     const order = await h.confirm();
     await h.fill(order, 0);

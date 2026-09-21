@@ -820,6 +820,22 @@ h2 {
   justify-content: space-between;
   gap: 8px;
 }
+.roster-photo {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex: 0 0 auto;
+}
+.roster-photo-none {
+  display: block;
+  border: 1.5px dashed var(--rule);
+  background: var(--tint);
+}
+.roster-name {
+  margin-right: auto;
+  margin-left: 12px;
+}
 .captain-tag {
   color: var(--muted);
   font-size: 15.6px;
@@ -1295,9 +1311,74 @@ h2 {
 }
 .player-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
+  grid-template-columns: 84px minmax(0, 1fr) auto;
+  align-items: center;
   gap: 20px;
+}
+.player-photo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.player-photo-preview,
+.player-photo-placeholder {
+  display: block;
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.player-photo-placeholder {
+  position: relative;
+  border: 1.5px dashed var(--rule);
+  background: var(--tint);
+}
+.player-photo-placeholder::before {
+  content: '+';
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 30px;
+  font-weight: 300;
+  color: var(--muted);
+}
+.player-photo-pick {
+  position: relative;
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  cursor: pointer;
+}
+.player-photo-pick input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+.player-photo-pick:hover {
+  text-decoration: underline;
+}
+.player-photo-pick:focus-within {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+.player-photo-remove {
+  border: 0;
+  background: none;
+  padding: 0;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+  text-decoration: underline;
+}
+.player-photo-remove:hover {
+  color: var(--danger, var(--ink));
 }
 .jersey-selector {
   min-width: 0;
@@ -1349,8 +1430,11 @@ h2 {
 }
 @media (max-width: 540px) {
   .player-row {
-    grid-template-columns: 1fr;
-    gap: 10px;
+    grid-template-columns: 84px minmax(0, 1fr);
+    gap: 10px 14px;
+  }
+  .player-row .jersey-selector {
+    grid-column: 1 / -1;
   }
 }
 #captain-note {

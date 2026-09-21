@@ -24,9 +24,10 @@ export interface StoredFile {
   key: string;
   url: string;
 }
+export type StoredFileKind = 'receipt' | 'logo' | 'photo';
 export interface Storage {
-  put(kind: 'receipt' | 'logo', buffer: Buffer, mime: string): Promise<StoredFile>;
-  remove(kind: 'receipt' | 'logo', key: string): Promise<void>;
+  put(kind: StoredFileKind, buffer: Buffer, mime: string): Promise<StoredFile>;
+  remove(kind: StoredFileKind, key: string): Promise<void>;
   signReceipt(key: string): Promise<string>;
 }
 export interface EmailPayload {
@@ -90,7 +91,7 @@ export function googleProvider(c: Config): GoogleProvider {
     },
   };
 }
-export async function validateFile(buffer: Buffer, mime: string, kind: 'receipt' | 'logo') {
+export async function validateFile(buffer: Buffer, mime: string, kind: StoredFileKind) {
   assert(
     buffer.length > 0 && buffer.length <= 5 * 1024 * 1024,
     400,
@@ -140,7 +141,16 @@ export function s3Storage(c: Config): Storage {
     requestHandler: { requestTimeout: 15000, connectionTimeout: 5000 },
     maxAttempts: 2,
   });
-  const bucket = (kind: string) => (kind === 'receipt' ? c.S3_RECEIPTS_BUCKET : c.S3_LOGOS_BUCKET);
+  const bucket = (kind: string) =>
+    kind === 'receipt'
+      ? c.S3_RECEIPTS_BUCKET
+      : kind === 'photo'
+        ? c.S3_PLAYERPHOTOS_BUCKET
+        : c.S3_LOGOS_BUCKET;
+  const prefix = (kind: string) =>
+    kind === 'receipt' ? 'receipts' : kind === 'photo' ? 'player-photos' : 'team-logos';
+  const publicUrl = (kind: string) =>
+    kind === 'photo' ? c.S3_PLAYERPHOTOS_PUBLIC_URL : c.S3_LOGOS_PUBLIC_URL;
   function ready() {
     assert(
       c.S3_ENDPOINT && c.S3_ACCESS_KEY_ID && c.S3_SECRET_ACCESS_KEY,
@@ -152,12 +162,12 @@ export function s3Storage(c: Config): Storage {
   return {
     async put(kind, buffer, mime) {
       ready();
-      if (kind === 'logo')
+      if (kind !== 'receipt')
         assert(
-          c.S3_LOGOS_PUBLIC_URL,
+          publicUrl(kind),
           503,
           'storage_unconfigured',
-          'Public logo URL is not configured',
+          'A public URL for this object kind is not configured',
         );
       const extension = {
         'application/pdf': 'pdf',
@@ -166,7 +176,7 @@ export function s3Storage(c: Config): Storage {
         'image/jpeg': 'jpg',
       }[mime];
       assert(extension, 400, 'invalid_file', 'Unsupported storage content type');
-      const key = `${kind === 'receipt' ? 'receipts' : 'team-logos'}/${randomUUID()}.${extension}`;
+      const key = `${prefix(kind)}/${randomUUID()}.${extension}`;
       await client.send(
         new PutObjectCommand({
           Bucket: bucket(kind),
@@ -174,12 +184,12 @@ export function s3Storage(c: Config): Storage {
           Body: buffer,
           ContentType: mime,
           CacheControl:
-            kind === 'logo' ? 'public, max-age=31536000, immutable' : 'private, no-store',
+            kind === 'receipt' ? 'private, no-store' : 'public, max-age=31536000, immutable',
         }),
       );
       return {
         key,
-        url: kind === 'receipt' ? key : `${c.S3_LOGOS_PUBLIC_URL.replace(/\/$/, '')}/${key}`,
+        url: kind === 'receipt' ? key : `${publicUrl(kind).replace(/\/$/, '')}/${key}`,
       };
     },
     async remove(kind, key) {

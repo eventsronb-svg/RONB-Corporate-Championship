@@ -47,7 +47,7 @@ export async function prepareUpload(file, kind) {
 }
 
 export async function prepareUploadForm(form) {
-  for (const kind of ['receipt', 'logo']) {
+  for (const kind of ['receipt', 'logo', 'photo']) {
     const file = form.get(kind);
     if (file instanceof File && file.size) form.set(kind, await prepareUpload(file, kind));
   }

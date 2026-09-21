@@ -62,7 +62,8 @@ export async function buildApp(deps: {
         defaultSrc: ["'self'"],
         scriptSrc: ["'self'"],
         styleSrc: ["'self'"],
-        imgSrc: ["'self'", 'https:', 'data:'],
+        // Local image previews use object URLs before an upload is persisted.
+        imgSrc: ["'self'", 'https:', 'data:', 'blob:'],
         objectSrc: ["'none'"],
         frameSrc: ['https:'],
         formAction: ["'self'"],
@@ -269,7 +270,7 @@ export async function buildApp(deps: {
     let input: z.infer<typeof profileInput> = {};
     let upload: { buffer: Buffer; mime: string } | undefined;
     if (req.isMultipart()) {
-      for await (const part of req.parts({ limits: { fields: 3, parts: 4 } })) {
+      for await (const part of req.parts({ limits: { fields: 4, parts: 5 } })) {
         if (part.type === 'file') {
           assert(
             part.fieldname === 'logo',
@@ -280,10 +281,12 @@ export async function buildApp(deps: {
           upload = await validateFile(await part.toBuffer(), part.mimetype, 'logo');
         } else {
           assert(
-            ['players', 'captain_position', 'jersey_sizes'].includes(part.fieldname),
+            ['players', 'captain_position', 'jersey_sizes', 'player_photos'].includes(
+              part.fieldname,
+            ),
             400,
             'invalid_field',
-            'Only players, captain_position, jersey_sizes and logo fields are accepted',
+            'Only players, captain_position, jersey_sizes, player_photos and logo fields are accepted',
           );
           let value: unknown;
           try {
@@ -313,6 +316,48 @@ export async function buildApp(deps: {
     const p = itemIds(req.params);
     return orders.profile(req.actor!.id, p.id, p.item_id, {}, true);
   });
+  app.post(
+    '/orders/:id/items/:item_id/player-photos/:position',
+    { preHandler: guard.user },
+    async (req) => {
+      const p = itemIds(req.params);
+      const position = z
+        .object({ position: z.coerce.number().int().min(0).max(99) })
+        .parse(req.params).position;
+      const order = await readOwned(req.actor!.id, p.id);
+      assert(
+        paid.includes(order.status),
+        409,
+        'payment_unconfirmed',
+        'Player photos unlock after payment confirmation',
+      );
+      assert(
+        order.items.some((i) => i.id === p.item_id),
+        404,
+        'not_found',
+        'Team not found',
+      );
+      assert(
+        req.isMultipart(),
+        415,
+        'multipart_required',
+        'Send a multipart file field named photo',
+      );
+      let upload: { buffer: Buffer; mime: string } | undefined;
+      for await (const part of req.parts()) {
+        assert(
+          part.type === 'file' && part.fieldname === 'photo',
+          400,
+          'invalid_field',
+          'Send one photo file',
+        );
+        upload = await validateFile(await part.toBuffer(), part.mimetype, 'photo');
+      }
+      assert(upload, 400, 'file_required', 'A player photo file is required');
+      const stored = await storage.put('photo', upload.buffer, upload.mime);
+      return { position, photo_url: stored.url };
+    },
+  );
   await registerAdmin(app, db, c, storage);
   await app.register(staticPlugin, { root: resolve('public'), prefix: '/assets/' });
   app.get('/admin', async (_req, reply) => reply.sendFile('admin.html'));

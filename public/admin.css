@@ -832,6 +832,17 @@ tbody tr:hover {
   font-size: 13px;
   font-weight: 700;
 }
+.player-photo {
+  display: block;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.player-photo-none {
+  border: 1.5px dashed var(--line);
+  background: var(--tint);
+}
 .team-detail-meta {
   display: flex;
   align-items: center;

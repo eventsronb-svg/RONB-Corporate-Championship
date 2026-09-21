@@ -47,9 +47,17 @@ export async function setup() {
   const removed: string[] = [];
   const storage: Storage = {
     async put(kind, buffer, mime) {
-      const key = `${kind === 'receipt' ? 'receipts' : 'team-logos'}/${randomUUID()}.${mime === 'application/pdf' ? 'pdf' : 'webp'}`;
+      const folder =
+        kind === 'receipt' ? 'receipts' : kind === 'photo' ? 'player-photos' : 'team-logos';
+      const key = `${folder}/${randomUUID()}.${mime === 'application/pdf' ? 'pdf' : 'webp'}`;
       files.set(key, buffer);
-      return { key, url: kind === 'receipt' ? key : `https://logos.example/${key}` };
+      const host =
+        kind === 'receipt'
+          ? key
+          : kind === 'photo'
+            ? `https://player-photos.example/${key}`
+            : `https://logos.example/${key}`;
+      return { key, url: host };
     },
     async remove(_kind, key) {
       files.delete(key);

@@ -16,6 +16,8 @@ const envSchema = z.object({
   S3_RECEIPTS_BUCKET: z.string().default('booking-private'),
   S3_LOGOS_BUCKET: z.string().default('booking-public'),
   S3_LOGOS_PUBLIC_URL: z.string().default(''),
+  S3_PLAYERPHOTOS_BUCKET: z.string().default('player-photos'),
+  S3_PLAYERPHOTOS_PUBLIC_URL: z.string().default(''),
   RESEND_API_KEY: z.string().default(''),
   EMAIL_FROM: z.string().default(''),
   PAYMENT_BANK_DETAILS: z.string().max(4000).default(''),
@@ -35,8 +37,15 @@ export function config(env: NodeJS.ProcessEnv = process.env): Config {
     throw new Error('ADMIN_LOGIN_PASSWORD must contain at least 16 characters');
   if (new URL(c.APP_ORIGIN).origin !== c.APP_ORIGIN)
     throw new Error('APP_ORIGIN must be an origin without a trailing slash');
-  if (!c.S3_RECEIPTS_BUCKET || !c.S3_LOGOS_BUCKET || c.S3_RECEIPTS_BUCKET === c.S3_LOGOS_BUCKET)
-    throw new Error('Receipt and logo storage require distinct private and public buckets');
+  if (
+    !c.S3_RECEIPTS_BUCKET ||
+    !c.S3_LOGOS_BUCKET ||
+    !c.S3_PLAYERPHOTOS_BUCKET ||
+    c.S3_RECEIPTS_BUCKET === c.S3_LOGOS_BUCKET ||
+    c.S3_RECEIPTS_BUCKET === c.S3_PLAYERPHOTOS_BUCKET ||
+    c.S3_LOGOS_BUCKET === c.S3_PLAYERPHOTOS_BUCKET
+  )
+    throw new Error('Receipt, logo and player-photo storage require distinct buckets');
   if (c.NODE_ENV === 'production') {
     for (const key of [
       'GOOGLE_CLIENT_ID',
@@ -45,13 +54,18 @@ export function config(env: NodeJS.ProcessEnv = process.env): Config {
       'S3_ACCESS_KEY_ID',
       'S3_SECRET_ACCESS_KEY',
       'S3_LOGOS_PUBLIC_URL',
+      'S3_PLAYERPHOTOS_PUBLIC_URL',
       'RESEND_API_KEY',
       'EMAIL_FROM',
       'PAYMENT_BANK_DETAILS',
     ] as const) {
       if (!c[key]) throw new Error(`${key} is required in production`);
     }
-    if (!c.APP_ORIGIN.startsWith('https://') || !c.S3_LOGOS_PUBLIC_URL.startsWith('https://'))
+    if (
+      !c.APP_ORIGIN.startsWith('https://') ||
+      !c.S3_LOGOS_PUBLIC_URL.startsWith('https://') ||
+      !c.S3_PLAYERPHOTOS_PUBLIC_URL.startsWith('https://')
+    )
       throw new Error('Production origins must use HTTPS');
   }
   return c;

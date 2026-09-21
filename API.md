@@ -34,20 +34,21 @@ GET callbacks receive Google's `code` and `state` query parameters. POST callbac
 
 Every endpoint in this section requires the captain `session` cookie. A foreign order or item is treated as missing (`404`).
 
-| Method | Path                                          | Request / behavior                                                     |
-| ------ | --------------------------------------------- | ---------------------------------------------------------------------- |
-| GET    | `/orders/current`                             | Open order, otherwise latest rejected order, otherwise `null`          |
-| POST   | `/orders/draft`                               | Create draft or return existing open order                             |
-| PATCH  | `/orders/:id/sports`                          | Full selection replacement; body below                                 |
-| POST   | `/orders/:id/phone`                           | `{ "phone_number": "+977 9800000000" }`                                |
-| POST   | `/orders/:id/invoice`                         | Lock current prices and total; repeat calls return the frozen invoice  |
-| POST   | `/orders/:id/payment-request`                 | Create or return the existing code, QR and expiry                      |
-| POST   | `/orders/:id/receipt`                         | Multipart file field `receipt`; creates receipt and submits for review |
-| GET    | `/orders/:id/status`                          | Full resumable order, items and payment information                    |
-| POST   | `/orders/:id/cancel-and-revise`               | Cancel old order and return a new prefilled draft                      |
-| GET    | `/orders/:id/items/:item_id/profile`          | Profile draft, available after confirmation                            |
-| PATCH  | `/orders/:id/items/:item_id/profile`          | Save roster and/or upload logo                                         |
-| POST   | `/orders/:id/items/:item_id/profile/complete` | Explicit Done; complete item and queue email if it is the last one     |
+| Method | Path                                                 | Request / behavior                                                     |
+| ------ | ---------------------------------------------------- | ---------------------------------------------------------------------- |
+| GET    | `/orders/current`                                    | Open order, otherwise latest rejected order, otherwise `null`          |
+| POST   | `/orders/draft`                                      | Create draft or return existing open order                             |
+| PATCH  | `/orders/:id/sports`                                 | Full selection replacement; body below                                 |
+| POST   | `/orders/:id/phone`                                  | `{ "phone_number": "+977 9800000000" }`                                |
+| POST   | `/orders/:id/invoice`                                | Lock current prices and total; repeat calls return the frozen invoice  |
+| POST   | `/orders/:id/payment-request`                        | Create or return the existing code, QR and expiry                      |
+| POST   | `/orders/:id/receipt`                                | Multipart file field `receipt`; creates receipt and submits for review |
+| GET    | `/orders/:id/status`                                 | Full resumable order, items and payment information                    |
+| POST   | `/orders/:id/cancel-and-revise`                      | Cancel old order and return a new prefilled draft                      |
+| GET    | `/orders/:id/items/:item_id/profile`                 | Profile draft, available after confirmation                            |
+| PATCH  | `/orders/:id/items/:item_id/profile`                 | Save roster, player photos and/or upload logo                          |
+| POST   | `/orders/:id/items/:item_id/profile/complete`        | Explicit Done; complete item and queue email if it is the last one     |
+| POST   | `/orders/:id/items/:item_id/player-photos/:position` | Upload one player photo for a roster position                          |
 
 Sports selection:
 
@@ -102,7 +103,9 @@ curl -X PATCH -b cookies.txt -H 'Origin: http://localhost:3000' \
 
 Profile JSON updates accept `{ "players": ["Suman Karki", "Pratik Gurung"], "jersey_sizes": ["M", "XL"], "captain_position": 0 }`. `jersey_sizes` contains one value per player in the same order: `S`, `M`, `L`, `XL`, or `null` for an unfinished draft. Send sizes together with the full `players` array; mismatched lengths and invalid sizes return `400`. Replacing a roster without sizes sets its sizes to `null`. Responses include both ordered arrays. `captain_position` refers to a player in that roster.
 
-Multipart updates accept one `logo` file and JSON fields `players`, `jersey_sizes`, and `captain_position`. Arbitrary `logo_url` strings are not accepted. Completing a profile requires a stored logo, the sport's minimum roster (Futsal 5, Basketball 3, Crickshal 7; otherwise 1), and a jersey size for every player. Incomplete sizes return `409` with `jersey_sizes_required`. Editing a completed roster to remove sizes clears profile completion, so it must be completed again. Confirmation email remains idempotent.
+Optional `player_photos` holds one photo URL per player in roster order, aligned with `players`; `null` (or a shorter array) leaves that player photo-less. Upload photos with `POST /orders/:id/items/:item_id/player-photos/:position` (multipart field `photo`, PNG/JPEG/WebP, up to 5 MB, public after payment confirmation), then reference the returned `photo_url`. Photo URLs are returned in roster endpoints and to admins, but are excluded from public `/teams` responses.
+
+Multipart updates accept one `logo` file and JSON fields `players`, `jersey_sizes`, `captain_position`, and `player_photos`. Arbitrary `logo_url` strings are not accepted. Completing a profile requires a stored logo, the sport's minimum roster (Futsal 5, Basketball 3, Crickshal 7; otherwise 1), and a jersey size for every player. Incomplete sizes return `409` with `jersey_sizes_required`. Editing a completed roster to remove sizes clears profile completion, so it must be completed again. Confirmation email remains idempotent.
 
 Existing completed rosters retain their status after migration, with unknown sizes returned as `null`. Jersey sizes are visible to the owner and admins, and are excluded from public `/teams` responses.
 

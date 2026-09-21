@@ -51,6 +51,7 @@ export const profileInput = z
       .max(100)
       .optional(),
     captain_position: z.number().int().min(0).max(99).nullable().optional(),
+    player_photos: z.array(z.string().url().nullable()).max(100).optional(),
   })
   .strict();
 export async function transition(
@@ -75,7 +76,8 @@ export async function detail(tx: Queryable, id: string): Promise<Row & { items: 
   const items = (
     await tx.query(
       `SELECT i.*,s.name AS sport_name,coalesce((SELECT json_agg(p.player_name ORDER BY p.position,p.created_at,p.id) FROM team_players p WHERE p.order_item_id=i.id),'[]') AS players,
- coalesce((SELECT json_agg(p.jersey_size ORDER BY p.position,p.created_at,p.id) FROM team_players p WHERE p.order_item_id=i.id),'[]') AS jersey_sizes
+ coalesce((SELECT json_agg(p.jersey_size ORDER BY p.position,p.created_at,p.id) FROM team_players p WHERE p.order_item_id=i.id),'[]') AS jersey_sizes,
+ coalesce((SELECT json_agg(p.photo_url ORDER BY p.position,p.created_at,p.id) FROM team_players p WHERE p.order_item_id=i.id),'[]') AS photo_urls
  FROM order_items i JOIN sports s ON s.id=i.sport_id WHERE i.order_id=$1 ORDER BY s.name`,
       [id],
     )
@@ -534,8 +536,14 @@ export class Orders {
           await tx.query('DELETE FROM team_players WHERE order_item_id=$1', [itemId]);
           for (const [position, name] of input.players.entries())
             await tx.query(
-              'INSERT INTO team_players(order_item_id,player_name,position,jersey_size) VALUES($1,$2,$3,$4)',
-              [itemId, name, position, input.jersey_sizes?.[position] ?? null],
+              'INSERT INTO team_players(order_item_id,player_name,position,jersey_size,photo_url) VALUES($1,$2,$3,$4,$5)',
+              [
+                itemId,
+                name,
+                position,
+                input.jersey_sizes?.[position] ?? null,
+                input.player_photos?.[position] ?? null,
+              ],
             );
           // An edited roster with missing sizes must be completed again.
           if (

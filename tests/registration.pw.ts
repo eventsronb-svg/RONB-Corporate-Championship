@@ -17,6 +17,12 @@ test('new captain signs in, submits one team, corrects rejected payment, and fin
     .png()
     .toBuffer();
   const upload = { name: 'proof.png', mimeType: 'image/png', buffer: png };
+  // The test storage returns stable example URLs; fulfill their image loads instead of relying on DNS.
+  for (const context of [captain, organizer]) {
+    await context.route('https://*.example/**', (route) =>
+      route.fulfill({ body: png, contentType: 'image/png' }),
+    );
+  }
   // Only the external Google exchange is a test provider; state, cookies, routes and DB are real.
   await page.route('**/auth/google', async (route) => {
     const response = await route.fetch({ maxRedirects: 0 });
@@ -163,6 +169,10 @@ test('new captain signs in, submits one team, corrects rejected payment, and fin
       .getByRole('group', { name: 'Jersey size for player 1', exact: true })
       .getByRole('radio', { name: 'S', exact: true })
       .check();
+    await page.getByLabel('Photo for player 1', { exact: true }).setInputFiles(upload);
+    await expect(
+      page.locator('.player-row').first().locator('.player-photo-preview'),
+    ).toBeVisible();
     await page.screenshot({ path: 'test-results/jersey-onboarding-mobile.png', fullPage: true });
     await page.setViewportSize({ width: 1280, height: 900 });
     const nameBox = await page
@@ -180,7 +190,15 @@ test('new captain signs in, submits one team, corrects rejected payment, and fin
       .getByRole('group', { name: 'Jersey size for player 4', exact: true })
       .getByRole('radio', { name: 'L', exact: true })
       .check();
+    const profileSaved = page.waitForResponse(
+      (response) =>
+        response.url().includes(`/orders/${orderId}/items/`) &&
+        response.url().endsWith('/profile') &&
+        response.request().method() === 'PATCH' &&
+        response.status() === 200,
+    );
     await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+    await profileSaved;
     await expect(page.getByRole('status')).toHaveText('Profile saved.');
     await page.reload();
     for (let i = 0; i < 4; i++) {
@@ -207,6 +225,9 @@ test('new captain signs in, submits one team, corrects rejected payment, and fin
     expect(status.items[0].jersey_sizes).toEqual(['S', 'M', 'XL', 'L']);
     expect(status.items[0].captain_position).toBe(1);
     expect(status.items[0].profile_completed_at).toBeTruthy();
+    await expect(page.locator('.roster-row').first().locator('.roster-photo')).toBeVisible();
+    const uploadedPhotoUrl = status.items[0].photo_urls[0];
+    expect(uploadedPhotoUrl).toBeTruthy();
     const headers = { origin: baseURL! };
     const firstDelivery = await captain.request.post('/__test/deliver', { headers });
     expect((await firstDelivery.json()).sent).toBe(1);
@@ -219,6 +240,11 @@ test('new captain signs in, submits one team, corrects rejected payment, and fin
     await admin.getByRole('link', { name: 'E2E Company', exact: true }).click();
     await expect(admin.getByRole('heading', { name: 'E2E Company', exact: true })).toBeVisible();
     await expect(admin.locator('.sport-roster')).toHaveCount(1);
+    await expect(admin.locator('.player-photo[src]')).toHaveCount(1);
+    await expect(admin.locator('.player-photo[src]').first()).toHaveAttribute(
+      'src',
+      new RegExp(await uploadedPhotoUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
+    );
     await expect(admin.locator('.jersey-badge')).toHaveText(['S', 'M', 'XL', 'L']);
     await expect(admin.getByRole('cell', { name: 'Captain', exact: true })).toHaveCount(1);
     await admin.setViewportSize({ width: 390, height: 844 });
