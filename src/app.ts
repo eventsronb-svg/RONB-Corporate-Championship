@@ -1,4 +1,4 @@
-import Fastify from 'fastify';
+import Fastify, { type FastifyRequest } from 'fastify';
 import cookie from '@fastify/cookie';
 import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
@@ -27,9 +27,44 @@ import {
   detail,
   paid,
   reservedStates,
+  audit,
 } from './orders.js';
 import { registerAdmin } from './admin.js';
 import { assert, HttpError } from './errors.js';
+async function parseProfileUpdate(
+  req: FastifyRequest,
+): Promise<{ input: z.infer<typeof profileInput>; upload?: { buffer: Buffer; mime: string } }> {
+  let input: z.infer<typeof profileInput> = {};
+  let upload: { buffer: Buffer; mime: string } | undefined;
+  if (req.isMultipart()) {
+    for await (const part of req.parts({ limits: { fields: 4, parts: 5 } })) {
+      if (part.type === 'file') {
+        assert(
+          part.fieldname === 'logo',
+          400,
+          'invalid_field',
+          'The file field must be named logo',
+        );
+        upload = await validateFile(await part.toBuffer(), part.mimetype, 'logo');
+      } else {
+        assert(
+          ['players', 'captain_position', 'jersey_sizes', 'player_photos'].includes(part.fieldname),
+          400,
+          'invalid_field',
+          'Only players, captain_position, jersey_sizes, player_photos and logo fields are accepted',
+        );
+        let value: unknown;
+        try {
+          value = JSON.parse(String(part.value));
+        } catch {
+          throw new HttpError(400, 'invalid_players', 'Profile fields must contain valid JSON');
+        }
+        input = profileInput.parse({ ...input, [part.fieldname]: value });
+      }
+    }
+  } else input = profileInput.parse(req.body);
+  return { input, upload };
+}
 export async function buildApp(deps: {
   db: Database;
   config: Config;
@@ -270,35 +305,7 @@ export async function buildApp(deps: {
     );
     let input: z.infer<typeof profileInput> = {};
     let upload: { buffer: Buffer; mime: string } | undefined;
-    if (req.isMultipart()) {
-      for await (const part of req.parts({ limits: { fields: 4, parts: 5 } })) {
-        if (part.type === 'file') {
-          assert(
-            part.fieldname === 'logo',
-            400,
-            'invalid_field',
-            'The file field must be named logo',
-          );
-          upload = await validateFile(await part.toBuffer(), part.mimetype, 'logo');
-        } else {
-          assert(
-            ['players', 'captain_position', 'jersey_sizes', 'player_photos'].includes(
-              part.fieldname,
-            ),
-            400,
-            'invalid_field',
-            'Only players, captain_position, jersey_sizes, player_photos and logo fields are accepted',
-          );
-          let value: unknown;
-          try {
-            value = JSON.parse(String(part.value));
-          } catch {
-            throw new HttpError(400, 'invalid_players', 'Profile fields must contain valid JSON');
-          }
-          input = profileInput.parse({ ...input, [part.fieldname]: value });
-        }
-      }
-    } else input = profileInput.parse(req.body);
+    ({ input, upload } = await parseProfileUpdate(req));
     const stored = upload ? await storage.put('logo', upload.buffer, upload.mime) : undefined;
     try {
       return await orders.profile(req.actor!.id, p.id, p.item_id, {
@@ -396,6 +403,70 @@ export async function buildApp(deps: {
       );
       assert(photo?.photo_url, 404, 'not_found', 'Player photo not found');
       return reply.redirect(await storage.signPlayerPhoto(photo.photo_url));
+    },
+  );
+  app.patch(
+    '/admin/orders/:id/items/:item_id/profile',
+    { preHandler: guard.admin },
+    async (req) => {
+      const p = itemIds(req.params);
+      const { input, upload } = await parseProfileUpdate(req);
+      const stored = upload ? await storage.put('logo', upload.buffer, upload.mime) : undefined;
+      try {
+        const item = await orders.adminProfile(p.id, p.item_id, {
+          ...input,
+          ...(stored ? { logo_url: stored.url } : {}),
+        });
+        await audit(db, req.actor!.id, 'order.profile.edit', 'order', p.id, {
+          item_id: p.item_id,
+          players: input.players?.length,
+        });
+        return item;
+      } catch (e) {
+        if (stored)
+          await storage
+            .remove('logo', stored.key)
+            .catch((err) => req.log.error({ err }, 'Upload cleanup failed'));
+        throw e;
+      }
+    },
+  );
+  app.post(
+    '/admin/orders/:id/items/:item_id/player-photos/:position',
+    { preHandler: guard.admin },
+    async (req) => {
+      const p = itemIds(req.params);
+      const position = z
+        .object({ position: z.coerce.number().int().min(0).max(99) })
+        .parse(req.params).position;
+      const item = await one(db, 'SELECT id FROM order_items WHERE id=$1 AND order_id=$2', [
+        p.item_id,
+        p.id,
+      ]);
+      assert(item, 404, 'not_found', 'Team not found');
+      assert(
+        req.isMultipart(),
+        415,
+        'multipart_required',
+        'Send a multipart file field named photo',
+      );
+      let upload: { buffer: Buffer; mime: string } | undefined;
+      for await (const part of req.parts()) {
+        assert(
+          part.type === 'file' && part.fieldname === 'photo',
+          400,
+          'invalid_field',
+          'Send one photo file',
+        );
+        upload = await validateFile(await part.toBuffer(), part.mimetype, 'photo');
+      }
+      assert(upload, 400, 'file_required', 'A player photo file is required');
+      const stored = await storage.put('photo', upload.buffer, upload.mime);
+      await audit(db, req.actor!.id, 'order.photo.edit', 'order', p.id, {
+        item_id: p.item_id,
+        position,
+      });
+      return { position, photo_url: stored.url };
     },
   );
   await registerAdmin(app, db, c, storage);

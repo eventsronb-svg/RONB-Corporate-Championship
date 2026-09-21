@@ -244,6 +244,14 @@ GET /admin/users?search=
 GET /admin/users/:id                  → profile + full order history
 ```
 
+**Admin — team rosters (staff and super_admin)**
+```
+GET    /admin/teams
+GET    /admin/teams/:id               → contact + sport rosters with jersey sizes
+PATCH  /admin/teams/:id/items/:item_id/profile              → replace members/photos/captain
+POST   /admin/teams/:id/items/:item_id/player-photos/:position → upload or replace a member photo
+```
+
 **Admin — team management (super_admin only)**
 ```
 GET   /admin/admins

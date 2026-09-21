@@ -490,132 +490,152 @@ export class Orders {
         'payment_unconfirmed',
         'Team profiles unlock after payment confirmation',
       );
-      const item = await one(tx, 'SELECT * FROM order_items WHERE id=$1 AND order_id=$2', [
+      return this.applyProfile(tx, o, itemId, input, complete);
+    });
+  }
+  async adminProfile(
+    id: string,
+    itemId: string,
+    input: z.infer<typeof profileInput> & { logo_url?: string },
+    complete = false,
+  ) {
+    return this.db.transaction(async (tx) => {
+      const o = await one(tx, 'SELECT * FROM orders WHERE id=$1 FOR UPDATE', [id]);
+      assert(o, 404, 'not_found', 'Order not found');
+      return this.applyProfile(tx, o!, itemId, input, complete);
+    });
+  }
+  private async applyProfile(
+    tx: Queryable,
+    o: Row,
+    itemId: string,
+    input: z.infer<typeof profileInput> & { logo_url?: string },
+    complete = false,
+  ) {
+    const id = o.id;
+    const item = await one(tx, 'SELECT * FROM order_items WHERE id=$1 AND order_id=$2', [
+      itemId,
+      id,
+    ]);
+    assert(item, 404, 'not_found', 'Team not found');
+    if (complete) {
+      const sportRow = await one(
+        tx,
+        'SELECT s.name AS name FROM order_items i JOIN sports s ON s.id=i.sport_id WHERE i.id=$1',
+        [itemId],
+      );
+      assert(sportRow, 404, 'not_found', 'Team not found');
+      const sportName = sportRow.name;
+      const requiredPlayers = MIN_ROSTER[sportName.toLowerCase()] ?? 1;
+      const rosterRow = await one(
+        tx,
+        'SELECT count(*)::int AS count, count(*) FILTER (WHERE jersey_size IS NULL)::int AS missing_sizes, count(*) FILTER (WHERE photo_url IS NULL)::int AS missing_photos FROM team_players WHERE order_item_id=$1',
+        [itemId],
+      );
+      const rosterCount = rosterRow!.count;
+      assert(
+        item.logo_url && rosterCount >= requiredPlayers,
+        409,
+        'profile_incomplete',
+        `Add a logo and at least ${requiredPlayers} player${requiredPlayers > 1 ? 's' : ''} before completing the ${sportName} profile`,
+      );
+      assert(
+        rosterRow!.missing_sizes === 0,
+        409,
+        'jersey_sizes_required',
+        'Choose a jersey size for every player before completing the profile',
+      );
+      assert(
+        rosterRow!.missing_photos === 0,
+        409,
+        'player_photos_required',
+        'Add a photo for every player before completing the profile',
+      );
+      await tx.query(
+        'UPDATE order_items SET profile_completed_at=coalesce(profile_completed_at,now()) WHERE id=$1',
+        [itemId],
+      );
+      const incomplete = await one(
+        tx,
+        'SELECT id FROM order_items WHERE order_id=$1 AND profile_completed_at IS NULL LIMIT 1',
+        [id],
+      );
+      if (!incomplete) await queueEmail(tx, id);
+    } else {
+      assert(
+        input.jersey_sizes === undefined ||
+          (input.players !== undefined && input.jersey_sizes.length === input.players.length),
+        400,
+        'invalid_jersey_sizes',
+        'Send one jersey size per player together with the roster',
+      );
+      assert(
+        input.players !== undefined ||
+          input.logo_url !== undefined ||
+          input.captain_position !== undefined,
+        400,
+        'empty_update',
+        'Provide players, a captain, or a logo',
+      );
+      const captainPosition =
+        input.captain_position !== undefined
+          ? input.captain_position
+          : input.players !== undefined
+            ? null
+            : item.captain_position;
+      if (captainPosition !== null) {
+        const roster =
+          input.players ?? (await detail(tx, id)).items.find((i) => i.id === itemId)!.players;
+        assert(
+          captainPosition < roster.length,
+          400,
+          'invalid_captain',
+          'Choose a captain from the listed players',
+        );
+      }
+      await tx.query('UPDATE order_items SET captain_position=$2 WHERE id=$1', [
         itemId,
-        id,
+        captainPosition,
       ]);
-      assert(item, 404, 'not_found', 'Team not found');
-      if (complete) {
-        const sportRow = await one(
-          tx,
-          'SELECT s.name AS name FROM order_items i JOIN sports s ON s.id=i.sport_id WHERE i.id=$1',
-          [itemId],
-        );
-        assert(sportRow, 404, 'not_found', 'Team not found');
-        const sportName = sportRow.name;
-        const requiredPlayers = MIN_ROSTER[sportName.toLowerCase()] ?? 1;
-        const rosterRow = await one(
-          tx,
-          'SELECT count(*)::int AS count, count(*) FILTER (WHERE jersey_size IS NULL)::int AS missing_sizes, count(*) FILTER (WHERE photo_url IS NULL)::int AS missing_photos FROM team_players WHERE order_item_id=$1',
-          [itemId],
-        );
-        const rosterCount = rosterRow!.count;
-        assert(
-          item.logo_url && rosterCount >= requiredPlayers,
-          409,
-          'profile_incomplete',
-          `Add a logo and at least ${requiredPlayers} player${requiredPlayers > 1 ? 's' : ''} before completing the ${sportName} profile`,
-        );
-        assert(
-          rosterRow!.missing_sizes === 0,
-          409,
-          'jersey_sizes_required',
-          'Choose a jersey size for every player before completing the profile',
-        );
-        assert(
-          rosterRow!.missing_photos === 0,
-          409,
-          'player_photos_required',
-          'Add a photo for every player before completing the profile',
-        );
-        await tx.query(
-          'UPDATE order_items SET profile_completed_at=coalesce(profile_completed_at,now()) WHERE id=$1',
-          [itemId],
-        );
-        const incomplete = await one(
-          tx,
-          'SELECT id FROM order_items WHERE order_id=$1 AND profile_completed_at IS NULL LIMIT 1',
-          [id],
-        );
-        if (!incomplete) await queueEmail(tx, id);
-      } else {
-        assert(
-          input.jersey_sizes === undefined ||
-            (input.players !== undefined && input.jersey_sizes.length === input.players.length),
-          400,
-          'invalid_jersey_sizes',
-          'Send one jersey size per player together with the roster',
-        );
-        assert(
-          input.players !== undefined ||
-            input.logo_url !== undefined ||
-            input.captain_position !== undefined,
-          400,
-          'empty_update',
-          'Provide players, a captain, or a logo',
-        );
-        const captainPosition =
-          input.captain_position !== undefined
-            ? input.captain_position
-            : input.players !== undefined
-              ? null
-              : item.captain_position;
-        if (captainPosition !== null) {
-          const roster =
-            input.players ?? (await detail(tx, id)).items.find((i) => i.id === itemId)!.players;
+      if (input.logo_url) {
+        if (item.logo_url) {
+          const prior = await priorCompany(tx, o);
           assert(
-            captainPosition < roster.length,
-            400,
-            'invalid_captain',
-            'Choose a captain from the listed players',
+            !prior,
+            409,
+            'logo_locked',
+            'Your company logo is shared across all registrations and cannot be replaced',
           );
         }
-        await tx.query('UPDATE order_items SET captain_position=$2 WHERE id=$1', [
-          itemId,
-          captainPosition,
+        await tx.query('UPDATE order_items SET logo_url=$2 WHERE order_id=$1 AND team_name=$3', [
+          id,
+          input.logo_url,
+          item.team_name,
         ]);
-        if (input.logo_url) {
-          if (item.logo_url) {
-            const prior = await priorCompany(tx, o);
-            assert(
-              !prior,
-              409,
-              'logo_locked',
-              'Your company logo is shared across all registrations and cannot be replaced',
-            );
-          }
-          await tx.query('UPDATE order_items SET logo_url=$2 WHERE order_id=$1 AND team_name=$3', [
-            id,
-            input.logo_url,
-            item.team_name,
-          ]);
-        }
-        if (input.players) {
-          await tx.query('DELETE FROM team_players WHERE order_item_id=$1', [itemId]);
-          for (const [position, name] of input.players.entries())
-            await tx.query(
-              'INSERT INTO team_players(order_item_id,player_name,position,jersey_size,photo_url) VALUES($1,$2,$3,$4,$5)',
-              [
-                itemId,
-                name,
-                position,
-                input.jersey_sizes?.[position] ?? null,
-                input.player_photos?.[position] ?? null,
-              ],
-            );
-          // An edited roster with missing sizes must be completed again.
-          if (
-            !input.jersey_sizes ||
-            input.jersey_sizes.some((size) => size === null) ||
-            !input.players.length
-          )
-            await tx.query('UPDATE order_items SET profile_completed_at=NULL WHERE id=$1', [
-              itemId,
-            ]);
-        }
       }
-      await tx.query('UPDATE orders SET updated_at=now() WHERE id=$1', [id]);
-      return (await detail(tx, id)).items.find((i) => i.id === itemId);
-    });
+      if (input.players) {
+        await tx.query('DELETE FROM team_players WHERE order_item_id=$1', [itemId]);
+        for (const [position, name] of input.players.entries())
+          await tx.query(
+            'INSERT INTO team_players(order_item_id,player_name,position,jersey_size,photo_url) VALUES($1,$2,$3,$4,$5)',
+            [
+              itemId,
+              name,
+              position,
+              input.jersey_sizes?.[position] ?? null,
+              input.player_photos?.[position] ?? null,
+            ],
+          );
+        // An edited roster with missing sizes must be completed again.
+        if (
+          !input.jersey_sizes ||
+          input.jersey_sizes.some((size) => size === null) ||
+          !input.players.length
+        )
+          await tx.query('UPDATE order_items SET profile_completed_at=NULL WHERE id=$1', [itemId]);
+      }
+    }
+    await tx.query('UPDATE orders SET updated_at=now() WHERE id=$1', [id]);
+    return (await detail(tx, id)).items.find((i) => i.id === itemId);
   }
 }

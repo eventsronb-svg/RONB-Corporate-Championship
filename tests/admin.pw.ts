@@ -124,6 +124,26 @@ test('reviews an order, changes settings, and manages organizer access', async (
   await expect(page.getByText('No team members added yet.', { exact: false })).toHaveCount(1);
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Valley Strikers', exact: true })).toBeVisible();
+  await page.locator('[data-edit-roster]').click();
+  await page.locator('[name="player"]').nth(0).fill('Ramesh Gurung');
+  await page.getByRole('button', { name: 'Add member' }).click();
+  await page.locator('[name="player"]').nth(1).fill('Nisha Thapa');
+  await page.locator('[name="jersey-0"]').first().click();
+  await page.locator('[name="jersey-1"]').nth(2).click();
+  await page.locator('[name="photo-0"]').setInputFiles({
+    name: 'member.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWMondqKFTEMLQkA9gJjwQnCgxkAAAAASUVORK5CYII=',
+      'base64',
+    ),
+  });
+  await page.getByRole('button', { name: 'Save roster' }).click();
+  await expect(page.getByRole('status')).toHaveText('Team roster saved.');
+  await expect(page.locator('.roster-view .table-scroll')).toContainText('Ramesh Gurung');
+  await expect(page.locator('.roster-view .table-scroll')).toContainText('Nisha Thapa');
+  await expect(page.locator('.roster-view img.player-photo')).toHaveCount(1);
+  await expect(page.getByText('Captain', { exact: true })).toHaveCount(0);
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,

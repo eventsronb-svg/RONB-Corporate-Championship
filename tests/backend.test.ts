@@ -138,6 +138,64 @@ describe('registration and publication', () => {
     expect(teams).toHaveLength(1);
     expect(teams[0].logo_url).toBe(replacement.logo_url);
   });
+  it('lets an organizer change member names and photos on a completed profile', async () => {
+    const order = await h.confirm();
+    await h.fill(order);
+    expect(
+      (await h.call('POST', `/orders/${order.id}/items/${order.items[0].id}/profile/complete`))
+        .statusCode,
+    ).toBe(200);
+    const item = order.items[0];
+    const path = `/admin/orders/${order.id}/items/${item.id}/profile`;
+    expect((await h.call('PATCH', path, { players: ['Ramesh Gurung'] }, 'user')).statusCode).toBe(
+      401,
+    );
+    expect((await h.call('PATCH', path, { players: ['Ramesh Gurung'] })).statusCode).toBe(401);
+
+    const upload = h.multipart('photo');
+    const photo = await h.call(
+      'POST',
+      `/admin/orders/${order.id}/items/${item.id}/player-photos/0`,
+      upload.payload,
+      'staff',
+      upload.headers,
+    );
+    expect(photo.statusCode).toBe(200);
+    expect(photo.json().photo_url).toMatch(/^player-photos\//);
+
+    const edited = await h.call(
+      'PATCH',
+      path,
+      {
+        players: ['Ramesh Gurung', 'Nisha Thapa'],
+        jersey_sizes: ['L', 'M'],
+        captain_position: 1,
+        player_photos: [photo.json().photo_url, null],
+      },
+      'staff',
+    );
+    expect(edited.statusCode).toBe(200);
+    expect(edited.json().players).toEqual(['Ramesh Gurung', 'Nisha Thapa']);
+    expect(edited.json().captain_position).toBe(1);
+    expect(edited.json().photo_urls).toEqual([photo.json().photo_url, null]);
+    expect(edited.json().profile_completed_at).toBeTruthy();
+
+    const teams = (await h.call('GET', '/teams')).json();
+    expect(teams[0].players).toEqual(['Ramesh Gurung', 'Nisha Thapa']);
+    const detail = (await h.call('GET', `/admin/teams/${order.id}`, undefined, 'staff')).json();
+    expect(detail.items[0].players).toEqual(['Ramesh Gurung', 'Nisha Thapa']);
+
+    const signed = await h.call(
+      'GET',
+      `/admin/orders/${order.id}/items/${item.id}/player-photos/0`,
+      undefined,
+      'staff',
+    );
+    expect(signed.statusCode).toBe(302);
+    expect(signed.headers.location).toContain('signed=1');
+    const audit = (await h.call('GET', `/admin/orders/${order.id}`, undefined, 'staff')).json();
+    expect(audit.audit_log.map((a: any) => a.action)).toContain('order.profile.edit');
+  });
   it('locks the company identity and reuses its logo when registering another sport', async () => {
     const first = await h.confirm();
     await h.fill(first);

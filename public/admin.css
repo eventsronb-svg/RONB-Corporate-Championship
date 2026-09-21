@@ -850,3 +850,180 @@ tbody tr:hover {
   gap: 16px;
   margin-bottom: 24px;
 }
+.roster-edit-button {
+  margin-left: auto;
+  align-self: center;
+}
+.roster-editor {
+  padding-top: 20px;
+}
+.roster-editor .error {
+  color: var(--red-ink);
+  font-size: 14px;
+}
+.roster-fields {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.roster-fields legend {
+  margin-bottom: 12px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.player-fields {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 18px;
+  margin: 20px 0;
+}
+.player-fields > * {
+  min-width: 0;
+}
+.player-row {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 20px;
+}
+.player-photo {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.player-photo-clear {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 26px;
+  height: 26px;
+  border: 2px solid var(--white);
+  border-radius: 50%;
+  background: var(--ink);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  z-index: 1;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+.player-photo-clear[hidden] {
+  display: none;
+}
+.player-photo-clear:hover {
+  background: var(--danger, #c0392b);
+}
+.player-photo-clear:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+.player-photo-preview,
+.player-photo-placeholder {
+  display: block;
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.player-photo-placeholder {
+  position: relative;
+  border: 1.5px dashed var(--line);
+  background: var(--tint);
+}
+.player-photo-placeholder::before {
+  content: '+';
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 30px;
+  font-weight: 300;
+  color: var(--muted);
+}
+.player-photo-pick {
+  position: relative;
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  cursor: pointer;
+}
+.player-photo-pick input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+.player-photo-pick:hover {
+  text-decoration: underline;
+}
+.player-photo-pick:focus-within {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+.jersey-selector {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.jersey-selector legend {
+  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.jersey-options {
+  display: flex;
+  gap: 6px;
+}
+.jersey-options label {
+  position: relative;
+  cursor: pointer;
+}
+.jersey-options input {
+  position: absolute;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  cursor: pointer;
+}
+.jersey-options span {
+  display: grid;
+  place-items: center;
+  min-width: 44px;
+  height: 48px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  font-weight: 600;
+}
+.jersey-options input:checked + span {
+  background: var(--accent);
+  color: var(--white);
+  border-color: var(--accent);
+}
+.jersey-options input:focus-visible + span {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.jersey-options label:hover span {
+  border-color: var(--accent);
+}
+@media (max-width: 540px) {
+  .player-row {
+    grid-template-columns: 84px minmax(0, 1fr);
+    gap: 10px 14px;
+  }
+  .player-row .jersey-selector {
+    grid-column: 1 / -1;
+  }
+}

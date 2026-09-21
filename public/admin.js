@@ -60,7 +60,9 @@ async function api(path, options = {}) {
     credentials: 'same-origin',
     ...options,
     headers: {
-      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+      ...(options.body && !(options.body instanceof FormData)
+        ? { 'Content-Type': 'application/json' }
+        : {}),
       ...options.headers,
     },
   });
@@ -329,10 +331,186 @@ const jerseyBadge = (size) =>
   size
     ? `<span class="jersey-badge" aria-label="Jersey size ${e(size)}">${e(size)}</span>`
     : '<span class="sub">Not provided</span>';
+const MIN_ROSTER = { futsal: 5, basketball: 3, crickshal: 7 };
+function openRosterEditor(panel, orderId, item) {
+  const view = panel.querySelector('.roster-view');
+  const form = panel.querySelector('.roster-editor');
+  const fields = form.querySelector('[data-player-fields]');
+  const captain = form.querySelector('[name="captain_position"]');
+  const addButton = form.querySelector('[data-add-player]');
+  const error = form.querySelector('.error');
+  const photoSelections = new Map();
+  view.hidden = true;
+  form.hidden = false;
+  error.hidden = true;
+  const syncCaptain = () => {
+    const selected = captain.value;
+    const names = [...fields.querySelectorAll('[name="player"]')].filter((input) =>
+      input.value.trim(),
+    );
+    captain.innerHTML =
+      '<option value="">Choose a player</option>' +
+      names
+        .map(
+          (input, index) =>
+            `<option value="${index}">${e(input.value.trim())} (Member ${index + 1})</option>`,
+        )
+        .join('');
+    captain.value = selected;
+  };
+  const addRow = (name = '', size = null, photoKey = null) => {
+    const index = fields.children.length;
+    const preview = photoKey
+      ? `<img class="player-photo-preview" src="/admin/orders/${orderId}/items/${item.id}/player-photos/${index}" alt="" aria-hidden="true">`
+      : '<span class="player-photo-placeholder" aria-hidden="true"></span>';
+    fields.insertAdjacentHTML(
+      'beforeend',
+      `<div class="player-row"><div class="player-photo">${preview}<button type="button" class="player-photo-clear" data-photo="${index}" aria-label="Remove photo for member ${index + 1}" ${photoKey ? '' : 'hidden'}>×</button><label class="player-photo-pick"><input name="photo-${index}" type="file" accept="image/png,image/jpeg,image/webp" aria-label="Photo for member ${index + 1}"><span>Photo</span></label></div><label class="input-group">Member ${index + 1}<input name="player" type="text" value="${e(name)}" maxlength="120" autocomplete="off" placeholder="Full name"></label><fieldset class="jersey-selector"><legend>Jersey size <span class="sr-only">for member ${index + 1}</span></legend><div class="jersey-options">${['S', 'M', 'L', 'XL'].map((option) => `<label><input type="radio" name="jersey-${index}" value="${option}" ${size === option ? 'checked' : ''}><span>${option}</span></label>`).join('')}</div></fieldset></div>`,
+    );
+    addButton.disabled = fields.children.length >= 100;
+  };
+  for (
+    let index = 0;
+    index < Math.max(MIN_ROSTER[item.sport_name.toLowerCase()] ?? 1, item.players.length);
+    index++
+  )
+    addRow(item.players[index] || '', item.jersey_sizes?.[index], item.photo_urls?.[index]);
+  fields.addEventListener('input', () => {
+    syncCaptain();
+    error.hidden = true;
+  });
+  fields.addEventListener('change', (event) => {
+    const input = event.target;
+    if (!(input instanceof HTMLInputElement)) return;
+    const match = input.name && /^photo-(\d+)$/.exec(input.name);
+    if (!match || !input.files?.[0]) return;
+    const index = Number(match[1]);
+    const row = input.closest('.player-row');
+    let preview = row.querySelector('.player-photo-preview');
+    if (!preview) {
+      row.querySelector('.player-photo-placeholder')?.remove();
+      row
+        .querySelector('.player-photo-pick')
+        .insertAdjacentHTML(
+          'beforebegin',
+          '<img class="player-photo-preview" alt="" aria-hidden="true">',
+        );
+      preview = row.querySelector('.player-photo-preview');
+    }
+    preview.src = URL.createObjectURL(input.files[0]);
+    const clear = row.querySelector('.player-photo-clear');
+    if (clear) clear.hidden = false;
+    photoSelections.set(index, input.files[0]);
+  });
+  fields.addEventListener('click', (event) => {
+    const button = event.target.closest('.player-photo-clear');
+    if (!button) return;
+    const index = Number(button.dataset.photo);
+    const row = button.closest('.player-row');
+    row.querySelector('.player-photo-preview')?.remove();
+    row
+      .querySelector('.player-photo-pick')
+      .insertAdjacentHTML(
+        'beforebegin',
+        '<span class="player-photo-placeholder" aria-hidden="true"></span>',
+      );
+    button.hidden = true;
+    row.querySelector(`[name="photo-${index}"]`).value = '';
+    photoSelections.set(index, null);
+  });
+  addButton.addEventListener('click', () => {
+    addRow();
+    fields.lastElementChild.querySelector('input').focus();
+  });
+  form.querySelector('[data-cancel-roster]').addEventListener('click', () => {
+    view.hidden = false;
+    form.hidden = true;
+    fields.innerHTML = '';
+  });
+  syncCaptain();
+  captain.value = item.captain_position == null ? '' : String(item.captain_position);
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const rows = [...fields.children].map((rowEl, domIndex) => ({
+      domIndex,
+      name: rowEl.querySelector('[name="player"]').value.trim(),
+      jersey: rowEl.querySelector(`[name="jersey-${domIndex}"]:checked`)?.value ?? null,
+      photo: photoSelections.has(domIndex)
+        ? photoSelections.get(domIndex)
+        : (item.photo_urls?.[domIndex] ?? null),
+    }));
+    const filled = rows.filter((row) => row.name);
+    if (!filled.length) {
+      error.textContent = 'Add at least one team member.';
+      error.hidden = false;
+      return;
+    }
+    const captainPosition = captain.value === '' ? null : Number(captain.value);
+    if (captainPosition !== null && captainPosition >= filled.length) {
+      error.textContent = 'Choose a captain from the listed players.';
+      error.hidden = false;
+      captain.focus();
+      return;
+    }
+    const busy = (next) =>
+      form.querySelectorAll('input,button').forEach((el) => (el.disabled = next));
+    busy(true);
+    error.hidden = true;
+    try {
+      for (const row of filled) {
+        if (!(row.photo instanceof File)) continue;
+        const fd = new FormData();
+        fd.append('photo', row.photo);
+        const uploaded = await api(
+          `/admin/orders/${orderId}/items/${item.id}/player-photos/${row.domIndex}`,
+          { method: 'POST', body: fd },
+        );
+        row.photo = uploaded.photo_url;
+      }
+      await api(`/admin/orders/${orderId}/items/${item.id}/profile`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          players: filled.map((row) => row.name),
+          jersey_sizes: filled.map((row) => row.jersey),
+          captain_position: captainPosition,
+          player_photos: filled.map((row) => row.photo),
+        }),
+      });
+      await render();
+      message('Team roster saved.');
+    } catch (err) {
+      busy(false);
+      error.textContent = `Could not save the roster. ${err.message}`;
+      error.hidden = false;
+    }
+  });
+}
 async function teamDetail(id) {
   const team = await api(`/admin/teams/${id}`);
+  const rosterPanel = (item) => {
+    const hasRoster = item.players.length;
+    const table =
+      '<div class="table-scroll"><table><thead><tr><th>Photo</th><th>Team member</th><th>Role</th><th>Jersey size</th></tr></thead><tbody>' +
+      item.players
+        .map(
+          (name, index) =>
+            `<tr>${item.photo_urls?.[index] ? `<td><img class="player-photo" src="/admin/orders/${team.id}/items/${item.id}/player-photos/${index}" alt="Player ${e(name)} photo"></td>` : '<td><span class="player-photo player-photo-none" aria-hidden="true"></span></td>'}<td class="strong">${e(name)}</td><td>${item.captain_position === index ? 'Captain' : 'Player'}</td><td>${jerseyBadge(item.jersey_sizes[index])}</td></tr>`,
+        )
+        .join('') +
+      '</tbody></table></div>';
+    return `<section class="surface panel sport-roster" data-item="${e(item.id)}"><div class="team-row">${item.logo_url ? `<img class="team-logo" src="${e(item.logo_url)}" alt="${e(item.team_name)} logo">` : ''}<div><h2>${e(item.sport_name)}</h2><p>${e(item.team_name)} · ${item.players.length} members</p></div><span class="status ${item.profile_completed_at ? 'confirmed' : ''}">${item.profile_completed_at ? 'Profile complete' : 'Profile pending'}</span><button class="button roster-edit-button" type="button" data-edit-roster>Edit roster</button></div><div class="roster-view">${hasRoster ? table : '<p class="form-note">No team members added yet. The captain can complete this roster after payment confirmation.</p>'}</div><form class="roster-editor" hidden><fieldset class="roster-fields"><legend>Team members</legend><p class="form-note">Edit member names, jersey sizes and photos. Photos are private and only visible to the organizer and the captain.</p><div class="player-fields" data-player-fields></div><button class="button" type="button" data-add-player>Add member</button></fieldset><label class="input-group">Team captain<select name="captain_position"><option value="">Choose a player</option></select></label><p class="error" hidden></p><div class="form-actions"><button class="button" type="button" data-cancel-roster>Cancel</button><button class="button primary" type="submit">Save roster</button></div></form></section>`;
+  };
   return {
-    html: `<a class="back" href="#teams">← All teams</a>${header(team.team_name, `${team.contact.name} · ${team.contact.email} · ${team.phone || team.contact.phone || 'No phone provided'}`, 'TEAM PROFILE')}<div class="team-detail-meta">${registrationStatus(team.status)}<a href="#order/${e(team.id)}">View registration ↗</a></div><div class="stack">${team.items.map((item) => `<section class="surface panel sport-roster"><div class="team-row">${item.logo_url ? `<img class="team-logo" src="${e(item.logo_url)}" alt="${e(item.team_name)} logo">` : ''}<div><h2>${e(item.sport_name)}</h2><p>${e(item.team_name)} · ${item.players.length} members</p></div><span class="status ${item.profile_completed_at ? 'confirmed' : ''}">${item.profile_completed_at ? 'Profile complete' : 'Profile pending'}</span></div>${item.players.length ? `<div class="table-scroll"><table><thead><tr><th>Photo</th><th>Team member</th><th>Role</th><th>Jersey size</th></tr></thead><tbody>${item.players.map((name, index) => `<tr>${item.photo_urls?.[index] ? `<td><img class="player-photo" src="/admin/orders/${team.id}/items/${item.id}/player-photos/${index}" alt="Player ${e(name)} photo"></td>` : '<td><span class="player-photo player-photo-none" aria-hidden="true"></span></td>'}<td class="strong">${e(name)}</td><td>${item.captain_position === index ? 'Captain' : 'Player'}</td><td>${jerseyBadge(item.jersey_sizes[index])}</td></tr>`).join('')}</tbody></table></div>` : '<p class="form-note">No team members added yet. The captain can complete this roster after payment confirmation.</p>'}</section>`).join('')}</div>`,
+    html: `<a class="back" href="#teams">← All teams</a>${header(team.team_name, `${team.contact.name} · ${team.contact.email} · ${team.phone || team.contact.phone || 'No phone provided'}`, 'TEAM PROFILE')}<div class="team-detail-meta">${registrationStatus(team.status)}<a href="#order/${e(team.id)}">View registration ↗</a></div><div class="stack">${team.items.map(rosterPanel).join('')}</div>`,
+    bind() {
+      document.querySelectorAll('[data-edit-roster]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const panel = button.closest('.sport-roster');
+          const item = team.items.find((candidate) => candidate.id === panel?.dataset.item);
+          if (panel && item) openRosterEditor(panel, team.id, item);
+        });
+      });
+    },
   };
 }
 async function adminsView() {
