@@ -85,6 +85,7 @@ function home() {
     <section class="hero" aria-labelledby="hero-title">
       <div class="hero-copy">
         <p class="eyebrow">RONB presents · October 2026</p>
+        <img class="hero-logo-mobile" src="/assets/images/logo.png" alt="Corporate Championship" width="1600" height="1600" />
         <h1 class="hero-title" id="hero-title">Corporate<br><span>Championship</span></h1>
         <p class="hero-sub">Your colleagues. Your dream team. Four days of sport, connection, and a little friendly competition.</p>
         <div class="hero-actions"><a class="button primary" href="/register">Bring your team</a><a class="button" href="#sports">Find your sport</a></div>
