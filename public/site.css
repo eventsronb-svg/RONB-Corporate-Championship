@@ -95,17 +95,6 @@ a {
   font-weight: 600;
   letter-spacing: -1px;
 }
-.wordmark-mark {
-  display: grid;
-  place-items: center;
-  width: 33px;
-  height: 33px;
-  background: var(--on-accent);
-  color: var(--accent);
-  border-radius: 9px;
-  font-family: Ultimate, Arial, sans-serif;
-  font-size: 31.2px;
-}
 .desktop-nav {
   display: flex;
   align-items: center;
@@ -146,6 +135,17 @@ a {
 .hero-copy {
   min-width: 0;
   text-align: center;
+}
+.hero-visual {
+  min-width: 0;
+  display: block;
+  width: 100%;
+  height: auto;
+}
+@media (min-width: 768px) {
+  .hero-visual {
+    transform: scale(1.2);
+  }
 }
 .hero-copy .eyebrow {
   font-size: 23.4px;
@@ -988,6 +988,10 @@ h2 {
   .hero-copy {
     animation: enter 0.8s both;
   }
+  .hero-visual {
+    animation: enter 0.8s both;
+    animation-delay: 0.12s;
+  }
   .reveal {
     opacity: 0;
     transform: translateY(34px) scale(0.985);
@@ -1104,11 +1108,6 @@ h2 {
   .wordmark {
     font-size: 24px;
     gap: 7px;
-  }
-  .wordmark-mark {
-    width: 28px;
-    height: 28px;
-    font-size: 26px;
   }
   .masthead-link {
     font-size: 15.6px;
