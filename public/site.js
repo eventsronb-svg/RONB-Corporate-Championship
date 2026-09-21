@@ -352,7 +352,7 @@ async function sportsStep(order) {
               : full
                 ? 'No registration slots remaining'
                 : '';
-            return `<div class="sport-choice${cls ? ` ${cls}` : ''}"><input type="radio" name="sport" id="sport-${sport.id}" value="${sport.id}" ${selected.has(sport.id) && !disabled ? 'checked' : ''} ${state ? 'checked disabled aria-disabled="true"' : full ? 'disabled aria-disabled="true"' : ''}${title ? ` title="${title}"` : ''}><label class="sport-choice-label" for="sport-${sport.id}"><span class="sport-choice-copy"><strong>${esc(sport.name)}</strong><span class="${state ? 'registered-state' : full ? 'slots-filled' : ''}">${label}</span></span>${sportIcon(sport, 'sport-choice-icon')}</label></div>`;
+            return `<div class="sport-choice${cls ? ` ${cls}` : ''}"><input type="radio" name="sport" id="sport-${sport.id}" value="${sport.id}" ${selected.has(sport.id) && !disabled ? 'checked' : ''} ${state || full ? 'disabled aria-disabled="true"' : ''}${title ? ` title="${title}"` : ''}><label class="sport-choice-label" for="sport-${sport.id}"><span class="sport-choice-copy"><strong>${esc(sport.name)}</strong><span class="${state ? 'registered-state' : full ? 'slots-filled' : ''}">${label}</span></span>${sportIcon(sport, 'sport-choice-icon')}</label></div>`;
           })
           .join('')
       : '<p class="teams-state">No sports are open yet. Ask the organizer to add the championship formats.</p>'
@@ -665,12 +665,15 @@ async function doneStep(order) {
   const target = document.querySelector('#registration-content');
   target.innerHTML = `<p class="eyebrow">Registration complete</p><h2>See you at the park.</h2><p>Your team profile is complete. Your confirmation email has been queued for delivery.</p>`;
   let registrations = [];
+  let sports = [];
   try {
-    registrations = (await api('/orders')).filter(
+    [registrations, sports] = await Promise.all([api('/orders'), api('/sports')]);
+    registrations = registrations.filter(
       (other) => other.items.length && !['cancelled', 'expired'].includes(other.status),
     );
   } catch (error) {
     if (error.status === 401) return renderLogin();
+    throw error;
   }
   const summaryFor = (other) => {
     const item = other.items[0];
@@ -681,28 +684,47 @@ async function doneStep(order) {
       captainIndex !== null && captainIndex !== undefined ? players[captainIndex] : undefined;
     return `<h3>${esc(item.sport_name)}</h3>${item.team_name ? `<p class="team-name">${esc(item.team_name)}</p>` : ''}<span class="registered-state ${verified ? 'is-verified' : 'is-pending'}">${verified ? 'Verified' : 'Pending'}</span>${captain ? `<p class="captain-line">Captain: <strong>${esc(captain)}</strong> <span class="jersey-badge">${esc(item.jersey_sizes?.[captainIndex] || '—')}</span></p>` : ''}<div class="roster-list">${players.map((name, index) => `<div class="roster-row">${item.photo_urls?.[index] ? `<img class="roster-photo" src="${esc(item.photo_urls[index])}" alt="" aria-hidden="true">` : '<span class="roster-photo roster-photo-none" aria-hidden="true"></span>'}<span class="roster-name">${esc(name)}${index === captainIndex ? ' <span class="captain-tag">Captain</span>' : ''}</span><span class="jersey-badge">${esc(item.jersey_sizes?.[index] || '—')}</span></div>`).join('')}</div>`;
   };
-  const selected =
-    registrations.find((other) => other.id === order.id) || registrations[0] || order;
-  const options = registrations
-    .map(
-      (other) =>
-        `<option value="${other.id}" ${other.id === selected.id ? 'selected' : ''}>${esc(other.items[0].sport_name)}</option>`,
-    )
-    .join('');
-  const heading = registrations.length > 1;
-  target.innerHTML = `<p class="eyebrow">Registration complete</p><h2>See you at the park.</h2><p>${heading ? 'Your teams are registered. Review your teams below or add another sport.' : 'Your team profile is complete. Your confirmation email has been queued for delivery.'}</p><div class="registration-panel"><label class="input-group">Your registrations${options ? `<select id="registration-select">${options}</select>` : ''}</label><div id="registration-summary" class="info-box registration-summary">${summaryFor(selected)}</div><div class="form-actions"><button class="button primary" id="add-sports">Add sports</button><a class="button primary" href="/">Return to championship</a><a class="button" href="/#teams">See team listing</a></div></div>`;
-  document.querySelector('#registration-select')?.addEventListener('change', (event) => {
-    const other = registrations.find((candidate) => candidate.id === event.target.value);
-    if (other) document.querySelector('#registration-summary').innerHTML = summaryFor(other);
-  });
-  document.querySelector('#add-sports')?.addEventListener('click', async () => {
-    try {
-      await resume(await post('/orders/start'));
-    } catch (error) {
-      if (error.status === 401) renderLogin();
-      else say(error.message);
-    }
-  });
+  const registeredFor = (sport) =>
+    registrations.find((other) => other.items.some((item) => item.sport_id === sport.id));
+  const isFull = (sport) =>
+    sport.max_teams !== null && Number(sport.filled_slots ?? 0) >= Number(sport.max_teams);
+  const currentSport = order.items[0]?.sport_id;
+  target.innerHTML = `<p class="eyebrow">Registration complete</p><h2>See you at the park.</h2><p>Choose a sport to review your team or register another one.</p><div class="registration-panel"><h3>Your championship sports</h3><div class="sport-accordion">${sports
+    .map((sport) => {
+      const registration = registeredFor(sport);
+      const registered = Boolean(registration);
+      const verified = registration?.resume_step === 'registered';
+      const full = isFull(sport);
+      const state = registered
+        ? verified
+          ? 'Registered · Verified'
+          : 'Registration in progress'
+        : full
+          ? 'Slots filled'
+          : `Register for ${sport.name}`;
+      const content = registered
+        ? `<div class="info-box registration-summary">${summaryFor(registration)}</div>`
+        : `<p>Bring another team to the championship. Registration, payment and roster details are saved separately for ${esc(sport.name)}.</p><button class="button primary" type="button" data-register-sport="${esc(sport.id)}">Register for ${esc(sport.name)}</button>`;
+      return `<details class="registration-sport${registered ? ' is-registered' : ''}" ${sport.id === currentSport ? 'open' : ''}><summary><span class="registration-sport-icon">${sportIcon(sport, 'sport-choice-icon')}</span><span class="registration-sport-copy"><strong>${esc(sport.name)}</strong><span class="${registered ? `registered-state ${verified ? 'is-verified' : 'is-pending'}` : full ? 'slots-filled' : ''}">${esc(state)}</span></span><span class="registration-sport-chevron" aria-hidden="true">⌄</span></summary><div class="registration-sport-content">${content}</div></details>`;
+    })
+    .join(
+      '',
+    )}</div><div class="form-actions"><a class="button primary" href="/">Return to championship</a><a class="button" href="/#teams">See team listing</a></div></div>`;
+  target.querySelectorAll('[data-register-sport]').forEach((button) =>
+    button.addEventListener('click', async () => {
+      const sport = sports.find((candidate) => candidate.id === button.dataset.registerSport);
+      if (!sport) return;
+      try {
+        const url = new URL(location.href);
+        url.searchParams.set('focus', slugify(sport.name));
+        history.replaceState({}, '', url);
+        await resume(await post('/orders/start'));
+      } catch (error) {
+        if (error.status === 401) renderLogin();
+        else say(error.message);
+      }
+    }),
+  );
 }
 async function render() {
   try {

@@ -261,32 +261,37 @@ test('new captain signs in, submits one team, corrects rejected payment, and fin
     await expect(admin.getByRole('status')).toHaveText('Registration updated.');
     await page.reload();
     await expect(page.getByRole('heading', { name: 'See you at the park.' })).toBeVisible();
-    // The done page lists the completed registration and its captain + jersey sizes.
-    const registration = page.getByRole('combobox', { name: 'Your registrations' });
-    await expect(registration).toHaveValue(orderId);
+    // The done page lists every sport; the registered one opens with its roster details.
+    const registration = page.locator('.registration-sport').filter({ hasText: 'Basketball' });
+    await expect(registration).toHaveAttribute('open', '');
     await expect(
-      page.locator('#registration-summary').getByRole('heading', { name: 'Basketball' }),
+      registration.locator('.registration-summary').getByRole('heading', { name: 'Basketball' }),
     ).toBeVisible();
-    await expect(page.locator('#registration-summary').getByText('E2E Company')).toBeVisible();
-    await expect(page.locator('#registration-summary').getByText('Verified')).toBeVisible();
     await expect(
-      page.locator('#registration-summary').getByText('Captain: Player 2'),
+      registration.locator('.registration-summary').getByText('E2E Company'),
     ).toBeVisible();
-    await expect(page.locator('#registration-summary .captain-line .jersey-badge')).toHaveText('M');
-    await expect(page.locator('#registration-summary .roster-list .jersey-badge')).toHaveText([
+    await expect(registration.locator('.registration-summary').getByText('Verified')).toBeVisible();
+    await expect(
+      registration.locator('.registration-summary').getByText('Captain: Player 2'),
+    ).toBeVisible();
+    await expect(registration.locator('.captain-line .jersey-badge')).toHaveText('M');
+    await expect(registration.locator('.roster-list .jersey-badge')).toHaveText([
       'S',
       'M',
       'XL',
       'L',
     ]);
-    // Adding another sport greys out the already-verified Basketball registration.
-    await page.getByRole('button', { name: 'Add sports' }).click();
+    const football = page.locator('.registration-sport').filter({ hasText: 'Football' });
+    await football.locator('summary').click();
+    await expect(football.getByRole('button', { name: 'Register for Football' })).toBeVisible();
+    await football.getByRole('button', { name: 'Register for Football' }).click();
     await expect(
       page.getByRole('heading', { name: 'Register your company', level: 2 }),
     ).toBeVisible();
+    await expect(page.getByRole('radio', { name: /^Football / })).toBeChecked();
+    // The existing Basketball registration remains unavailable in the new order.
     const registeredSport = page.locator('.sport-choice').filter({ hasText: 'Basketball' });
     await expect(registeredSport.locator('[name="sport"]')).toBeDisabled();
-    await expect(registeredSport.locator('[name="sport"]')).toBeChecked();
     await expect(registeredSport).toHaveClass(/is-registered/);
     await expect(registeredSport).toHaveClass(/is-verified/);
     await expect(registeredSport.getByText('Registered · Verified')).toBeVisible();
