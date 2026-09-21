@@ -216,7 +216,7 @@ test('new captain signs in, submits one team, corrects rejected payment, and fin
     );
     await page.getByRole('button', { name: 'Save and mark done' }).click();
     await expect(page.getByRole('status')).toHaveText('Team profile completed.');
-    await expect(page.getByRole('heading', { name: 'See you at the park.' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'See you there E2E Company.' })).toBeVisible();
     const status = await (await captain.request.get(`/orders/${orderId}/status`)).json();
     expect(status.company_name).toBe('E2E Company');
     expect(status.items).toHaveLength(1);
@@ -260,21 +260,13 @@ test('new captain signs in, submits one team, corrects rejected payment, and fin
     await admin.getByRole('button', { name: 'Mark completed' }).click();
     await expect(admin.getByRole('status')).toHaveText('Registration updated.');
     await page.reload();
-    await expect(page.getByRole('heading', { name: 'See you at the park.' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'See you there E2E Company.' })).toBeVisible();
     // The done page lists every sport; the registered one opens with its roster details.
     const registration = page.locator('.registration-sport').filter({ hasText: 'Basketball' });
     await expect(registration).toHaveAttribute('open', '');
     await expect(
-      registration.locator('.registration-summary').getByRole('heading', { name: 'Basketball' }),
-    ).toBeVisible();
-    await expect(
       registration.locator('.registration-summary').getByText('E2E Company'),
     ).toBeVisible();
-    await expect(registration.locator('.registration-summary').getByText('Verified')).toBeVisible();
-    await expect(
-      registration.locator('.registration-summary').getByText('Captain: Player 2'),
-    ).toBeVisible();
-    await expect(registration.locator('.captain-line .jersey-badge')).toHaveText('M');
     await expect(registration.locator('.roster-list .jersey-badge')).toHaveText([
       'S',
       'M',
@@ -296,7 +288,7 @@ test('new captain signs in, submits one team, corrects rejected payment, and fin
     await expect(registeredSport).toHaveClass(/is-verified/);
     await expect(registeredSport.getByText('Registered · Verified')).toBeVisible();
     await page.goto(`/register?order=${orderId}`);
-    await expect(page.getByRole('heading', { name: 'See you at the park.' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'See you there E2E Company.' })).toBeVisible();
     await page.getByRole('link', { name: 'See team listing' }).click();
     await expect(page).toHaveURL(/\/#teams$/);
     await expect(page.getByRole('heading', { name: 'E2E Company' })).toBeVisible();

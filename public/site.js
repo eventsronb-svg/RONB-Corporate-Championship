@@ -663,7 +663,9 @@ function profileEditor(order, itemId) {
 }
 async function doneStep(order) {
   const target = document.querySelector('#registration-content');
-  target.innerHTML = `<p class="eyebrow">Registration complete</p><h2>See you at the park.</h2><p>Your team profile is complete. Your confirmation email has been queued for delivery.</p>`;
+  const teamName = order.items[0]?.team_name;
+  const farewell = teamName ? `See you there ${esc(teamName)}.` : 'See you at the park.';
+  target.innerHTML = `<p class="eyebrow">Registration complete</p><h2>${farewell}</h2><p>Your team profile is complete. Your confirmation email has been queued for delivery.</p>`;
   let registrations = [];
   let sports = [];
   try {
@@ -677,19 +679,15 @@ async function doneStep(order) {
   }
   const summaryFor = (other) => {
     const item = other.items[0];
-    const verified = other.resume_step === 'registered';
     const players = item.players || [];
-    const captainIndex = item.captain_position;
-    const captain =
-      captainIndex !== null && captainIndex !== undefined ? players[captainIndex] : undefined;
-    return `<h3>${esc(item.sport_name)}</h3>${item.team_name ? `<p class="team-name">${esc(item.team_name)}</p>` : ''}<span class="registered-state ${verified ? 'is-verified' : 'is-pending'}">${verified ? 'Verified' : 'Pending'}</span>${captain ? `<p class="captain-line">Captain: <strong>${esc(captain)}</strong> <span class="jersey-badge">${esc(item.jersey_sizes?.[captainIndex] || '—')}</span></p>` : ''}<div class="roster-list">${players.map((name, index) => `<div class="roster-row">${item.photo_urls?.[index] ? `<img class="roster-photo" src="${esc(item.photo_urls[index])}" alt="" aria-hidden="true">` : '<span class="roster-photo roster-photo-none" aria-hidden="true"></span>'}<span class="roster-name">${esc(name)}${index === captainIndex ? ' <span class="captain-tag">Captain</span>' : ''}</span><span class="jersey-badge">${esc(item.jersey_sizes?.[index] || '—')}</span></div>`).join('')}</div>`;
+    return `${item.team_name ? `<p class="team-name">${esc(item.team_name)}</p>` : ''}<div class="roster-list">${players.map((name, index) => `<div class="roster-row">${item.photo_urls?.[index] ? `<img class="roster-photo" src="${esc(item.photo_urls[index])}" alt="" aria-hidden="true">` : '<span class="roster-photo roster-photo-none" aria-hidden="true"></span>'}<span class="roster-name">${esc(name)}${index === item.captain_position ? ' <span class="captain-tag">Captain</span>' : ''}</span><span class="jersey-badge">${esc(item.jersey_sizes?.[index] || '—')}</span></div>`).join('')}</div>`;
   };
   const registeredFor = (sport) =>
     registrations.find((other) => other.items.some((item) => item.sport_id === sport.id));
   const isFull = (sport) =>
     sport.max_teams !== null && Number(sport.filled_slots ?? 0) >= Number(sport.max_teams);
   const currentSport = order.items[0]?.sport_id;
-  target.innerHTML = `<p class="eyebrow">Registration complete</p><h2>See you at the park.</h2><p>Choose a sport to review your team or register another one.</p><div class="registration-panel"><h3>Your championship sports</h3><div class="sport-accordion">${sports
+  target.innerHTML = `<p class="eyebrow">Registration complete</p><h2>${farewell}</h2><p>Choose a sport to review your team or register another one.</p><div class="registration-panel"><h3>Your championship sports</h3><div class="sport-accordion">${sports
     .map((sport) => {
       const registration = registeredFor(sport);
       const registered = Boolean(registration);
