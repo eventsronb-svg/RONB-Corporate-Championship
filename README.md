@@ -80,14 +80,15 @@ Use the **pooled Neon connection string** with its TLS parameters intact, e.g. `
 
 Configure the branch's S3 endpoint, region, and credentials in `.env`.
 
-Create two buckets in Neon:
+Create three buckets in Neon:
 
-| Setting              | Visibility      | Stored objects                |
-| -------------------- | --------------- | ----------------------------- |
-| `S3_RECEIPTS_BUCKET` | **Private**     | `receipts/<uuid>.(webp\|pdf)` |
-| `S3_LOGOS_BUCKET`    | **Public read** | `team-logos/<uuid>.webp`      |
+| Setting                        | Visibility      | Stored objects                          |
+| ------------------------------ | --------------- | --------------------------------------- |
+| `S3_RECEIPTS_BUCKET`           | **Private**     | `receipts/<uuid>.(webp\|pdf)`           |
+| `S3_LOGOS_BUCKET`              | **Public read** | `team-logos/<uuid>.webp`                |
+| `S3_PLAYERPHOTOS_BUCKET`       | **Public read** | `player-photos/<uuid>.webp`             |
 
-Set `S3_LOGOS_PUBLIC_URL` to the public base URL of the logos bucket, without the `team-logos/` suffix. The application does not modify ACLs; Neon configures visibility at bucket level. See [Neon's Object Storage architecture](https://neon.com/blog/building-neon-object-storage).
+Set `S3_LOGOS_PUBLIC_URL` and `S3_PLAYERPHOTOS_PUBLIC_URL` to the public base URL of the respective bucket, without the object prefix. The application does not modify ACLs; Neon configures visibility at bucket level. See [Neon's Object Storage architecture](https://neon.com/blog/building-neon-object-storage).
 
 `receipts.file_url` stores an object key, never a public URL. Only authorized admin detail requests receive a signed URL, valid for 300 seconds. Captain and public APIs never expose receipt keys or URLs. The panel displays payment amount/code alongside receipt proof; PDFs can be opened through the signed original link.
 

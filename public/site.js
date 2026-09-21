@@ -545,7 +545,7 @@ function profileEditor(order, itemId) {
     const index = fields.children.length;
     fields.insertAdjacentHTML(
       'beforeend',
-      `<div class="player-row"><div class="player-photo">${photoUrl ? `<img class="player-photo-preview" src="${esc(photoUrl)}" alt="" aria-hidden="true">` : '<span class="player-photo-placeholder" aria-hidden="true"></span>'}${photoUrl ? `<button type="button" class="player-photo-remove" data-photo="${index}" title="Remove photo">Remove photo</button>` : ''}<label class="player-photo-pick"><input name="photo-${index}" type="file" accept="image/png,image/jpeg,image/webp" aria-label="Photo for player ${index + 1}"><span>Photo</span></label></div><label class="input-group">Player ${index + 1}<input name="player" type="text" value="${esc(name)}" maxlength="120" autocomplete="off" placeholder="Full name"></label><fieldset class="jersey-selector"><legend>Jersey size <span class="sr-only">for player ${index + 1}</span></legend><div class="jersey-options">${['S', 'M', 'L', 'XL'].map((option) => `<label><input type="radio" name="jersey-${index}" value="${option}" ${size === option ? 'checked' : ''}><span>${option}</span></label>`).join('')}</div></fieldset></div>`,
+      `<div class="player-row"><div class="player-photo">${photoUrl ? `<img class="player-photo-preview" src="${esc(photoUrl)}" alt="" aria-hidden="true">` : '<span class="player-photo-placeholder" aria-hidden="true"></span>'}<button type="button" class="player-photo-clear" data-photo="${index}" aria-label="Remove photo for player ${index + 1}" ${photoUrl ? '' : 'hidden'}>×</button><label class="player-photo-pick"><input name="photo-${index}" type="file" accept="image/png,image/jpeg,image/webp" aria-label="Photo for player ${index + 1}"><span>Photo</span></label></div><label class="input-group">Player ${index + 1}<input name="player" type="text" value="${esc(name)}" maxlength="120" autocomplete="off" placeholder="Full name"></label><fieldset class="jersey-selector"><legend>Jersey size <span class="sr-only">for player ${index + 1}</span></legend><div class="jersey-options">${['S', 'M', 'L', 'XL'].map((option) => `<label><input type="radio" name="jersey-${index}" value="${option}" ${size === option ? 'checked' : ''}><span>${option}</span></label>`).join('')}</div></fieldset></div>`,
     );
     addButton.disabled = fields.children.length >= 100;
   };
@@ -574,12 +574,12 @@ function profileEditor(order, itemId) {
       preview = row.querySelector('.player-photo-preview');
     }
     preview.src = URL.createObjectURL(input.files[0]);
-    const remove = row.querySelector('.player-photo-remove');
-    if (remove) remove.remove();
+    const clear = row.querySelector('.player-photo-clear');
+    if (clear) clear.hidden = false;
     photoSelections.set(index, input.files[0]);
   });
   fields.addEventListener('click', (event) => {
-    const button = event.target.closest('.player-photo-remove');
+    const button = event.target.closest('.player-photo-clear');
     if (!button) return;
     const index = Number(button.dataset.photo);
     const row = button.closest('.player-row');
@@ -590,7 +590,7 @@ function profileEditor(order, itemId) {
         'beforebegin',
         '<span class="player-photo-placeholder" aria-hidden="true"></span>',
       );
-    button.remove();
+    button.hidden = true;
     row.querySelector(`[name="photo-${index}"]`).value = '';
     photoSelections.set(index, null);
   });

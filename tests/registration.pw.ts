@@ -173,6 +173,15 @@ test('new captain signs in, submits one team, corrects rejected payment, and fin
     await expect(
       page.locator('.player-row').first().locator('.player-photo-preview'),
     ).toBeVisible();
+    // The X button drops a wrong photo; the player can pick another one right away.
+    const photoRow = page.locator('.player-row').first();
+    await expect(photoRow.locator('.player-photo-clear')).toBeVisible();
+    await photoRow.locator('.player-photo-clear').click();
+    await expect(photoRow.locator('.player-photo-placeholder')).toBeVisible();
+    await expect(photoRow.locator('.player-photo-clear')).toBeHidden();
+    await page.getByLabel('Photo for player 1', { exact: true }).setInputFiles(upload);
+    await expect(photoRow.locator('.player-photo-preview')).toBeVisible();
+    await expect(photoRow.locator('.player-photo-clear')).toBeVisible();
     await page.screenshot({ path: 'test-results/jersey-onboarding-mobile.png', fullPage: true });
     await page.setViewportSize({ width: 1280, height: 900 });
     const nameBox = await page
