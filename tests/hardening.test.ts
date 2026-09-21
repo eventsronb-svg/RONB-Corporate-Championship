@@ -91,6 +91,7 @@ it('reserves the final slot atomically and releases it after unpaid expiry', asy
     .json()
     .find((s: any) => s.id === h.sports[0].id);
   expect(capacity.filled_slots).toBe(1);
+  expect(capacity.listed_slots).toBe(0);
   expect(capacity.max_teams).toBe(1);
   await h.call('POST', `/orders/${ids[winner]}/payment-request`, undefined, actors[winner]);
   await h.db.query(

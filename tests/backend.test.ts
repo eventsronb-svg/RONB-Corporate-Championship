@@ -96,6 +96,10 @@ describe('registration and publication', () => {
     ).toBe(409);
     await h.fill(order, 0);
     expect((await h.call('GET', '/teams')).json()).toHaveLength(0);
+    const reported = async (): Promise<any> =>
+      (await h.call('GET', '/sports')).json().find((s: any) => s.id === h.sports[0].id);
+    expect((await reported()).filled_slots).toBe(1);
+    expect((await reported()).listed_slots).toBe(0);
     await h.call('POST', `/orders/${order.id}/items/${order.items[0].id}/profile/complete`);
     const first = (await h.call('GET', '/teams')).json();
     expect(first).toHaveLength(1);
@@ -105,6 +109,7 @@ describe('registration and publication', () => {
     expect((await h.db.query('SELECT * FROM email_jobs')).rows).toHaveLength(1);
     expect(h.sent).toHaveLength(0);
     expect((await h.call('GET', `/teams?sport_id=${h.sports[0].id}`)).json()).toHaveLength(1);
+    expect((await reported()).listed_slots).toBe(1);
     await deliverOne(h.db, h.mailer);
     expect(h.sent).toHaveLength(1);
     const logs = (await h.db.query('SELECT * FROM email_log')).rows;

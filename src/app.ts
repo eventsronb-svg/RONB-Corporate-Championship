@@ -144,8 +144,9 @@ export async function buildApp(deps: {
     async () =>
       (
         await db.query(
-          `SELECT s.*, (SELECT count(*)::int FROM order_items i JOIN orders o ON o.id=i.order_id WHERE i.sport_id=s.id AND o.status=ANY($1::text[])) AS filled_slots FROM sports s WHERE active ORDER BY name`,
-          [reservedStates],
+          `SELECT s.*, (SELECT count(*)::int FROM order_items i JOIN orders o ON o.id=i.order_id WHERE i.sport_id=s.id AND o.status=ANY($1::text[])) AS filled_slots,
+ (SELECT count(*)::int FROM order_items i JOIN orders o ON o.id=i.order_id WHERE i.sport_id=s.id AND o.status=ANY($2::text[]) AND i.profile_completed_at IS NOT NULL) AS listed_slots FROM sports s WHERE active ORDER BY name`,
+          [reservedStates, paid],
         )
       ).rows,
   );

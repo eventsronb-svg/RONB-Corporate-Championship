@@ -30,6 +30,8 @@ GET callbacks receive Google's `code` and `state` query parameters. POST callbac
 
 `/teams` defaults to 50 entries, maximum 100. Each team contains `id`, `team_name`, `logo_url`, `sport_id`, `sport_name`, and ordered `players` names. It excludes captain/payment information. Inactive sports remain associated with historical registrations.
 
+Each sport row from `/sports` includes `filled_slots` (reserved capacity: invoiced or paid orders) and `listed_slots` (completed profiles that actually appear on the listing), plus `max_teams` when capacity is limited.
+
 ## Captain registration
 
 Every endpoint in this section requires the captain `session` cookie. A foreign order or item is treated as missing (`404`).

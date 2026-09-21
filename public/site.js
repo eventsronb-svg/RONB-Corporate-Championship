@@ -151,7 +151,7 @@ async function teamList(name) {
       const count = tab.querySelector('.team-count') || document.createElement('span');
       count.className = 'team-count';
       count.id = `count-${selected.id}`;
-      count.textContent = `${selected.filled_slots}/${tab.dataset.max}`;
+      count.textContent = `${selected.listed_slots ?? selected.filled_slots}/${tab.dataset.max}`;
       tab.setAttribute('aria-describedby', count.id);
       if (!count.parentElement) tab.append(count);
     }
