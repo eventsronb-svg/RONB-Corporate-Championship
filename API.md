@@ -49,6 +49,7 @@ Every endpoint in this section requires the captain `session` cookie. A foreign 
 | PATCH  | `/orders/:id/items/:item_id/profile`                 | Save roster, player photos and/or upload logo                          |
 | POST   | `/orders/:id/items/:item_id/profile/complete`        | Explicit Done; complete item and queue email if it is the last one     |
 | POST   | `/orders/:id/items/:item_id/player-photos/:position` | Upload one player photo for a roster position                          |
+| GET    | `/orders/:id/items/:item_id/player-photos/:position` | Redirect to a 300-second signed URL for the captain's own photo        |
 
 Sports selection:
 
@@ -103,7 +104,7 @@ curl -X PATCH -b cookies.txt -H 'Origin: http://localhost:3000' \
 
 Profile JSON updates accept `{ "players": ["Suman Karki", "Pratik Gurung"], "jersey_sizes": ["M", "XL"], "captain_position": 0 }`. `jersey_sizes` contains one value per player in the same order: `S`, `M`, `L`, `XL`, or `null` for an unfinished draft. Send sizes together with the full `players` array; mismatched lengths and invalid sizes return `400`. Replacing a roster without sizes sets its sizes to `null`. Responses include both ordered arrays. `captain_position` refers to a player in that roster.
 
-Optional `player_photos` holds one photo URL per player in roster order, aligned with `players`; `null` (or a shorter array) leaves that player photo-less. Upload photos with `POST /orders/:id/items/:item_id/player-photos/:position` (multipart field `photo`, PNG/JPEG/WebP, up to 5 MB, public after payment confirmation), then reference the returned `photo_url`. Photo URLs are returned in roster endpoints and to admins, but are excluded from public `/teams` responses.
+Optional `player_photos` holds one photo object key per player in roster order, aligned with `players`; `null` (or a shorter array) leaves that player photo-less. Upload photos with `POST /orders/:id/items/:item_id/player-photos/:position` (multipart field `photo`, PNG/JPEG/WebP, up to 5 MB, unlocked after payment confirmation), then reference the returned `photo_url` key (e.g. `player-photos/<uuid>.webp`). Photos are stored in a private bucket. Roster endpoints return the keys to the owning captain and to admins, but do not expose public URLs; `GET /orders/:id/items/:item_id/player-photos/:position` redirects the captain to a short-lived signed URL, and the key is excluded from public `/teams` responses.
 
 Multipart updates accept one `logo` file and JSON fields `players`, `jersey_sizes`, `captain_position`, and `player_photos`. Arbitrary `logo_url` strings are not accepted. Completing a profile requires a stored logo, the sport's minimum roster (Futsal 5, Basketball 3, Crickshal 7; otherwise 1), and a jersey size for every player. Incomplete sizes return `409` with `jersey_sizes_required`. Editing a completed roster to remove sizes clears profile completion, so it must be completed again. Confirmation email remains idempotent.
 
@@ -111,16 +112,17 @@ Existing completed rosters retain their status after migration, with unknown siz
 
 ## Admin orders — staff and super admin
 
-| Method | Path                             | Request / behavior                                                                         |
-| ------ | -------------------------------- | ------------------------------------------------------------------------------------------ |
-| GET    | `/admin/orders`                  | Filtered queue, described below                                                            |
-| GET    | `/admin/orders/:id`              | Full order, user, signed receipts, timeline, verification notes, email jobs/log, audit log |
-| POST   | `/admin/orders/:id/review`       | `receipt_submitted` → `under_review`                                                       |
-| POST   | `/admin/orders/:id/verify`       | `{ "decision": "confirmed", "notes": "Amount and code match" }`                            |
-| POST   | `/admin/orders/:id/contact`      | `{ "notes": "Called captain" }`; confirmed → contacted                                     |
-| POST   | `/admin/orders/:id/complete`     | contacted → completed                                                                      |
-| POST   | `/admin/orders/:id/resend-email` | Queue manual resend; payment and every profile must already be complete                    |
-| POST   | `/admin/orders/:id/cancel`       | **Super admin only**; `{ "reason": "Registration withdrawn" }`                             |
+| Method | Path                                                       | Request / behavior                                                                         |
+| ------ | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| GET    | `/admin/orders`                                            | Filtered queue, described below                                                            |
+| GET    | `/admin/orders/:id`                                        | Full order, user, signed receipts, timeline, verification notes, email jobs/log, audit log |
+| POST   | `/admin/orders/:id/review`                                 | `receipt_submitted` → `under_review`                                                       |
+| POST   | `/admin/orders/:id/verify`                                 | `{ "decision": "confirmed", "notes": "Amount and code match" }`                            |
+| POST   | `/admin/orders/:id/contact`                                | `{ "notes": "Called captain" }`; confirmed → contacted                                     |
+| POST   | `/admin/orders/:id/complete`                               | contacted → completed                                                                      |
+| POST   | `/admin/orders/:id/resend-email`                           | Queue manual resend; payment and every profile must already be complete                    |
+| POST   | `/admin/orders/:id/cancel`                                 | **Super admin only**; `{ "reason": "Registration withdrawn" }`                             |
+| GET    | `/admin/orders/:id/items/:item_id/player-photos/:position` | Redirect to a 300-second signed URL for one player photo                                   |
 
 `verify.decision` is `confirmed` or `rejected`. Rejection requires nonblank notes. Only submitted/under-review orders can be verified. No email is queued by payment verification alone. Verification is transactional: simultaneous conflicting decisions yield one success and one `409`.
 
@@ -136,7 +138,7 @@ Queue query parameters:
 
 Response: `{ "orders": [...], "limit": 50, "offset": 0 }`. Queue rows include `captain_name`, `email`, `teams`, `unique_code`, and the latest `receipt_submitted_at` in addition to order fields.
 
-Admin detail receipts contain `{id, uploaded_at, signed_url, expires_in: 300}`. Refresh detail to obtain new signed URLs. Original private object keys are omitted. `email_jobs` exposes queue state, attempts and last error so stalled delivery is visible; `email_log` records individual delivery attempts and provider IDs.
+Admin detail receipts contain `{id, uploaded_at, signed_url, expires_in: 300}`. Refresh detail to obtain new signed URLs. Original private object keys are omitted. `email_jobs` exposes queue state, attempts and last error so stalled delivery is visible; `email_log` records individual delivery attempts and provider IDs. Player photos are private objects: roster endpoints return object keys (never public URLs), and each photo must be loaded through the signed-redirect endpoint above, which only the owning captain or an admin may use.
 
 ## Admin configuration — super admin only
 

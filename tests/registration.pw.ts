@@ -239,7 +239,7 @@ test('new captain signs in, submits one team, corrects rejected payment, and fin
     expect(status.items[0].profile_completed_at).toBeTruthy();
     await expect(page.locator('.roster-row').first().locator('.roster-photo')).toBeVisible();
     const uploadedPhotoUrl = status.items[0].photo_urls[0];
-    expect(uploadedPhotoUrl).toBeTruthy();
+    expect(uploadedPhotoUrl).toMatch(/^player-photos\//);
     const headers = { origin: baseURL! };
     const firstDelivery = await captain.request.post('/__test/deliver', { headers });
     expect((await firstDelivery.json()).sent).toBe(1);
@@ -252,11 +252,17 @@ test('new captain signs in, submits one team, corrects rejected payment, and fin
     await admin.getByRole('link', { name: 'E2E Company', exact: true }).click();
     await expect(admin.getByRole('heading', { name: 'E2E Company', exact: true })).toBeVisible();
     await expect(admin.locator('.sport-roster')).toHaveCount(1);
+    const itemId = status.items[0].id;
+    const adminPhotoEndpoint = `/admin/orders/${orderId}/items/${itemId}/player-photos/0`;
     await expect(admin.locator('.player-photo[src]')).toHaveCount(4);
     await expect(admin.locator('.player-photo[src]').first()).toHaveAttribute(
       'src',
-      new RegExp(await uploadedPhotoUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
+      adminPhotoEndpoint,
     );
+    const signedPhotoUrl = (
+      await organizer.request.get(adminPhotoEndpoint, { maxRedirects: 0 })
+    ).headers()['location'];
+    expect(signedPhotoUrl).toBe(`https://private.example/${uploadedPhotoUrl}?signed=1`);
     await expect(admin.locator('.jersey-badge')).toHaveText(['S', 'M', 'XL', 'L']);
     await expect(admin.getByRole('cell', { name: 'Captain', exact: true })).toHaveCount(1);
     await admin.setViewportSize({ width: 390, height: 844 });

@@ -541,11 +541,14 @@ function profileEditor(order, itemId) {
         .join('');
     captain.value = selected;
   };
-  const addPlayer = (name = '', size = null, photoUrl = null) => {
+  const addPlayer = (name = '', size = null, photoKey = null) => {
     const index = fields.children.length;
+    const preview = photoKey
+      ? `<img class="player-photo-preview" src="/orders/${order.id}/items/${item.id}/player-photos/${index}" alt="" aria-hidden="true">`
+      : '<span class="player-photo-placeholder" aria-hidden="true"></span>';
     fields.insertAdjacentHTML(
       'beforeend',
-      `<div class="player-row"><div class="player-photo">${photoUrl ? `<img class="player-photo-preview" src="${esc(photoUrl)}" alt="" aria-hidden="true">` : '<span class="player-photo-placeholder" aria-hidden="true"></span>'}<button type="button" class="player-photo-clear" data-photo="${index}" aria-label="Remove photo for player ${index + 1}" ${photoUrl ? '' : 'hidden'}>×</button><label class="player-photo-pick"><input name="photo-${index}" type="file" accept="image/png,image/jpeg,image/webp" aria-label="Photo for player ${index + 1}"><span>Photo</span></label></div><label class="input-group">Player ${index + 1}<input name="player" type="text" value="${esc(name)}" maxlength="120" autocomplete="off" placeholder="Full name"></label><fieldset class="jersey-selector"><legend>Jersey size <span class="sr-only">for player ${index + 1}</span></legend><div class="jersey-options">${['S', 'M', 'L', 'XL'].map((option) => `<label><input type="radio" name="jersey-${index}" value="${option}" ${size === option ? 'checked' : ''}><span>${option}</span></label>`).join('')}</div></fieldset></div>`,
+      `<div class="player-row"><div class="player-photo">${preview}<button type="button" class="player-photo-clear" data-photo="${index}" aria-label="Remove photo for player ${index + 1}" ${photoKey ? '' : 'hidden'}>×</button><label class="player-photo-pick"><input name="photo-${index}" type="file" accept="image/png,image/jpeg,image/webp" aria-label="Photo for player ${index + 1}"><span>Photo</span></label></div><label class="input-group">Player ${index + 1}<input name="player" type="text" value="${esc(name)}" maxlength="120" autocomplete="off" placeholder="Full name"></label><fieldset class="jersey-selector"><legend>Jersey size <span class="sr-only">for player ${index + 1}</span></legend><div class="jersey-options">${['S', 'M', 'L', 'XL'].map((option) => `<label><input type="radio" name="jersey-${index}" value="${option}" ${size === option ? 'checked' : ''}><span>${option}</span></label>`).join('')}</div></fieldset></div>`,
     );
     addButton.disabled = fields.children.length >= 100;
   };
@@ -727,7 +730,11 @@ async function doneStep(order) {
   const summaryFor = (other) => {
     const item = other.items[0];
     const players = item.players || [];
-    return `${item.team_name ? `<p class="team-name">${esc(item.team_name)}</p>` : ''}<div class="roster-list">${players.map((name, index) => `<div class="roster-row">${item.photo_urls?.[index] ? `<img class="roster-photo" src="${esc(item.photo_urls[index])}" alt="" aria-hidden="true">` : '<span class="roster-photo roster-photo-none" aria-hidden="true"></span>'}<span class="roster-name">${esc(name)}${index === item.captain_position ? ' <span class="captain-tag">Captain</span>' : ''}</span><span class="jersey-badge">${esc(item.jersey_sizes?.[index] || '—')}</span></div>`).join('')}</div>`;
+    const photo = (index) =>
+      item.photo_urls?.[index]
+        ? `<img class="roster-photo" src="/orders/${other.id}/items/${item.id}/player-photos/${index}" alt="" aria-hidden="true">`
+        : '<span class="roster-photo roster-photo-none" aria-hidden="true"></span>';
+    return `${item.team_name ? `<p class="team-name">${esc(item.team_name)}</p>` : ''}<div class="roster-list">${players.map((name, index) => `<div class="roster-row">${photo(index)}<span class="roster-name">${esc(name)}${index === item.captain_position ? ' <span class="captain-tag">Captain</span>' : ''}</span><span class="jersey-badge">${esc(item.jersey_sizes?.[index] || '—')}</span></div>`).join('')}</div>`;
   };
   const registeredFor = (sport) =>
     registrations.find((other) => other.items.some((item) => item.sport_id === sport.id));

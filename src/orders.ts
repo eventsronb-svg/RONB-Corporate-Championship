@@ -51,7 +51,7 @@ export const profileInput = z
       .max(100)
       .optional(),
     captain_position: z.number().int().min(0).max(99).nullable().optional(),
-    player_photos: z.array(z.string().url().nullable()).max(100).optional(),
+    player_photos: z.array(z.string().startsWith('player-photos/').nullable()).max(100).optional(),
   })
   .strict();
 export async function transition(

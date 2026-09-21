@@ -84,7 +84,7 @@ it('classifies transient and permanent errors from the Resend response', async (
   );
   await expect(mailer.send(p, 'key')).rejects.toMatchObject({ transient: false });
 });
-it('sends files to separate S3 buckets and signs private receipt reads for five minutes', async () => {
+it('sends files to separate S3 buckets and signs private reads for five minutes', async () => {
   const requests: {
     method: string;
     url: string;
@@ -138,9 +138,16 @@ it('sends files to separate S3 buckets and signs private receipt reads for five 
     expect(storedPdf.key).toMatch(/\.pdf$/);
     expect(requests[2].body).toEqual(pdf);
     expect(requests[2].headers['content-type']).toBe('application/pdf');
+    const photo = await storage.put('photo', optimized.buffer, optimized.mime);
+    expect(photo.url).toMatch(/^player-photos\//);
+    expect(requests[3].url).toContain('/player-photos/player-photos/');
+    expect(requests[3].headers['cache-control']).toBe('private, no-store');
     const signed = new URL(await storage.signReceipt(receipt.key));
     expect(signed.searchParams.get('X-Amz-Expires')).toBe('300');
     expect(signed.searchParams.has('X-Amz-Signature')).toBe(true);
+    const signedPhoto = new URL(await storage.signPlayerPhoto(photo.key));
+    expect(signedPhoto.searchParams.get('X-Amz-Expires')).toBe('300');
+    expect(signedPhoto.searchParams.has('X-Amz-Signature')).toBe(true);
     await storage.remove('receipt', receipt.key);
     expect(requests.at(-1)?.method).toBe('DELETE');
   } finally {

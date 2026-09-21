@@ -316,6 +316,26 @@ export async function buildApp(deps: {
     const p = itemIds(req.params);
     return orders.profile(req.actor!.id, p.id, p.item_id, {}, true);
   });
+  app.get(
+    '/orders/:id/items/:item_id/player-photos/:position',
+    { preHandler: guard.user },
+    async (req, reply) => {
+      const p = itemIds(req.params);
+      const position = z
+        .object({ position: z.coerce.number().int().min(0).max(99) })
+        .parse(req.params).position;
+      await readOwned(req.actor!.id, p.id);
+      const photo = await one(
+        db,
+        `SELECT p.photo_url FROM team_players p
+         JOIN order_items i ON i.id=p.order_item_id
+         WHERE i.id=$1 AND i.order_id=$2 AND p.position=$3`,
+        [p.item_id, p.id, position],
+      );
+      assert(photo?.photo_url, 404, 'not_found', 'Player photo not found');
+      return reply.redirect(await storage.signPlayerPhoto(photo.photo_url));
+    },
+  );
   app.post(
     '/orders/:id/items/:item_id/player-photos/:position',
     { preHandler: guard.user },
@@ -356,6 +376,25 @@ export async function buildApp(deps: {
       assert(upload, 400, 'file_required', 'A player photo file is required');
       const stored = await storage.put('photo', upload.buffer, upload.mime);
       return { position, photo_url: stored.url };
+    },
+  );
+  app.get(
+    '/admin/orders/:id/items/:item_id/player-photos/:position',
+    { preHandler: guard.admin },
+    async (req, reply) => {
+      const p = itemIds(req.params);
+      const position = z
+        .object({ position: z.coerce.number().int().min(0).max(99) })
+        .parse(req.params).position;
+      const photo = await one(
+        db,
+        `SELECT p.photo_url FROM team_players p
+         JOIN order_items i ON i.id=p.order_item_id
+         WHERE i.id=$1 AND i.order_id=$2 AND p.position=$3`,
+        [p.item_id, p.id, position],
+      );
+      assert(photo?.photo_url, 404, 'not_found', 'Player photo not found');
+      return reply.redirect(await storage.signPlayerPhoto(photo.photo_url));
     },
   );
   await registerAdmin(app, db, c, storage);

@@ -82,15 +82,17 @@ Configure the branch's S3 endpoint, region, and credentials in `.env`.
 
 Create three buckets in Neon:
 
-| Setting                        | Visibility      | Stored objects                          |
-| ------------------------------ | --------------- | --------------------------------------- |
-| `S3_RECEIPTS_BUCKET`           | **Private**     | `receipts/<uuid>.(webp\|pdf)`           |
-| `S3_LOGOS_BUCKET`              | **Public read** | `team-logos/<uuid>.webp`                |
-| `S3_PLAYERPHOTOS_BUCKET`       | **Public read** | `player-photos/<uuid>.webp`             |
+| Setting                  | Visibility      | Stored objects                |
+| ------------------------ | --------------- | ----------------------------- |
+| `S3_RECEIPTS_BUCKET`     | **Private**     | `receipts/<uuid>.(webp\|pdf)` |
+| `S3_LOGOS_BUCKET`        | **Public read** | `team-logos/<uuid>.webp`      |
+| `S3_PLAYERPHOTOS_BUCKET` | **Private**     | `player-photos/<uuid>.webp`   |
 
-Set `S3_LOGOS_PUBLIC_URL` and `S3_PLAYERPHOTOS_PUBLIC_URL` to the public base URL of the respective bucket, without the object prefix. The application does not modify ACLs; Neon configures visibility at bucket level. See [Neon's Object Storage architecture](https://neon.com/blog/building-neon-object-storage).
+Set `S3_LOGOS_PUBLIC_URL` to the public base URL of the logo bucket, without the object prefix. The application does not modify ACLs; Neon configures visibility at bucket level. See [Neon's Object Storage architecture](https://neon.com/blog/building-neon-object-storage).
 
 `receipts.file_url` stores an object key, never a public URL. Only authorized admin detail requests receive a signed URL, valid for 300 seconds. Captain and public APIs never expose receipt keys or URLs. The panel displays payment amount/code alongside receipt proof; PDFs can be opened through the signed original link.
+
+Player photos are equally private: `team_players.photo_url` stores an object key, never a public URL. Photos are served through authenticated short-lived redirects, valid for 300 seconds, from `GET /orders/:id/items/:item_id/player-photos/:position` (the owning captain) and `GET /admin/orders/:id/items/:item_id/player-photos/:position` (organizers). Unauthorized requests, public `/teams`, and the logged-in captain of a different order receive no photo key.
 
 The server accepts files up to 5 MB. To stay below Vercel’s 4.5 MB request limit, the browser compresses images above 4 MB to WebP before upload (quality 92), preserving original dimensions and aspect ratios for both receipts and logos. Images that remain above 4 MB are rejected locally; PDFs must be under 4 MB. Smaller images go directly to server-side optimization. Logos accept PNG/JPEG/WebP; receipts also accept PDFs with a PDF signature. New images are decoded and re-encoded as WebP at quality 90 with lossless transparency, stripping metadata and rejecting unsupported/malformed inputs. Orientation is corrected before encoding. Both logos and receipts keep their original displayed dimensions and aspect ratios; images are never resized, cropped, or stretched. Decompression is limited to 20 million pixels. PDFs are unchanged. Existing PNG objects remain readable; no migration is required. Public logos retain one-year immutable caching; private receipts remain uncached and accessible only through signed URLs. Files use generated keys. A failed database update deletes its newly uploaded object where storage is reachable. Replaced logos and crash-orphaned objects need a later storage-retention sweep; no unrelated files are deleted automatically.
 

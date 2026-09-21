@@ -29,6 +29,7 @@ export interface Storage {
   put(kind: StoredFileKind, buffer: Buffer, mime: string): Promise<StoredFile>;
   remove(kind: StoredFileKind, key: string): Promise<void>;
   signReceipt(key: string): Promise<string>;
+  signPlayerPhoto(key: string): Promise<string>;
 }
 export interface EmailPayload {
   to: string;
@@ -149,8 +150,6 @@ export function s3Storage(c: Config): Storage {
         : c.S3_LOGOS_BUCKET;
   const prefix = (kind: string) =>
     kind === 'receipt' ? 'receipts' : kind === 'photo' ? 'player-photos' : 'team-logos';
-  const publicUrl = (kind: string) =>
-    kind === 'photo' ? c.S3_PLAYERPHOTOS_PUBLIC_URL : c.S3_LOGOS_PUBLIC_URL;
   function ready() {
     assert(
       c.S3_ENDPOINT && c.S3_ACCESS_KEY_ID && c.S3_SECRET_ACCESS_KEY,
@@ -162,9 +161,9 @@ export function s3Storage(c: Config): Storage {
   return {
     async put(kind, buffer, mime) {
       ready();
-      if (kind !== 'receipt')
+      if (kind === 'logo')
         assert(
-          publicUrl(kind),
+          c.S3_LOGOS_PUBLIC_URL,
           503,
           'storage_unconfigured',
           'A public URL for this object kind is not configured',
@@ -184,12 +183,12 @@ export function s3Storage(c: Config): Storage {
           Body: buffer,
           ContentType: mime,
           CacheControl:
-            kind === 'receipt' ? 'private, no-store' : 'public, max-age=31536000, immutable',
+            kind === 'logo' ? 'public, max-age=31536000, immutable' : 'private, no-store',
         }),
       );
       return {
         key,
-        url: kind === 'receipt' ? key : `${publicUrl(kind).replace(/\/$/, '')}/${key}`,
+        url: kind === 'logo' ? `${c.S3_LOGOS_PUBLIC_URL.replace(/\/$/, '')}/${key}` : key,
       };
     },
     async remove(kind, key) {
@@ -203,6 +202,20 @@ export function s3Storage(c: Config): Storage {
         client,
         new GetObjectCommand({
           Bucket: c.S3_RECEIPTS_BUCKET,
+          Key: key,
+          ResponseContentDisposition: 'inline',
+          ResponseCacheControl: 'private, no-store',
+        }),
+        { expiresIn: 300 },
+      );
+    },
+    async signPlayerPhoto(key) {
+      ready();
+      assert(key.startsWith('player-photos/'), 400, 'invalid_key', 'Invalid player photo key');
+      return getSignedUrl(
+        client,
+        new GetObjectCommand({
+          Bucket: c.S3_PLAYERPHOTOS_BUCKET,
           Key: key,
           ResponseContentDisposition: 'inline',
           ResponseCacheControl: 'private, no-store',

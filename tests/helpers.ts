@@ -51,12 +51,7 @@ export async function setup() {
         kind === 'receipt' ? 'receipts' : kind === 'photo' ? 'player-photos' : 'team-logos';
       const key = `${folder}/${randomUUID()}.${mime === 'application/pdf' ? 'pdf' : 'webp'}`;
       files.set(key, buffer);
-      const host =
-        kind === 'receipt'
-          ? key
-          : kind === 'photo'
-            ? `https://player-photos.example/${key}`
-            : `https://logos.example/${key}`;
+      const host = kind === 'receipt' || kind === 'photo' ? key : `https://logos.example/${key}`;
       return { key, url: host };
     },
     async remove(_kind, key) {
@@ -64,6 +59,9 @@ export async function setup() {
       removed.push(key);
     },
     async signReceipt(key) {
+      return `https://private.example/${key}?signed=1`;
+    },
+    async signPlayerPhoto(key) {
       return `https://private.example/${key}?signed=1`;
     },
   };

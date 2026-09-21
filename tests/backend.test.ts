@@ -218,7 +218,7 @@ describe('registration and publication', () => {
       photo.headers,
     );
     expect(uploaded.statusCode).toBe(200);
-    expect(uploaded.json().photo_url).toMatch(/^https:\/\/player-photos\.example\/player-photos\//);
+    expect(uploaded.json().photo_url).toMatch(/^player-photos\//);
     const saved = await h.call('PATCH', `/orders/${order.id}/items/${order.items[0].id}/profile`, {
       players: ['Suman Karki', 'Pratik Gurung', 'Aarav Shah'],
       jersey_sizes: ['S', 'M', 'XL'],
@@ -231,6 +231,52 @@ describe('registration and publication', () => {
     expect(status.items[0].players[1]).toBe('Pratik Gurung');
     const detail = (await h.call('GET', `/admin/orders/${order.id}`, undefined, 'staff')).json();
     expect(detail.items[0].photo_urls[1]).toBe(uploaded.json().photo_url);
+    const ownPhoto = await h.call(
+      'GET',
+      `/orders/${order.id}/items/${order.items[0].id}/player-photos/1`,
+    );
+    expect(ownPhoto.statusCode).toBe(302);
+    expect(ownPhoto.headers.location).toBe(
+      `https://private.example/${uploaded.json().photo_url}?signed=1`,
+    );
+    expect(
+      (
+        await h.call(
+          'GET',
+          `/orders/${order.id}/items/${order.items[0].id}/player-photos/1`,
+          undefined,
+          'stranger',
+        )
+      ).statusCode,
+    ).toBe(404);
+    expect(
+      (
+        await h.call(
+          'GET',
+          `/orders/${order.id}/items/${order.items[0].id}/player-photos/1`,
+          undefined,
+          'guest',
+        )
+      ).statusCode,
+    ).toBe(401);
+    const adminPhoto = await h.call(
+      'GET',
+      `/admin/orders/${order.id}/items/${order.items[0].id}/player-photos/1`,
+      undefined,
+      'staff',
+    );
+    expect(adminPhoto.statusCode).toBe(302);
+    expect(adminPhoto.headers.location).toContain('signed=1');
+    expect(
+      (
+        await h.call(
+          'GET',
+          `/admin/orders/${order.id}/items/${order.items[0].id}/player-photos/1`,
+          undefined,
+          'user',
+        )
+      ).statusCode,
+    ).toBe(401);
     const logo = await h.call(
       'PATCH',
       `/orders/${order.id}/items/${order.items[0].id}/profile`,

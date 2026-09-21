@@ -17,7 +17,6 @@ const envSchema = z.object({
   S3_LOGOS_BUCKET: z.string().default('booking-public'),
   S3_LOGOS_PUBLIC_URL: z.string().default(''),
   S3_PLAYERPHOTOS_BUCKET: z.string().default('player-photos'),
-  S3_PLAYERPHOTOS_PUBLIC_URL: z.string().default(''),
   RESEND_API_KEY: z.string().default(''),
   EMAIL_FROM: z.string().default(''),
   PAYMENT_BANK_DETAILS: z.string().max(4000).default(''),
@@ -54,18 +53,13 @@ export function config(env: NodeJS.ProcessEnv = process.env): Config {
       'S3_ACCESS_KEY_ID',
       'S3_SECRET_ACCESS_KEY',
       'S3_LOGOS_PUBLIC_URL',
-      'S3_PLAYERPHOTOS_PUBLIC_URL',
       'RESEND_API_KEY',
       'EMAIL_FROM',
       'PAYMENT_BANK_DETAILS',
     ] as const) {
       if (!c[key]) throw new Error(`${key} is required in production`);
     }
-    if (
-      !c.APP_ORIGIN.startsWith('https://') ||
-      !c.S3_LOGOS_PUBLIC_URL.startsWith('https://') ||
-      !c.S3_PLAYERPHOTOS_PUBLIC_URL.startsWith('https://')
-    )
+    if (!c.APP_ORIGIN.startsWith('https://') || !c.S3_LOGOS_PUBLIC_URL.startsWith('https://'))
       throw new Error('Production origins must use HTTPS');
   }
   return c;
