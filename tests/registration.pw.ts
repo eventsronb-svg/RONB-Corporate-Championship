@@ -280,10 +280,10 @@ test('new captain signs in, submits one team, corrects rejected payment, and fin
     await expect(
       page.getByRole('heading', { name: 'Register another sport', level: 2 }),
     ).toBeVisible();
-    // The company is carried over from the first registration and cannot be changed.
-    const companyInput = page.getByRole('textbox', { name: 'Company name' });
-    await expect(companyInput).toHaveValue('E2E Company');
-    await expect(companyInput).toHaveAttribute('readonly', '');
+    // The company profile is carried over; only the new sport needs to be chosen.
+    await expect(
+      page.getByText('Your company profile and contact number are already saved.'),
+    ).toBeVisible();
     await expect(page.getByRole('radio', { name: /^Football / })).toBeChecked();
     // The existing Basketball registration remains unavailable in the new order.
     const registeredSport = page.locator('.sport-choice').filter({ hasText: 'Basketball' });
@@ -291,6 +291,9 @@ test('new captain signs in, submits one team, corrects rejected payment, and fin
     await expect(registeredSport).toHaveClass(/is-registered/);
     await expect(registeredSport).toHaveClass(/is-verified/);
     await expect(registeredSport.getByText('Registered · Verified')).toBeVisible();
+    await page.getByRole('button', { name: 'Continue to invoice' }).click();
+    await expect(page.getByRole('heading', { name: 'Issue your invoice', level: 2 })).toBeVisible();
+    await expect(page.getByLabel('Phone number')).toHaveCount(0);
     await page.goto(`/register?order=${orderId}`);
     await expect(page.getByRole('heading', { name: 'See you there E2E Company.' })).toBeVisible();
     await page.getByRole('link', { name: 'See team listing' }).click();

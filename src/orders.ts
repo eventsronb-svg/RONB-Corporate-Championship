@@ -289,6 +289,22 @@ export class Orders {
             sports.find((s) => s.id === pick.sport_id)!.price,
           ],
         );
+      // A later registration belongs to the same company and captain. Reuse the verified
+      // contact number so the captain can go straight to invoicing.
+      if (prior && o.status === 'draft') {
+        const user = await one(tx, 'SELECT phone FROM users WHERE id=$1', [userId]);
+        assert(
+          user?.phone,
+          409,
+          'contact_required',
+          'Add a contact number to your first registration before registering another sport',
+        );
+        await tx.query('UPDATE orders SET phone_number=$2,updated_at=now() WHERE id=$1', [
+          id,
+          user.phone,
+        ]);
+        await transition(tx, o, 'phone_captured');
+      }
       await tx.query('UPDATE orders SET updated_at=now() WHERE id=$1', [id]);
       return detail(tx, id);
     });

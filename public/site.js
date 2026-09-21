@@ -331,9 +331,9 @@ async function sportsStep(order) {
   const lockedCompany =
     registrations.find((other) => other.company_name)?.company_name || order.company_name || '';
   const companyField = companyLocked
-    ? `<p class="form-note" id="company-locked-note">Your company ${esc(lockedCompany)} is already registered and is used for every registration.</p><input name="company_name" aria-required="true" autocomplete="organization" value="${esc(lockedCompany)}" maxlength="120" readonly>`
-    : `<input name="company_name" aria-required="true" autocomplete="organization" value="${esc(order.company_name || '')}" placeholder="Your company name" maxlength="120">`;
-  target.innerHTML = `<p class="eyebrow">Step 01 / Company & sport</p><h2>${companyLocked ? 'Register another sport' : 'Register your company'}</h2><p>${companyLocked ? 'Your company is already registered. Choose the sport you want to enter for it.' : 'Enter your company name, then choose the sport you want to enter. To enter a second sport, register again for that sport.'}</p><form id="sports-form" class="form-stack"><label class="input-group">Company name${companyField}</label><h3>Select a sport</h3><div class="choice-list">${
+    ? `<p class="info-box" id="company-locked-note"><strong>${esc(lockedCompany)}</strong><br>Your company profile and contact number are already saved.</p>`
+    : `<label class="input-group">Company name<input name="company_name" aria-required="true" autocomplete="organization" value="${esc(order.company_name || '')}" placeholder="Your company name" maxlength="120"></label>`;
+  target.innerHTML = `<p class="eyebrow">Step 01 / Company & sport</p><h2>${companyLocked ? 'Register another sport' : 'Register your company'}</h2><p>${companyLocked ? 'Choose a sport. We will reuse your company name, logo and contact number.' : 'Enter your company name, then choose the sport you want to enter. To enter a second sport, register again for that sport.'}</p><form id="sports-form" class="form-stack">${companyField}<h3>Select a sport</h3><div class="choice-list">${
     sports.length
       ? sports
           .map((sport) => {
@@ -362,7 +362,7 @@ async function sportsStep(order) {
           })
           .join('')
       : '<p class="teams-state">No sports are open yet. Ask the organizer to add the championship formats.</p>'
-  }</div><p class="error" id="form-error" hidden></p><div class="form-actions"><button class="button primary" ${sports.length ? '' : 'disabled'}>Continue to contact</button></div></form>`;
+  }</div><p class="error" id="form-error" hidden></p><div class="form-actions"><button class="button primary" ${sports.length ? '' : 'disabled'}>${companyLocked ? 'Continue to invoice' : 'Continue to contact'}</button></div></form>`;
   const focus = new URLSearchParams(location.search).get('focus');
   if (!order.items.length && focus) {
     const sport = sports.find((item) => slugify(item.name) === focus);
@@ -371,7 +371,9 @@ async function sportsStep(order) {
   }
   bindSubmission('#sports-form', async (event) => {
     event.preventDefault();
-    const companyName = event.currentTarget.elements.company_name.value.trim();
+    const companyName = companyLocked
+      ? lockedCompany
+      : event.currentTarget.elements.company_name.value.trim();
     const picks = [...document.querySelectorAll('input[name=sport]:checked')]
       .filter((input) => !input.disabled)
       .map((input) => ({
@@ -392,6 +394,17 @@ async function sportsStep(order) {
 }
 function phoneStep(order) {
   const target = document.querySelector('#registration-content');
+  if (order.company_locked && order.status === 'phone_captured') {
+    target.innerHTML = `<p class="eyebrow">Step 02 / Invoice</p><h2>Issue your invoice</h2><p>Your saved company profile and contact number will be used for this ${esc(order.items[0]?.sport_name || 'sport')} registration.</p><form id="invoice-form" class="form-stack"><p class="error" hidden></p><div class="form-actions"><button type="button" class="button" id="edit-sports">Edit sport</button><button class="button primary">Issue invoice</button></div></form>`;
+    document.querySelector('#edit-sports').addEventListener('click', () =>
+      sportsStep(order).catch((error) => {
+        if (error.status === 401) renderLogin();
+        else say(error.message);
+      }),
+    );
+    bindSubmission('#invoice-form', async () => resume(await post(`/orders/${order.id}/invoice`)));
+    return;
+  }
   target.innerHTML = `<p class="eyebrow">Step 02 / Contact</p><h2>Where can we reach the captain?</h2><p>Use the phone number the organizer should use for registration questions.</p><form id="phone-form" class="form-stack"><label class="input-group">Phone number<input name="phone" required inputmode="tel" value="${esc(order.phone_number || '')}" placeholder="+977 9800000000"></label><p class="error" hidden></p><div class="form-actions"><button type="button" class="button" id="edit-sports">Edit company & sports</button><button class="button primary">Issue invoice</button></div></form>`;
   document.querySelector('#edit-sports').addEventListener('click', () =>
     sportsStep(order).catch((error) => {

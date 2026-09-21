@@ -156,13 +156,15 @@ describe('registration and publication', () => {
     expect(second.company_locked).toBe(true);
     expect(second.items[0].team_name).toBe('Valley Strikers');
     expect(second.items[0].logo_url).toBe(original[0].logo_url);
+    expect(second.phone_number).toBe('+977 9800000000');
+    expect(second.resume_step).toBe('invoice');
 
-    await h.call('POST', `/orders/${secondId}/phone`, { phone_number: '+977 9800000000' });
     await h.call('POST', `/orders/${secondId}/invoice`);
     await h.call('POST', `/orders/${secondId}/payment-request`);
     const f = h.multipart('receipt');
     expect(
-      (await h.call('POST', `/orders/${secondId}/receipt`, f.payload, 'user', f.headers)).statusCode,
+      (await h.call('POST', `/orders/${secondId}/receipt`, f.payload, 'user', f.headers))
+        .statusCode,
     ).toBe(200);
     const confirmed = await h.call(
       'POST',
@@ -185,9 +187,7 @@ describe('registration and publication', () => {
     });
     expect(saved.statusCode).toBe(200);
     expect(saved.json().logo_url).toBe(original[0].logo_url);
-    expect(
-      (await h.call('POST', `${path}/complete`)).statusCode,
-    ).toBe(200);
+    expect((await h.call('POST', `${path}/complete`)).statusCode).toBe(200);
     expect((await h.call('GET', '/teams')).json()).toHaveLength(2);
   });
   it('uploads player photos, renders them with the roster, and keeps them private before payment', async () => {
