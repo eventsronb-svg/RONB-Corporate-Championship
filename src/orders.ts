@@ -52,6 +52,7 @@ export const profileInput = z
       .max(100)
       .optional(),
     jersey_style: z.enum(['full_sleeve', 'half_sleeve']).nullable().optional(),
+    jersey_styles: z.array(z.enum(['full_sleeve', 'half_sleeve']).nullable()).max(100).optional(),
     captain_position: z.number().int().min(0).max(99).nullable().optional(),
     player_photos: z.array(z.string().startsWith('player-photos/').nullable()).max(100).optional(),
   })
@@ -609,7 +610,8 @@ export class Orders {
         'invalid_jersey_sizes',
         'Send one jersey size per player together with the roster',
       );
-      assert(input.jersey_style === undefined || input.players !== undefined, 400, 'invalid_jersey_style', 'Send the team jersey style together with the roster');
+      const teamJerseyStyle = input.jersey_style ?? input.jersey_styles?.find(Boolean) ?? null;
+      assert(input.jersey_style !== undefined || input.jersey_styles !== undefined || itemSport?.name.toLowerCase() !== 'cricksal', 400, 'invalid_jersey_style', 'Send the team jersey style together with the roster');
       assert(
         input.players !== undefined ||
           input.logo_url !== undefined ||
@@ -638,8 +640,8 @@ export class Orders {
         itemId,
         captainPosition,
       ]);
-      if (input.jersey_style !== undefined)
-        await tx.query('UPDATE order_items SET jersey_style=$2 WHERE id=$1', [itemId, input.jersey_style]);
+      if (input.jersey_style !== undefined || input.jersey_styles !== undefined)
+        await tx.query('UPDATE order_items SET jersey_style=$2 WHERE id=$1', [itemId, teamJerseyStyle]);
       if (input.logo_url) {
         if (item.logo_url) {
           const prior = await priorCompany(tx, o);

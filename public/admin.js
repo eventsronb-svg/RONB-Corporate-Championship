@@ -376,7 +376,7 @@ function openRosterEditor(panel, orderId, item) {
     index < Math.max(MIN_ROSTER[item.sport_name.toLowerCase()] ?? 1, item.players.length);
     index++
   )
-    addRow(item.players[index] || '', item.jersey_sizes?.[index], item.photo_urls?.[index], item.jersey_styles?.[index]);
+    addRow(item.players[index] || '', item.jersey_sizes?.[index], item.photo_urls?.[index], item.jersey_style);
   fields.addEventListener('input', () => {
     syncCaptain();
     error.hidden = true;
@@ -480,7 +480,7 @@ function openRosterEditor(panel, orderId, item) {
         body: JSON.stringify({
           players: filled.map((row) => row.name),
           jersey_sizes: filled.map((row) => row.jersey),
-          jersey_styles: filled.map((row) => cricket ? row.style : null),
+          jersey_style: cricket ? (filled[0]?.style ?? null) : null,
           captain_position: captainPosition,
           player_photos: filled.map((row) => row.photo),
         }),
@@ -505,14 +505,14 @@ async function teamDetail(id) {
       item.players
         .map(
           (name, index) =>
-            `<tr>${item.photo_urls?.[index] ? `<td><img class="player-photo" src="/admin/orders/${team.id}/items/${item.id}/player-photos/${index}" alt="Player ${e(name)} photo"></td>` : '<td><span class="player-photo player-photo-none" aria-hidden="true"></span></td>'}<td class="strong">${e(name)}</td><td>${item.captain_position === index ? 'Captain' : 'Player'}</td><td>${jerseyBadge(item.jersey_sizes[index])}${item.sport_name.toLowerCase() === 'cricksal' && item.jersey_styles?.[index] ? `<span class="sub">${item.jersey_styles[index] === 'full_sleeve' ? 'Full sleeve' : 'Half sleeve'}</span>` : ''}</td></tr>`,
+            `<tr>${item.photo_urls?.[index] ? `<td><img class="player-photo" src="/admin/orders/${team.id}/items/${item.id}/player-photos/${index}" alt="Player ${e(name)} photo"></td>` : '<td><span class="player-photo player-photo-none" aria-hidden="true"></span></td>'}<td class="strong">${e(name)}</td><td>${item.captain_position === index ? 'Captain' : 'Player'}</td><td>${jerseyBadge(item.jersey_sizes[index])}</td></tr>`,
         )
         .join('') +
       '</tbody></table></div>';
     return `<section class="surface panel sport-roster" data-item="${e(item.id)}"><div class="team-row">${item.logo_url ? `<img class="team-logo" src="${e(item.logo_url)}" alt="${e(item.team_name)} logo">` : ''}<div><h2>${e(item.sport_name)}</h2><p>${e(item.team_name)} · ${item.players.length} members</p></div><span class="status ${item.profile_completed_at ? 'confirmed' : ''}">${item.profile_completed_at ? 'Profile complete' : 'Profile pending'}</span><button class="button roster-edit-button" type="button" data-edit-roster>Edit roster</button></div><div class="roster-view">${hasRoster ? table : '<p class="form-note">No team members added yet. The captain can complete this roster after payment confirmation.</p>'}</div><form class="roster-editor" hidden><fieldset class="roster-fields"><legend>Team members</legend><p class="form-note">Edit member names, jersey sizes and photos. Photos are private and only visible to the organizer and the captain.</p><div class="player-fields" data-player-fields></div><button class="button" type="button" data-add-player>Add member</button></fieldset><label class="input-group">Team captain<select name="captain_position"><option value="">Choose a player</option></select></label><p class="error" hidden></p><div class="form-actions"><button class="button" type="button" data-cancel-roster>Cancel</button><button class="button primary" type="submit">Save roster</button></div></form></section>`;
   };
   return {
-    html: `<a class="back" href="#teams">← All teams</a>${header(team.team_name, `${team.contact.name} · ${team.contact.email} · ${team.phone || team.contact.phone || 'No phone provided'}`, 'TEAM PROFILE')}<div class="team-detail-meta">${registrationStatus(team.status)}<a href="#order/${e(team.id)}">View registration ↗</a></div><div class="stack">${team.items.map(rosterPanel).join('')}</div>`,
+    html: `<a class="back" href="#teams">← All teams</a>${header(team.team_name, `${team.contact.name} · ${team.contact.email} · ${team.phone || team.contact.phone || 'No phone provided'}`, 'TEAM PROFILE')}<div class="team-detail-meta">${registrationStatus(team.status)}<a href="#order/${e(team.id)}">View registration ↗</a></div><div class="stack">${team.items.map((item) => { const html = rosterPanel(item); const sleeve = item.sport_name.toLowerCase() === 'cricksal' && item.jersey_style ? `<p class="sub team-sleeve">Team sleeve: ${item.jersey_style === 'full_sleeve' ? 'Full sleeve' : 'Half sleeve'}</p>` : ''; return html.replace('</div><span class="status', `${sleeve}</div><span class="status`); }).join('')}</div>`,
     bind() {
       document.querySelectorAll('[data-edit-roster]').forEach((button) => {
         button.addEventListener('click', () => {

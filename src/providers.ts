@@ -126,7 +126,7 @@ export async function validateFile(buffer: Buffer, mime: string, kind: StoredFil
     const normalized = img.rotate();
     return {
       buffer: await normalized
-        .webp({ quality: 90, alphaQuality: 100, smartSubsample: true, effort: 4 })
+        .webp({ quality: 50, alphaQuality: 100, smartSubsample: true, effort: 4 })
         .toBuffer(),
       mime: 'image/webp',
     };

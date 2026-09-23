@@ -48,10 +48,10 @@ async function parseProfileUpdate(
         upload = await validateFile(await part.toBuffer(), part.mimetype, 'logo');
       } else {
         assert(
-          ['players', 'captain_position', 'jersey_sizes', 'jersey_styles', 'player_photos'].includes(part.fieldname),
+          ['players', 'captain_position', 'jersey_sizes', 'jersey_style', 'jersey_styles', 'player_photos'].includes(part.fieldname),
           400,
           'invalid_field',
-          'Only players, captain_position, jersey_sizes, jersey_styles, player_photos and logo fields are accepted',
+          'Only players, captain_position, jersey_sizes, jersey_style, player_photos and logo fields are accepted',
         );
         let value: unknown;
         try {

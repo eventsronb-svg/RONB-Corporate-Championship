@@ -807,9 +807,9 @@ async function doneStep(order) {
     const registration = registrations.find((other) => other.items.some((item) => item.team_name === teamName));
     const item = registration?.items[0];
     if (item?.sport_name?.toLowerCase() !== 'cricksal') return;
+    if (item.jersey_style) summary.querySelector('.team-name')?.insertAdjacentHTML('afterend', `<p class="team-sleeve">Team sleeve: ${item.jersey_style === 'full_sleeve' ? 'Full sleeve' : 'Half sleeve'}</p>`);
     summary.querySelectorAll('.jersey-badge').forEach((badge, index) => {
-      const style = item.jersey_styles?.[index];
-      if (style) badge.insertAdjacentHTML('beforeend', `<small>${style === 'full_sleeve' ? 'Full sleeve' : 'Half sleeve'}</small>`);
+      const style = index === 0 ? item.jersey_style : null;
     });
   });
   target.querySelectorAll('[data-register-sport]').forEach((button) =>
