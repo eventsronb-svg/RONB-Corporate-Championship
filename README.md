@@ -98,9 +98,9 @@ The server accepts files up to 5 MB. To stay below Vercel’s 4.5 MB request lim
 
 ### Payment details
 
-Set `PAYMENT_BANK_DETAILS` to the **exact merchant bank account details** shown to captains on the payment step. Enter each field on its own line; the block is rendered as-is. Each captain has one stable remarks code for the account; the payment request stores it and an expiry alongside the bank details. The same code is reused for every registration from the same Google account.
+The merchant bank account block shown to captains on the payment step is hard-coded as `PAYMENT_BANK_DETAILS` in `src/config.ts` (bank name, branch, account name, account number and PAN), one field per line; the block is rendered as-is. Each captain has one stable remarks code for the account; the payment request stores it and an expiry alongside the bank details. The same code is reused for every registration from the same Google account.
 
-No QR is generated. If `PAYMENT_BANK_DETAILS` is missing, the payment request is rejected rather than showing incomplete instructions. The captain must enter their account's payment code in transfer remarks and pay the exact invoice amount. The default code lifetime is 24 hours; adjust `PAYMENT_EXPIRY_MINUTES` and `PAYMENT_INSTRUCTIONS` as needed.
+No QR is generated. The payment-step copy is hard-coded as `PAYMENT_INSTRUCTIONS` in `src/config.ts`; neither value is read from the environment. The captain must enter their account's payment code in transfer remarks and pay the exact invoice amount. The default code lifetime is 24 hours; adjust `PAYMENT_EXPIRY_MINUTES` as needed.
 
 ### Resend
 

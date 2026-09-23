@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { type Database, type Queryable, type Row, one } from './db.js';
-import type { Config } from './config.js';
+import { PAYMENT_BANK_DETAILS, PAYMENT_INSTRUCTIONS, type Config } from './config.js';
 import { assert } from './errors.js';
 import { confirmationEmail } from './email-templates.js';
 export const paid = ['confirmed', 'contacted', 'completed'];
@@ -402,12 +402,6 @@ export class Orders {
       );
       const existing = await one(tx, 'SELECT * FROM payment_requests WHERE order_id=$1', [id]);
       if (existing) return existing;
-      assert(
-        this.config.PAYMENT_BANK_DETAILS,
-        503,
-        'payment_unconfigured',
-        'The merchant bank details have not been configured',
-      );
       // The remarks code is stable per account: every registration from the same
       // Google account reuses the same unique code.
       const user = (await one(tx, 'SELECT * FROM users WHERE id=$1 FOR UPDATE', [userId]))!;
@@ -423,15 +417,15 @@ export class Orders {
       const p = await one(
         tx,
         `INSERT INTO payment_requests(order_id,unique_code,qr_payload,expires_at) VALUES($1,$2,$3,now()+($4*interval '1 minute')) RETURNING *`,
-        [id, code, this.config.PAYMENT_BANK_DETAILS, this.config.PAYMENT_EXPIRY_MINUTES],
+        [id, code, PAYMENT_BANK_DETAILS, this.config.PAYMENT_EXPIRY_MINUTES],
       );
       await transition(tx, o, 'payment_pending');
       return p!;
     });
     return {
       ...result,
-      bank_details: this.config.PAYMENT_BANK_DETAILS,
-      instructions: this.config.PAYMENT_INSTRUCTIONS,
+      bank_details: PAYMENT_BANK_DETAILS,
+      instructions: PAYMENT_INSTRUCTIONS,
     };
   }
   async receipt(userId: string, id: string, key: string) {

@@ -1,4 +1,15 @@
 import { z } from 'zod';
+
+// Merchant account captains transfer to. Hard-coded on purpose: never read from the environment.
+export const PAYMENT_BANK_DETAILS = `Bank Name: Nabil Bank
+Branch: Teendhara
+Account Name: Routine of Nepal Pvt. Ltd.
+Account Number: 01701017503541
+PAN Number: 6059939958`;
+
+export const PAYMENT_INSTRUCTIONS =
+  'Transfer the exact amount and enter the unique code in payment remarks.';
+
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
@@ -19,12 +30,6 @@ const envSchema = z.object({
   S3_PLAYERPHOTOS_BUCKET: z.string().default('player-photos'),
   RESEND_API_KEY: z.string().default(''),
   EMAIL_FROM: z.string().default(''),
-  PAYMENT_BANK_DETAILS: z.string().max(4000).default(''),
-  PAYMENT_INSTRUCTIONS: z
-    .string()
-    .default(
-      'Transfer the exact amount to the bank account below and enter the payment code in payment remarks. Use the same code for every transfer from your account.',
-    ),
   PAYMENT_EXPIRY_MINUTES: z.coerce.number().int().min(5).max(10080).default(1440),
 });
 export type Config = z.infer<typeof envSchema>;
@@ -55,7 +60,6 @@ export function config(env: NodeJS.ProcessEnv = process.env): Config {
       'S3_LOGOS_PUBLIC_URL',
       'RESEND_API_KEY',
       'EMAIL_FROM',
-      'PAYMENT_BANK_DETAILS',
     ] as const) {
       if (!c[key]) throw new Error(`${key} is required in production`);
     }

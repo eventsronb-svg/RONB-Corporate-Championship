@@ -589,7 +589,10 @@ describe('authorization and validation', () => {
     const second = await h.call('POST', `/orders/${o.id}/payment-request`);
     expect(first.json().id).toBe(second.json().id);
     expect(first.json().bank_details).toBe(
-      'Bank Name: Nabil Bank\nBranch: Teendhara\nAccount: 01701017503541',
+      'Bank Name: Nabil Bank\nBranch: Teendhara\nAccount Name: Routine of Nepal Pvt. Ltd.\nAccount Number: 01701017503541\nPAN Number: 6059939958',
+    );
+    expect(first.json().instructions).toBe(
+      'Transfer the exact amount and enter the unique code in payment remarks.',
     );
     await h.db.query(
       "UPDATE payment_requests SET expires_at=now()-interval '1 second' WHERE order_id=$1",

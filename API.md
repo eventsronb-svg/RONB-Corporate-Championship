@@ -89,7 +89,7 @@ An order response includes order columns plus:
 
 `resume_step` values: `sports`, `invoice`, `payment`, `receipt`, `awaiting_review`, `team_profile`, `registered`, `cancelled`, `expired`. An order in `phone_captured` resumes at `invoice`; the UI can still edit sports/contact details until invoice creation. A rejected order has `rejection: {notes, verified_at}`.
 
-The payment-request endpoint returns its stored `id`, `order_id`, `unique_code`, `qr_payload`, `expires_at`, `created_at`, plus `qr_data_url` (PNG data URL) and `instructions`. The same request never creates another code. The remarks code is stable per account: every registration from the same Google account reuses the same `unique_code`, so captains enter the same code in every transfer. The stored payload is also available in order detail for clients that render their own QR.
+The payment-request endpoint returns its stored `id`, `order_id`, `unique_code`, `qr_payload`, `expires_at`, `created_at`, plus `qr_data_url` (PNG data URL), `bank_details` and `instructions`. The same request never creates another code. The remarks code is stable per account: every registration from the same Google account reuses the same `unique_code`, so captains enter the same code in every transfer. The stored payload is also available in order detail for clients that render their own QR.
 
 Upload examples after obtaining a session cookie:
 
