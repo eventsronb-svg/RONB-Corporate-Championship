@@ -340,7 +340,7 @@ h2 {
   pointer-events: none;
   transition: transform 0.55s cubic-bezier(0.2, 0.8, 0.3, 1.5);
 }
-.sport-crickshal .sport-symbol {
+.sport-cricksal .sport-symbol {
   right: -34px;
   bottom: -40px;
   width: 146.1px;
@@ -1470,11 +1470,14 @@ h2 {
 .player-photo-pick {
   position: relative;
   display: block;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--accent);
+  width: 84px;
+  height: 84px;
+  margin-top: -84px;
+  border-radius: 50%;
   cursor: pointer;
+  z-index: 2;
 }
+.player-photo-pick span { display: none; }
 .player-photo-pick input {
   position: absolute;
   inset: 0;
@@ -1484,7 +1487,7 @@ h2 {
   cursor: pointer;
 }
 .player-photo-pick:hover {
-  text-decoration: underline;
+  background: rgba(255, 255, 255, 0.12);
 }
 .player-photo-pick:focus-within {
   outline: 3px solid var(--accent);
@@ -1539,6 +1542,18 @@ h2 {
 .jersey-options label:hover span {
   border-color: var(--accent);
 }
+.player-row .jersey-selector + .jersey-selector {
+  grid-column: 3;
+  margin-top: -14px;
+}
+.player-row .jersey-selector + .jersey-selector .jersey-options span {
+  min-width: 92px;
+  height: 42px;
+  padding: 0 8px;
+  border-radius: 10px;
+  line-height: 1.05;
+  text-align: center;
+}
 @media (max-width: 540px) {
   .player-row {
     grid-template-columns: 84px minmax(0, 1fr);
@@ -1546,6 +1561,10 @@ h2 {
   }
   .player-row .jersey-selector {
     grid-column: 1 / -1;
+  }
+  .player-row .jersey-selector + .jersey-selector {
+    grid-column: 1 / -1;
+    margin-top: -4px;
   }
 }
 #captain-note {
@@ -1760,4 +1779,15 @@ h2 {
   .masthead-link {
     font-size: 10.2px;
   }
+}
+.form-actions .button:disabled,
+form.is-loading .button:disabled {
+  cursor: wait;
+  opacity: 0.68;
+}
+.jersey-badge small {
+  display: block;
+  font-size: 10px;
+  line-height: 1.1;
+  white-space: nowrap;
 }

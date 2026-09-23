@@ -949,11 +949,14 @@ tbody tr:hover {
 .player-photo-pick {
   position: relative;
   display: block;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--accent);
+  width: 84px;
+  height: 84px;
+  margin-top: -84px;
+  border-radius: 50%;
   cursor: pointer;
+  z-index: 2;
 }
+.player-photo-pick span { display: none; }
 .player-photo-pick input {
   position: absolute;
   inset: 0;
@@ -963,7 +966,7 @@ tbody tr:hover {
   cursor: pointer;
 }
 .player-photo-pick:hover {
-  text-decoration: underline;
+  background: rgba(255, 255, 255, 0.12);
 }
 .player-photo-pick:focus-within {
   outline: 3px solid var(--accent);
@@ -1014,6 +1017,18 @@ tbody tr:hover {
 .jersey-options input:focus-visible + span {
   outline: 2px solid var(--accent);
   outline-offset: 3px;
+}
+.player-row .jersey-selector + .jersey-selector {
+  grid-column: 3;
+  margin-top: -14px;
+}
+.player-row .jersey-selector + .jersey-selector .jersey-options span {
+  min-width: 92px;
+  height: 42px;
+  padding: 0 8px;
+  border-radius: 10px;
+  line-height: 1.05;
+  text-align: center;
 }
 .jersey-options label:hover span {
   border-color: var(--accent);

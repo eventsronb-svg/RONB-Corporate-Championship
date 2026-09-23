@@ -29,7 +29,7 @@ const date = (s) =>
 const money = (value) =>
   `${Number(value).toLocaleString('en-US', { minimumFractionDigits: Number.isInteger(Number(value)) ? 0 : 2, maximumFractionDigits: 2 })} NPR`;
 const sportSummary = (teams) => {
-  const order = ['futsal', 'crickshal', 'basketball'];
+  const order = ['futsal', 'cricksal', 'basketball'];
   const rank = (name) => {
     const index = order.indexOf(name.toLowerCase());
     return index < 0 ? order.length : index;
@@ -39,7 +39,7 @@ const sportSummary = (teams) => {
     .join('/');
 };
 const sportLabels = (names) => {
-  const order = ['futsal', 'crickshal', 'basketball'];
+  const order = ['futsal', 'cricksal', 'basketball'];
   const rank = (name) => {
     const index = order.indexOf(name.toLowerCase());
     return index < 0 ? order.length : index;
@@ -331,8 +331,9 @@ const jerseyBadge = (size) =>
   size
     ? `<span class="jersey-badge" aria-label="Jersey size ${e(size)}">${e(size)}</span>`
     : '<span class="sub">Not provided</span>';
-const MIN_ROSTER = { futsal: 5, basketball: 3, crickshal: 7 };
+const MIN_ROSTER = { futsal: 5, basketball: 3, cricksal: 7 };
 function openRosterEditor(panel, orderId, item) {
+  const cricket = item.sport_name.toLowerCase() === 'cricksal';
   const view = panel.querySelector('.roster-view');
   const form = panel.querySelector('.roster-editor');
   const fields = form.querySelector('[data-player-fields]');
@@ -358,7 +359,7 @@ function openRosterEditor(panel, orderId, item) {
         .join('');
     captain.value = selected;
   };
-  const addRow = (name = '', size = null, photoKey = null) => {
+  const addRow = (name = '', size = null, photoKey = null, style = null) => {
     const index = fields.children.length;
     const preview = photoKey
       ? `<img class="player-photo-preview" src="/admin/orders/${orderId}/items/${item.id}/player-photos/${index}" alt="" aria-hidden="true">`
@@ -367,6 +368,7 @@ function openRosterEditor(panel, orderId, item) {
       'beforeend',
       `<div class="player-row"><div class="player-photo">${preview}<button type="button" class="player-photo-clear" data-photo="${index}" aria-label="Remove photo for member ${index + 1}" ${photoKey ? '' : 'hidden'}>×</button><label class="player-photo-pick"><input name="photo-${index}" type="file" accept="image/png,image/jpeg,image/webp" aria-label="Photo for member ${index + 1}"><span>Photo</span></label></div><label class="input-group">Member ${index + 1}<input name="player" type="text" value="${e(name)}" maxlength="120" autocomplete="off" placeholder="Full name"></label><fieldset class="jersey-selector"><legend>Jersey size <span class="sr-only">for member ${index + 1}</span></legend><div class="jersey-options">${['S', 'M', 'L', 'XL'].map((option) => `<label><input type="radio" name="jersey-${index}" value="${option}" ${size === option ? 'checked' : ''}><span>${option}</span></label>`).join('')}</div></fieldset></div>`,
     );
+    if (cricket) fields.lastElementChild.insertAdjacentHTML('beforeend', `<fieldset class="jersey-selector"><legend>Sleeve style</legend><div class="jersey-options">${[['full_sleeve', 'Full sleeve'], ['half_sleeve', 'Half sleeve']].map(([value, label]) => `<label><input type="radio" name="jersey-style-${index}" value="${value}" ${style === value ? 'checked' : ''}><span>${label}</span></label>`).join('')}</div></fieldset>`);
     addButton.disabled = fields.children.length >= 100;
   };
   for (
@@ -374,7 +376,7 @@ function openRosterEditor(panel, orderId, item) {
     index < Math.max(MIN_ROSTER[item.sport_name.toLowerCase()] ?? 1, item.players.length);
     index++
   )
-    addRow(item.players[index] || '', item.jersey_sizes?.[index], item.photo_urls?.[index]);
+    addRow(item.players[index] || '', item.jersey_sizes?.[index], item.photo_urls?.[index], item.jersey_styles?.[index]);
   fields.addEventListener('input', () => {
     syncCaptain();
     error.hidden = true;
@@ -435,6 +437,7 @@ function openRosterEditor(panel, orderId, item) {
       domIndex,
       name: rowEl.querySelector('[name="player"]').value.trim(),
       jersey: rowEl.querySelector(`[name="jersey-${domIndex}"]:checked`)?.value ?? null,
+      style: rowEl.querySelector(`[name="jersey-style-${domIndex}"]:checked`)?.value ?? null,
       photo: photoSelections.has(domIndex)
         ? photoSelections.get(domIndex)
         : (item.photo_urls?.[domIndex] ?? null),
@@ -455,23 +458,29 @@ function openRosterEditor(panel, orderId, item) {
     const busy = (next) =>
       form.querySelectorAll('input,button').forEach((el) => (el.disabled = next));
     busy(true);
+    const saveButton = form.querySelector('button[type="submit"]');
+    const saveLabel = saveButton?.textContent;
+    if (saveButton) saveButton.textContent = 'Saving…';
+    form.setAttribute('aria-busy', 'true');
     error.hidden = true;
     try {
-      for (const row of filled) {
-        if (!(row.photo instanceof File)) continue;
-        const fd = new FormData();
-        fd.append('photo', row.photo);
-        const uploaded = await api(
-          `/admin/orders/${orderId}/items/${item.id}/player-photos/${row.domIndex}`,
-          { method: 'POST', body: fd },
-        );
-        row.photo = uploaded.photo_url;
-      }
+      await Promise.all(
+        filled.filter((row) => row.photo instanceof File).map(async (row) => {
+          const fd = new FormData();
+          fd.append('photo', row.photo);
+          const uploaded = await api(
+            `/admin/orders/${orderId}/items/${item.id}/player-photos/${row.domIndex}`,
+            { method: 'POST', body: fd },
+          );
+          row.photo = uploaded.photo_url;
+        }),
+      );
       await api(`/admin/orders/${orderId}/items/${item.id}/profile`, {
         method: 'PATCH',
         body: JSON.stringify({
           players: filled.map((row) => row.name),
           jersey_sizes: filled.map((row) => row.jersey),
+          jersey_styles: filled.map((row) => cricket ? row.style : null),
           captain_position: captainPosition,
           player_photos: filled.map((row) => row.photo),
         }),
@@ -480,6 +489,8 @@ function openRosterEditor(panel, orderId, item) {
       message('Team roster saved.');
     } catch (err) {
       busy(false);
+      if (saveButton) saveButton.textContent = saveLabel;
+      form.removeAttribute('aria-busy');
       error.textContent = `Could not save the roster. ${err.message}`;
       error.hidden = false;
     }
@@ -494,7 +505,7 @@ async function teamDetail(id) {
       item.players
         .map(
           (name, index) =>
-            `<tr>${item.photo_urls?.[index] ? `<td><img class="player-photo" src="/admin/orders/${team.id}/items/${item.id}/player-photos/${index}" alt="Player ${e(name)} photo"></td>` : '<td><span class="player-photo player-photo-none" aria-hidden="true"></span></td>'}<td class="strong">${e(name)}</td><td>${item.captain_position === index ? 'Captain' : 'Player'}</td><td>${jerseyBadge(item.jersey_sizes[index])}</td></tr>`,
+            `<tr>${item.photo_urls?.[index] ? `<td><img class="player-photo" src="/admin/orders/${team.id}/items/${item.id}/player-photos/${index}" alt="Player ${e(name)} photo"></td>` : '<td><span class="player-photo player-photo-none" aria-hidden="true"></span></td>'}<td class="strong">${e(name)}</td><td>${item.captain_position === index ? 'Captain' : 'Player'}</td><td>${jerseyBadge(item.jersey_sizes[index])}${item.sport_name.toLowerCase() === 'cricksal' && item.jersey_styles?.[index] ? `<span class="sub">${item.jersey_styles[index] === 'full_sleeve' ? 'Full sleeve' : 'Half sleeve'}</span>` : ''}</td></tr>`,
         )
         .join('') +
       '</tbody></table></div>';

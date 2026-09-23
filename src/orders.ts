@@ -6,7 +6,7 @@ import { confirmationEmail } from './email-templates.js';
 export const paid = ['confirmed', 'contacted', 'completed'];
 export const openSql = "status NOT IN ('completed','cancelled','expired','rejected')";
 // Minimum roster size required to complete a team profile, keyed by sport slug/name.
-export const MIN_ROSTER: Record<string, number> = { crickshal: 7, basketball: 3, futsal: 5 };
+export const MIN_ROSTER: Record<string, number> = { cricksal: 7, basketball: 3, futsal: 5 };
 export const reservedStates = [
   'invoiced',
   'payment_pending',
@@ -51,6 +51,7 @@ export const profileInput = z
       .array(z.enum(['S', 'M', 'L', 'XL']).nullable())
       .max(100)
       .optional(),
+    jersey_style: z.enum(['full_sleeve', 'half_sleeve']).nullable().optional(),
     captain_position: z.number().int().min(0).max(99).nullable().optional(),
     player_photos: z.array(z.string().startsWith('player-photos/').nullable()).max(100).optional(),
   })
@@ -78,6 +79,7 @@ export async function detail(tx: Queryable, id: string): Promise<Row & { items: 
     await tx.query(
       `SELECT i.*,s.name AS sport_name,coalesce((SELECT json_agg(p.player_name ORDER BY p.position,p.created_at,p.id) FROM team_players p WHERE p.order_item_id=i.id),'[]') AS players,
  coalesce((SELECT json_agg(p.jersey_size ORDER BY p.position,p.created_at,p.id) FROM team_players p WHERE p.order_item_id=i.id),'[]') AS jersey_sizes,
+ i.jersey_style,
  coalesce((SELECT json_agg(p.photo_url ORDER BY p.position,p.created_at,p.id) FROM team_players p WHERE p.order_item_id=i.id),'[]') AS photo_urls
  FROM order_items i JOIN sports s ON s.id=i.sport_id WHERE i.order_id=$1 ORDER BY s.name`,
       [id],
@@ -540,6 +542,11 @@ export class Orders {
       id,
     ]);
     assert(item, 404, 'not_found', 'Team not found');
+    const itemSport = await one(
+      tx,
+      'SELECT s.name FROM sports s JOIN order_items i ON i.sport_id=s.id WHERE i.id=$1',
+      [itemId],
+    );
     if (complete) {
       const sportRow = await one(
         tx,
@@ -567,6 +574,13 @@ export class Orders {
         'jersey_sizes_required',
         'Choose a jersey size for every player before completing the profile',
       );
+      if (sportName.toLowerCase() === 'cricksal')
+        assert(
+          item.jersey_style !== null,
+          409,
+          'jersey_styles_required',
+        'Choose full sleeve or half sleeve for the Cricksal team before completing the profile',
+        );
       assert(
         rosterRow!.missing_photos === 0,
         409,
@@ -595,6 +609,7 @@ export class Orders {
         'invalid_jersey_sizes',
         'Send one jersey size per player together with the roster',
       );
+      assert(input.jersey_style === undefined || input.players !== undefined, 400, 'invalid_jersey_style', 'Send the team jersey style together with the roster');
       assert(
         input.players !== undefined ||
           input.logo_url !== undefined ||
@@ -623,6 +638,8 @@ export class Orders {
         itemId,
         captainPosition,
       ]);
+      if (input.jersey_style !== undefined)
+        await tx.query('UPDATE order_items SET jersey_style=$2 WHERE id=$1', [itemId, input.jersey_style]);
       if (input.logo_url) {
         if (item.logo_url) {
           const prior = await priorCompany(tx, o);
@@ -643,12 +660,13 @@ export class Orders {
         await tx.query('DELETE FROM team_players WHERE order_item_id=$1', [itemId]);
         for (const [position, name] of input.players.entries())
           await tx.query(
-            'INSERT INTO team_players(order_item_id,player_name,position,jersey_size,photo_url) VALUES($1,$2,$3,$4,$5)',
+            'INSERT INTO team_players(order_item_id,player_name,position,jersey_size,jersey_style,photo_url) VALUES($1,$2,$3,$4,$5,$6)',
             [
               itemId,
               name,
               position,
               input.jersey_sizes?.[position] ?? null,
+              null,
               input.player_photos?.[position] ?? null,
             ],
           );

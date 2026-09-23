@@ -37,7 +37,7 @@ async function parseProfileUpdate(
   let input: z.infer<typeof profileInput> = {};
   let upload: { buffer: Buffer; mime: string } | undefined;
   if (req.isMultipart()) {
-    for await (const part of req.parts({ limits: { fields: 4, parts: 5 } })) {
+    for await (const part of req.parts({ limits: { fields: 6, parts: 7 } })) {
       if (part.type === 'file') {
         assert(
           part.fieldname === 'logo',
@@ -48,10 +48,10 @@ async function parseProfileUpdate(
         upload = await validateFile(await part.toBuffer(), part.mimetype, 'logo');
       } else {
         assert(
-          ['players', 'captain_position', 'jersey_sizes', 'player_photos'].includes(part.fieldname),
+          ['players', 'captain_position', 'jersey_sizes', 'jersey_styles', 'player_photos'].includes(part.fieldname),
           400,
           'invalid_field',
-          'Only players, captain_position, jersey_sizes, player_photos and logo fields are accepted',
+          'Only players, captain_position, jersey_sizes, jersey_styles, player_photos and logo fields are accepted',
         );
         let value: unknown;
         try {
@@ -490,6 +490,7 @@ const contentTypes: Record<string, string> = {
   '.js': 'text/javascript; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
   '.png': 'image/png',
+  '.webp': 'image/webp',
   '.svg': 'image/svg+xml',
   '.woff2': 'font/woff2',
 };

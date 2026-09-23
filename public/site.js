@@ -50,7 +50,7 @@ const say = (message) => {
     toast.hidden = true;
   }, 4200);
 };
-const displayDate = () => 'October 1-4, 2026';
+const displayDate = () => 'October 10-13, 2026';
 const money = (value) =>
   `${Number(value).toLocaleString('en-US', { minimumFractionDigits: Number.isInteger(Number(value)) ? 0 : 2, maximumFractionDigits: 2 })} NPR`;
 const slugify = (value) =>
@@ -63,10 +63,13 @@ const e = (title, body) =>
   `<div class="error-view"><p class="eyebrow">System notice</p><h1>${esc(title)}</h1><p>${esc(body)}</p><a class="button primary" href="/">Return home</a></div>`;
 
 async function load() {
-  const response = await fetch('/assets/championship.json');
-  if (!response.ok) throw new Error('Event information is unavailable.');
-  const event = await response.json();
-  const sports = (await api('/sports')).map((sport) => ({ ...sport, slug: slugify(sport.name) }));
+  const [eventResponse, sportsResponse] = await Promise.all([
+    fetch('/assets/championship.json'),
+    api('/sports'),
+  ]);
+  if (!eventResponse.ok) throw new Error('Event information is unavailable.');
+  const [event, sportsPayload] = await Promise.all([eventResponse.json(), Promise.resolve(sportsResponse)]);
+  const sports = sportsPayload.map((sport) => ({ ...sport, slug: slugify(sport.name) }));
   data = { ...event, sports };
 }
 function sectionHeader(eyebrow, title, copy) {
@@ -74,8 +77,8 @@ function sectionHeader(eyebrow, title, copy) {
 }
 function sportIcon(sport, className = 'sport-symbol') {
   const slug = sport.slug || slugify(sport.name);
-  if (slug === 'crickshal')
-    return `<img class="${className}" src="/assets/images/crick.png" alt="" aria-hidden="true" />`;
+  if (slug === 'cricksal')
+    return `<img class="${className}" src="/assets/images/crick.webp" alt="" aria-hidden="true" />`;
   const symbols = { futsal: '⚽', basketball: '🏀' };
   return `<span class="${className}" aria-hidden="true">${symbols[slug] || '🏆'}</span>`;
 }
@@ -85,19 +88,19 @@ function home() {
     <section class="hero" aria-labelledby="hero-title">
       <div class="hero-copy">
         <p class="eyebrow">RONB presents · October 2026</p>
-        <img class="hero-logo-mobile" src="/assets/images/logo.png?v=20260921-1" alt="Corporate Championship" width="1600" height="1600" />
+        <img class="hero-logo-mobile" src="/assets/images/logo.webp?v=20260923-3" alt="Corporate Championship" width="1600" height="1600" />
         <h1 class="hero-title" id="hero-title">Corporate<br><span>Championship</span></h1>
         <p class="hero-sub">Your colleagues. Your dream team. Four days of sport, connection, and a little friendly competition.</p>
         <div class="hero-actions"><a class="button primary" href="/register">Bring your team</a><a class="button" href="#sports">Find your sport</a></div>
         <p class="hero-note">Out of office. Into the game.</p>
       </div>
-      <img class="hero-visual" src="/assets/images/logo.png?v=20260921-1" alt="Corporate Championship" width="1600" height="1600" />
+      <img class="hero-visual" src="/assets/images/logo.webp?v=20260923-3" alt="Corporate Championship" width="1600" height="1600" />
     </section>
-    <div class="event-strip"><div><span>Save the dates</span><strong>October 1-4, 2026</strong></div><div><span>Meet us at</span><strong>Royal Sports Park, Chunikhel</strong></div><div><span>TEAM UP & TURN UP</span><strong>Ready to Bring the Heat?</strong></div></div>
+    <div class="event-strip"><div><span>Save the dates</span><strong>October 10-13, 2026</strong></div><div><span>Meet us at</span><strong>Royal Sports Park, Chunikhel</strong></div><div><span>TEAM UP & TURN UP</span><strong>Ready to Bring the Heat?</strong></div></div>
     <section class="section" id="sports">${sectionHeader('A game for your team', 'Good colleagues. Great teammates.', 'Pick your sport, rally your people, and give the office something new to talk about.')}<div class="sport-grid">${data.sports.map((sport) => `<a class="sport sport-${sport.slug}" href="/register?focus=${encodeURIComponent(sport.slug)}"><div class="sport-top"><span class="sport-format">Open for registration</span></div><h3>${esc(sport.name)}</h3>${sport.description ? `<p>${esc(sport.description)}</p>` : ''}<span class="sport-link">Let's play</span>${sportIcon(sport)}</a>`).join('')}</div><p class="section-note">Registration fees and available places are shown when you sign in.</p></section>
     <section class="team-story section"><p class="eyebrow">Better together</p><h2>A different kind<br>of team meeting.</h2><p>Swap the meeting room for the court. Cheer for your colleagues, meet other company teams, and make memories beyond the workday.</p><a class="button" href="/register">Make your company part of it</a></section>
     <section class="section" id="teams">${sectionHeader('', 'Meet the teams', 'Your next friendly rivals. Confirmed teams appear here once their captain completes the team profile.')}<div class="teams-shell"><div class="team-tabs" role="tablist" aria-label="Team sports">${data.sports.map((sport, index) => `<button role="tab" id="tab-${sport.slug}" aria-label="${esc(sport.name)}" aria-controls="teams-panel" aria-selected="${index === 0}" tabindex="${index === 0 ? 0 : -1}" data-sport="${esc(sport.name)}" data-slug="${sport.slug}" ${sport.max_teams ? `data-max="${sport.max_teams}"` : ''}>${esc(sport.name)}</button>`).join('')}</div><div class="team-list" id="teams-panel" role="tabpanel" aria-labelledby="tab-${data.sports[0]?.slug || ''}" aria-live="polite"><p class="teams-state">Loading confirmed teams…</p></div></div></section>
-    <section class="section venue-section" id="venue"><img class="venue-date" src="/assets/images/calendar.png" alt="See you in October 01 to 04 2026 · Chunikhel, Kathmandu" width="1536" height="1024" /><div class="venue-copy"><p class="eyebrow">Room to play. Reasons to stay.</p><h2>${esc(data.venue)}</h2><p>Four days of team spirit at ${esc(data.locality)}. Get your colleagues together and meet us on the court.</p><a class="button primary" href="${esc(data.maps_url)}" target="_blank" rel="noreferrer">Open directions</a></div><div class="venue-map"><iframe title="Royal Sports Park location on Google Maps" src="${esc(data.maps_embed_url)}" loading="lazy" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe><p>Royal Sports Park, Chunikhel · <a href="${esc(data.maps_url)}" target="_blank" rel="noreferrer">View larger map and directions ↗</a></p></div></section>
+    <section class="section venue-section" id="venue"><img class="venue-date" src="/assets/images/dates.png?v=20260923-1" alt="See you in October 10 to 13 2026 · Chunikhel, Kathmandu" width="1536" height="1024" /><div class="venue-copy"><p class="eyebrow">Room to play. Reasons to stay.</p><h2>${esc(data.venue)}</h2><p>Four days of team spirit at ${esc(data.locality)}. Get your colleagues together and meet us on the court.</p><a class="button primary" href="${esc(data.maps_url)}" target="_blank" rel="noreferrer">Open directions</a></div><div class="venue-map"><iframe title="Royal Sports Park location on Google Maps" src="${esc(data.maps_embed_url)}" loading="lazy" allowfullscreen referrerpolicy="no-referrer"></iframe><p>Royal Sports Park, Chunikhel · <a href="${esc(data.maps_url)}" target="_blank" rel="noreferrer">View larger map and directions ↗</a></p></div></section>
     <section class="section faq-section" id="faq">${sectionHeader('A little pre-game prep', 'Good questions', 'Everything you need to get your team started.')}<div class="faq"><details><summary>Can a company enter more than one sport?</summary><p>Yes. Each registration covers one sport, so register again for each additional sport you want to enter.</p></details><details><summary>When does a team show publicly?</summary><p>After payment is confirmed by the organizer and the captain adds the company logo and completes the roster for that sport.</p></details><details><summary>How does payment work?</summary><p>Your registration includes the exact amount, a payment code, and instructions. The same payment code is reused every time you register, so use the same code in every transfer. Upload your receipt after each transfer. An organizer verifies it before team profiles unlock.</p></details><details><summary>Where can I get directions?</summary><p>Use the Royal Sports Park directions link above. It opens the organizer-provided Google Maps location.</p></details></div></section>
     <section class="closing section"><p class="eyebrow">The best teams play together</p><h2>Bring your people.<br>We'll bring the occasion.</h2><a class="button primary" href="/register">Register your team</a></section>`;
   bindTeamTabs();
@@ -136,8 +139,7 @@ async function teamList(name) {
     panel.classList.remove('switching');
   };
   try {
-    const sports = await api('/sports');
-    const selected = sports.find((sport) => sport.name.toLowerCase() === name.toLowerCase());
+    const selected = data.sports.find((sport) => sport.name.toLowerCase() === name.toLowerCase());
     if (!selected) {
       await swap(
         `<p class="teams-state">${esc(name)} registrations will appear here once the sport is opened by the organizer.</p>`,
@@ -220,7 +222,21 @@ function bindTeamTabs() {
     tabs[next].click();
   });
   setSportColor(document.querySelector('[role=tab]'));
-  teamList(data.sports[0].name);
+  const teamsSection = document.querySelector('#teams');
+  const loadTeams = () => {
+    if (teamsSection.dataset.loaded) return;
+    teamsSection.dataset.loaded = 'true';
+    teamList(data.sports[0].name);
+  };
+  if ('IntersectionObserver' in window) {
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) {
+        observer.disconnect();
+        loadTeams();
+      }
+    }, { rootMargin: '500px' });
+    observer.observe(teamsSection);
+  } else loadTeams();
 }
 function steps(active) {
   const values = ['Sports', 'Contact', 'Payment', 'Receipt', 'Team profile'];
@@ -294,8 +310,12 @@ function bindSubmission(selector, handler) {
     if (form.dataset.submitting) return;
     form.dataset.submitting = 'true';
     const buttons = [...form.querySelectorAll('button')];
+    const labels = buttons.map((button) => button.textContent);
+    form.classList.add('is-loading');
+    form.setAttribute('aria-busy', 'true');
     buttons.forEach((button) => {
       button.disabled = true;
+      if (button.type === 'submit' && button === event.submitter) button.textContent = 'Please wait…';
     });
     const error = form.querySelector('.error');
     error.hidden = true;
@@ -309,8 +329,11 @@ function bindSubmission(selector, handler) {
       }
     } finally {
       delete form.dataset.submitting;
+      form.classList.remove('is-loading');
+      form.removeAttribute('aria-busy');
       buttons.forEach((button) => {
         button.disabled = false;
+        button.textContent = labels[buttons.indexOf(button)];
       });
     }
   });
@@ -457,7 +480,7 @@ function receiptStep(order) {
 }
 function waitingStep(order) {
   const target = document.querySelector('#registration-content');
-  target.innerHTML = `<p class="eyebrow">Payment review / ${esc(order.status)}</p><h2>Receipt received</h2><p>Your receipt is with the organizer.</p>${order.rejection ? `<p class="error">Latest note: ${esc(order.rejection.notes)}</p><div class="form-actions"><button class="button primary" id="resubmit">Upload another receipt</button></div>` : '<div class="info-box">You can leave now. The order is saved and will resume here after sign in.</div>'}`;
+  target.innerHTML = `<p class="eyebrow">Payment review / ${esc(order.status)}</p><h2>Receipt received</h2><p>Your receipt is with the organizer.</p>${order.rejection ? `<p class="error">Latest note: ${esc(order.rejection.notes)}</p><div class="form-actions"><button class="button primary" id="resubmit">Upload another receipt</button></div>` : '<div class="info-box">You can leave now. The registration is saved and will resume here after sign in.</div>'}`;
   document.querySelector('#resubmit')?.addEventListener('click', () => receiptStep(order));
   const poll = async () => {
     if (location.pathname !== '/register' || !target.querySelector('#review-status')) return;
@@ -486,9 +509,10 @@ function profileStep(order) {
   profileOrder = order;
   const target = document.querySelector('#registration-content');
   const pending = order.items.filter((item) => !item.profile_completed_at);
+  const companyItem = order.items.find((item) => item.logo_url) || order.items[0];
   const companyLocked = order.company_locked;
   target.innerHTML = `<p class="eyebrow">Step 05 / Team profile</p><h2>Finish your team</h2><p>${companyLocked ? 'Payment is confirmed. Complete the roster for your team with your saved company logo. A confirmed team appears on the public listing after you mark its profile done.' : 'Payment is confirmed. Upload your company logo, then complete the roster for your team. A confirmed team appears on the public listing after you mark its profile done.'}</p><div class="choice-list">${pending.map((item) => `<div class="sport-choice"><div><strong>${esc(item.team_name)}</strong><span>${esc(item.sport_name)}</span></div><a class="button primary" href="#profile/${item.id}">Complete profile</a></div>`).join('')}</div>`;
-  const companyItem = order.items.find((item) => item.logo_url) || order.items[0];
+  if (!companyItem?.logo_url) target.querySelector('.choice-list').hidden = true;
   if (companyItem) {
     if (companyLocked && companyItem.logo_url) {
       target
@@ -519,7 +543,7 @@ function profileStep(order) {
   const itemId = location.hash.split('/')[1];
   if (itemId) profileEditor(order, itemId);
 }
-const MIN_ROSTER = { futsal: 5, basketball: 3, crickshal: 7 };
+const MIN_ROSTER = { futsal: 5, basketball: 3, cricksal: 7 };
 function profileEditor(order, itemId) {
   const item = order.items.find((candidate) => candidate.id === itemId);
   if (!item) return;
@@ -527,6 +551,8 @@ function profileEditor(order, itemId) {
   const target = document.querySelector('#registration-content');
   target.innerHTML = `<button class="button" type="submit" form="profile-form" name="save" value="back">← Back to overview</button><p class="eyebrow">${esc(item.sport_name)} / Team profile</p><h2>${esc(item.team_name)}</h2><p>Your roster is saved as a draft when you return to the overview.</p>${!item.logo_url ? '<p class="info-box">Add your company logo on the overview before marking this profile done.</p>' : ''}<form id="profile-form" class="form-stack"><fieldset class="roster-fields"><legend>Players</legend><p class="form-note">Add at least ${required} player${required > 1 ? 's' : ''}, including your team captain. Choose a jersey size and add a photo (JPG, PNG or WebP, under 4 MB) for every player.</p><div id="player-fields" class="player-fields"></div><button class="button" id="add-player" type="button">Add player</button></fieldset><label class="input-group">Team captain<select name="captain_position" aria-describedby="captain-note"><option value="">Choose a player</option></select></label><p id="captain-note" class="form-note">Choose one of the players above. The captain counts as part of your roster.</p><p class="error" hidden></p><div class="form-actions"><button class="button" name="save" value="save">Save draft</button><button class="button primary" name="complete" value="complete">Save and mark done</button></div></form>`;
   const fields = target.querySelector('#player-fields');
+  const cricket = item.sport_name.toLowerCase() === 'cricksal';
+  if (cricket) fields.insertAdjacentHTML('beforebegin', `<fieldset class="jersey-selector team-sleeve-selector"><legend>Team sleeve style</legend><div class="jersey-options"><label><input type="radio" name="jersey-style" value="full_sleeve" ${item.jersey_style === 'full_sleeve' ? 'checked' : ''}><span>Full sleeve</span></label><label><input type="radio" name="jersey-style" value="half_sleeve" ${item.jersey_style === 'half_sleeve' ? 'checked' : ''}><span>Half sleeve</span></label></div></fieldset>`);
   const captain = target.querySelector('[name="captain_position"]');
   const addButton = target.querySelector('#add-player');
   const photoSelections = new Map();
@@ -543,7 +569,7 @@ function profileEditor(order, itemId) {
         .join('');
     captain.value = selected;
   };
-  const addPlayer = (name = '', size = null, photoKey = null) => {
+  const addPlayer = (name = '', size = null, photoKey = null, style = null) => {
     const index = fields.children.length;
     const preview = photoKey
       ? `<img class="player-photo-preview" src="/orders/${order.id}/items/${item.id}/player-photos/${index}" alt="" aria-hidden="true">`
@@ -552,10 +578,13 @@ function profileEditor(order, itemId) {
       'beforeend',
       `<div class="player-row"><div class="player-photo">${preview}<button type="button" class="player-photo-clear" data-photo="${index}" aria-label="Remove photo for player ${index + 1}" ${photoKey ? '' : 'hidden'}>×</button><label class="player-photo-pick"><input name="photo-${index}" type="file" accept="image/png,image/jpeg,image/webp" aria-label="Photo for player ${index + 1}"><span>Photo</span></label></div><label class="input-group">Player ${index + 1}<input name="player" type="text" value="${esc(name)}" maxlength="120" autocomplete="off" placeholder="Full name"></label><fieldset class="jersey-selector"><legend>Jersey size <span class="sr-only">for player ${index + 1}</span></legend><div class="jersey-options">${['S', 'M', 'L', 'XL'].map((option) => `<label><input type="radio" name="jersey-${index}" value="${option}" ${size === option ? 'checked' : ''}><span>${option}</span></label>`).join('')}</div></fieldset></div>`,
     );
+    if (false) {
+      fields.lastElementChild.insertAdjacentHTML('beforeend', `<fieldset class="jersey-selector"><legend>Sleeve style</legend><div class="jersey-options">${[['full_sleeve', 'Full sleeve'], ['half_sleeve', 'Half sleeve']].map(([value, label]) => `<label><input type="radio" name="jersey-style-${index}" value="${value}" ${style === value ? 'checked' : ''}><span>${label}</span></label>`).join('')}</div></fieldset>`);
+    }
     addButton.disabled = fields.children.length >= 100;
   };
   for (let index = 0; index < Math.max(required, item.players.length); index++)
-    addPlayer(item.players[index] || '', item.jersey_sizes?.[index], item.photo_urls?.[index]);
+    addPlayer(item.players[index] || '', item.jersey_sizes?.[index], item.photo_urls?.[index], item.jersey_styles?.[index]);
   fields.addEventListener('input', () => {
     syncCaptain();
     target.querySelector('#profile-form .error').hidden = true;
@@ -618,6 +647,7 @@ function profileEditor(order, itemId) {
     const jerseySizes = names.flatMap((name, index) =>
       name ? [fd.get(`jersey-${index}`) || null] : [],
     );
+    const jerseyStyle = cricket ? fd.get('jersey-style') || null : null;
     const selectedPosition = captain.value === '' ? null : Number(captain.value);
     const captainPosition =
       selectedPosition === null ? null : names.slice(0, selectedPosition).filter(Boolean).length;
@@ -638,6 +668,11 @@ function profileEditor(order, itemId) {
       error.hidden = false;
       const missingIndex = names.findIndex((name, index) => name && !fd.get(`jersey-${index}`));
       fields.querySelector(`[name="jersey-${missingIndex}"]`).focus();
+      return;
+    }
+    if (action === 'complete' && cricket && jerseyStyle === null) {
+      error.textContent = 'Choose a sleeve style for the Cricksal team.';
+      error.hidden = false;
       return;
     }
     if (
@@ -670,19 +705,21 @@ function profileEditor(order, itemId) {
     if (photoSelections.size) {
       busy(true);
       try {
-        for (const [index, file] of photoSelections) {
-          if (file === null) {
-            playerPhotos[index] = null;
-            continue;
-          }
-          const fd = new FormData();
-          fd.append('photo', file);
-          const uploaded = await api(
-            `/orders/${order.id}/items/${item.id}/player-photos/${index}`,
-            { method: 'POST', body: fd },
-          );
-          playerPhotos[index] = uploaded.photo_url;
-        }
+        await Promise.all(
+          [...photoSelections].map(async ([index, file]) => {
+            if (file === null) {
+              playerPhotos[index] = null;
+              return;
+            }
+            const fd = new FormData();
+            fd.append('photo', file);
+            const uploaded = await api(
+              `/orders/${order.id}/items/${item.id}/player-photos/${index}`,
+              { method: 'POST', body: fd },
+            );
+            playerPhotos[index] = uploaded.photo_url;
+          }),
+        );
       } catch (uploadError) {
         busy(false);
         error.textContent = `One of your player photos could not be uploaded. ${uploadError.message}`;
@@ -692,6 +729,7 @@ function profileEditor(order, itemId) {
     }
     const update = new FormData();
     update.append('jersey_sizes', JSON.stringify(jerseySizes));
+    if (cricket) update.append('jersey_style', JSON.stringify(jerseyStyle));
     update.append('captain_position', JSON.stringify(captainPosition));
     update.append('players', JSON.stringify(players));
     update.append('player_photos', JSON.stringify(playerPhotos));
@@ -764,6 +802,16 @@ async function doneStep(order) {
     .join(
       '',
     )}</div><div class="form-actions"><a class="button primary" href="/">Return to championship</a><a class="button" href="/#teams">See team listing</a></div></div>`;
+  target.querySelectorAll('.registration-summary').forEach((summary) => {
+    const teamName = summary.querySelector('.team-name')?.textContent;
+    const registration = registrations.find((other) => other.items.some((item) => item.team_name === teamName));
+    const item = registration?.items[0];
+    if (item?.sport_name?.toLowerCase() !== 'cricksal') return;
+    summary.querySelectorAll('.jersey-badge').forEach((badge, index) => {
+      const style = item.jersey_styles?.[index];
+      if (style) badge.insertAdjacentHTML('beforeend', `<small>${style === 'full_sleeve' ? 'Full sleeve' : 'Half sleeve'}</small>`);
+    });
+  });
   target.querySelectorAll('[data-register-sport]').forEach((button) =>
     button.addEventListener('click', async () => {
       const sport = sports.find((candidate) => candidate.id === button.dataset.registerSport);
