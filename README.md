@@ -150,6 +150,28 @@ node --env-file-if-exists=.env dist/worker-main.js
 
 The API and worker share `DATABASE_URL` and service configuration. Run migrations before starting either. The API health endpoint is `/health`; it checks database connectivity. Run the worker as a persistent supervised process, not inside a short-lived request handler. If using a serverless API host, deploy the worker separately. Both processes shut down on SIGINT/SIGTERM. The checked-in Vercel configuration deploys the API only; it does not start the email/expiry worker. Without a separately running worker, confirmations remain queued and stale reservations are not released. Automated tests use isolated provider fixtures, so deployed Google OAuth, private storage access, a real payment QR, and Resend delivery still need a controlled production smoke test.
 
+### cPanel shared hosting
+
+cPanel's **Setup Node.js App** starts `dist/server.js` directly, without the `--env-file-if-exists=.env` flag that `npm start` passes, so every entry point loads `.env` itself when the file exists; variables already present in the process environment take precedence. Keep the application root outside `public_html`, select Node 22.16 or newer (the `engines` requirement), and use `dist/server.js` as the startup file. `resolve('public')` and `resolve('migrations')` are relative to the working directory, so the app and every command you run must start from that root.
+
+Build on your machine (`npm run build`) and upload `dist/` with the sources — the compiled JavaScript is platform-independent, but `node_modules` must be installed on the server so native modules such as `sharp` match Linux:
+
+```sh
+cd ~/ronb
+npm ci --omit=dev
+node dist/cli.js migrate
+```
+
+Create the database and user in cPanel's **PostgreSQL Databases** page (PostgreSQL 13 or newer; the schema uses `gen_random_uuid()`) and grant the user to the database. Set `DATABASE_URL=postgres://user:pass@localhost:5432/dbname`, URL-encoding special characters in the password; add `?sslmode=require` only when the host requires it.
+
+The worker is a long-running loop that cPanel cannot supervise as a second application, so schedule it in **Cron** — one pass per minute, which matches its original once-a-minute expiry cadence. `--once` expires stale orders, delivers up to 50 queued emails, and exits:
+
+```sh
+* * * * * cd /home/USER/ronb && /usr/local/bin/node dist/worker-main.js --once >> worker.log 2>&1
+```
+
+Use the full Node path from `which node`. Set `NODE_ENV=production`, `APP_ORIGIN=https://yourdomain` (an origin without a trailing slash), a fresh `COOKIE_SECRET` of at least 32 characters, the Google, S3 and Resend values required by the production check above, and the organizer login pair. Run AutoSSL before first launch: production cookies are `secure` and configuration rejects non-HTTPS origins. Authorize both Google redirect URIs in the OAuth client: `https://yourdomain/auth/google/callback` and `https://yourdomain/admin/auth/google/callback`. Back up the database regularly (cPanel's PostgreSQL backup, or `pg_dump` from Terminal) alongside the S3 buckets.
+
 A production Dockerfile is included:
 
 ```sh

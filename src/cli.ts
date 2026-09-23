@@ -1,6 +1,12 @@
 import { config } from './config.js';
 import { postgres, migrate, one } from './db.js';
 import { z } from 'zod';
+// Same as server.ts: hosts run `node dist/cli.js migrate` without node flags.
+try {
+  process.loadEnvFile();
+} catch {
+  // No .env file: the process environment already carries the configuration.
+}
 const c = config();
 const db = postgres(c.DATABASE_URL);
 try {
