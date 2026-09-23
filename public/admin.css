@@ -1027,3 +1027,143 @@ tbody tr:hover {
     grid-column: 1 / -1;
   }
 }
+
+/* Mobile type scale: every font size renders 15% smaller at phone widths. */
+/* Values mirror the winning declaration for each selector at that width, x0.85. */
+@media (max-width: 700px) {
+  body {
+    font-size: 11.9px;
+  }
+  .brand-sub {
+    font-size: 10.2px;
+  }
+  .workspace-label {
+    font-size: 8.5px;
+  }
+  .eyebrow {
+    font-size: 8.5px;
+  }
+  nav .nav-index {
+    font-size: 9.35px;
+  }
+  .sidebar-bottom {
+    font-size: 10.2px;
+  }
+  .edition {
+    font-size: 7.65px;
+  }
+  .text-button {
+    font-size: 10.2px;
+  }
+  .heading-meta {
+    font-size: 9.35px;
+  }
+  label {
+    font-size: 10.2px;
+  }
+  th {
+    font-size: 8.5px;
+  }
+  td {
+    font-size: 11.05px;
+  }
+  .sub {
+    font-size: 9.35px;
+  }
+  .mono {
+    font-size: 9.35px;
+  }
+  .status {
+    font-size: 8.5px;
+  }
+  .empty h2 {
+    font-size: 22.1px;
+  }
+  .empty-symbol {
+    font-size: 18.7px;
+  }
+  .panel h2 {
+    font-size: 13.6px;
+  }
+  .section-title {
+    font-size: 13.6px;
+  }
+  .data dt {
+    font-size: 9.35px;
+  }
+  .data dd {
+    font-size: 11.9px;
+  }
+  .amount {
+    font-size: 34px;
+  }
+  .receipt-link {
+    font-size: 10.2px;
+  }
+  .team-initial {
+    font-size: 21.25px;
+  }
+  .team-row p {
+    font-size: 10.2px;
+  }
+  .form-note {
+    font-size: 10.2px;
+  }
+  .timeline li {
+    font-size: 10.2px;
+  }
+  .login-note {
+    font-size: 10.2px;
+  }
+  .back {
+    font-size: 10.2px;
+  }
+  .pagination {
+    font-size: 10.2px;
+  }
+  .brand {
+    font-size: 13.6px;
+  }
+  .mark {
+    font-size: 19.55px;
+  }
+  .sidebar nav a {
+    font-size: 10.2px;
+  }
+  .topbar {
+    font-size: 8.5px;
+  }
+  .heading h1 {
+    font-size: 30.6px;
+  }
+  .heading p {
+    font-size: 11.05px;
+  }
+  .login h1 {
+    font-size: 37.4px;
+  }
+  .verification-card time {
+    font-size: 0.96rem;
+  }
+  .jersey-badge {
+    font-size: 11.05px;
+  }
+  .roster-editor .error {
+    font-size: 11.9px;
+  }
+  .roster-fields legend {
+    font-size: 12.75px;
+  }
+  .player-photo-clear {
+    font-size: 12.75px;
+  }
+  .player-photo-placeholder::before {
+    font-size: 25.5px;
+  }
+  .player-photo-pick {
+    font-size: 11.05px;
+  }
+  .jersey-selector legend {
+    font-size: 11.9px;
+  }
+}
