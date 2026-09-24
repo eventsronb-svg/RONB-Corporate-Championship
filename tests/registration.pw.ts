@@ -49,11 +49,11 @@ test('new captain signs in, submits one team, corrects rejected payment, and fin
     await page.getByRole('radio', { name: /^Basketball / }).check();
     await page.getByRole('button', { name: 'Continue to contact' }).click();
     await expect(
-      page.getByRole('heading', { name: 'Where can we reach the captain?' }),
+      page.getByRole('heading', { name: 'Where can we reach you?' }),
     ).toBeVisible();
     await page.reload();
     await expect(
-      page.getByRole('heading', { name: 'Where can we reach the captain?' }),
+      page.getByRole('heading', { name: 'Where can we reach you?' }),
     ).toBeVisible();
     await page.getByRole('textbox', { name: 'Phone number' }).fill('abc');
     await page.getByRole('button', { name: 'Issue invoice' }).click();
@@ -362,7 +362,7 @@ test('mobile captain can revise an expired payment and recover from session expi
   await expect(page.getByRole('heading', { name: 'Payment code expired' })).toBeVisible();
   await page.getByRole('button', { name: 'Revise registration' }).click();
   await expect(
-    page.getByRole('heading', { name: 'Where can we reach the captain?' }),
+    page.getByRole('heading', { name: 'Where can we reach you?' }),
   ).toBeVisible();
   expect(new URL(page.url()).searchParams.get('order')).not.toBe(oldId);
   await page.getByRole('button', { name: 'Edit company & sports' }).click();

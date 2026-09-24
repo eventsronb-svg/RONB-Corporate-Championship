@@ -90,7 +90,7 @@ function home() {
         <p class="eyebrow">RONB presents · October 2026</p>
         <img class="hero-logo-mobile" src="/assets/images/logo.webp?v=20260923-3" alt="Corporate Championship" width="1600" height="1600" />
         <h1 class="hero-title" id="hero-title">Corporate<br><span>Championship</span></h1>
-        <p class="hero-sub">Your colleagues. Your dream team. Four days of sport, connection, and a little friendly competition.</p>
+        <p class="hero-sub">Your colleagues. Your dream team. Four days of sports, networking, and a little friendly competition.  </p>
         <div class="hero-actions"><a class="button primary" href="/register">Bring your team</a><a class="button" href="#sports">Find your sport</a></div>
         <p class="hero-note">Out of office. Into the game.</p>
       </div>
@@ -102,7 +102,7 @@ function home() {
     <section class="section" id="teams">${sectionHeader('', 'Meet the teams', 'Your next friendly rivals. Confirmed teams appear here once their captain completes the team profile.')}<div class="teams-shell"><div class="team-tabs" role="tablist" aria-label="Team sports">${data.sports.map((sport, index) => `<button role="tab" id="tab-${sport.slug}" aria-label="${esc(sport.name)}" aria-controls="teams-panel" aria-selected="${index === 0}" tabindex="${index === 0 ? 0 : -1}" data-sport="${esc(sport.name)}" data-slug="${sport.slug}" ${sport.max_teams ? `data-max="${sport.max_teams}"` : ''}>${esc(sport.name)}</button>`).join('')}</div><div class="team-list" id="teams-panel" role="tabpanel" aria-labelledby="tab-${data.sports[0]?.slug || ''}" aria-live="polite"><p class="teams-state">Loading confirmed teams…</p></div></div></section>
     <section class="section venue-section" id="venue"><img class="venue-date" src="/assets/images/dates.png?v=20260923-1" alt="See you in October 10 to 13 2026 · Chunikhel, Kathmandu" width="1536" height="1024" /><div class="venue-copy"><p class="eyebrow">Room to play. Reasons to stay.</p><h2>${esc(data.venue)}</h2><p>Four days of team spirit at ${esc(data.locality)}. Get your colleagues together and meet us on the court.</p><a class="button primary" href="${esc(data.maps_url)}" target="_blank" rel="noreferrer">Open directions</a></div><div class="venue-map"><iframe title="Royal Sports Park location on Google Maps" src="${esc(data.maps_embed_url)}" loading="lazy" allowfullscreen referrerpolicy="no-referrer"></iframe><p>Royal Sports Park, Chunikhel · <a href="${esc(data.maps_url)}" target="_blank" rel="noreferrer">View larger map and directions ↗</a></p></div></section>
     <section class="section faq-section" id="faq">${sectionHeader('A little pre-game prep', 'Good questions', 'Everything you need to get your team started.')}<div class="faq"><details><summary>Can a company enter more than one sport?</summary><p>Yes. Each registration covers one sport, so register again for each additional sport you want to enter.</p></details><details><summary>When does a team show publicly?</summary><p>After payment is confirmed by the organizer and the captain adds the company logo and completes the roster for that sport.</p></details><details><summary>How does payment work?</summary><p>Your registration includes the exact amount, a payment code, and instructions. The same payment code is reused every time you register, so use the same code in every transfer. Upload your receipt after each transfer. An organizer verifies it before team profiles unlock.</p></details><details><summary>Where can I get directions?</summary><p>Use the Royal Sports Park directions link above. It opens the organizer-provided Google Maps location.</p></details></div></section>
-    <section class="closing section"><p class="eyebrow">The best teams play together</p><h2>Bring your people.<br>We'll bring the occasion.</h2><a class="button primary" href="/register">Register your team</a></section>`;
+    <section class="closing section"><p class="eyebrow">The best teams play together</p><h2>Bring your A - Game.<br>We'll bring the occasion.</h2><a class="button primary" href="/register">Register your team</a></section>`;
   bindTeamTabs();
   const motion = !matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (motion && 'IntersectionObserver' in window) {
@@ -430,7 +430,7 @@ function phoneStep(order) {
     bindSubmission('#invoice-form', async () => resume(await post(`/orders/${order.id}/invoice`)));
     return;
   }
-  target.innerHTML = `<p class="eyebrow">Step 02 / Contact</p><h2>Where can we reach the captain?</h2><p>Use the phone number the organizer should use for registration questions.</p><form id="phone-form" class="form-stack"><label class="input-group">Phone number<input name="phone" required inputmode="tel" value="${esc(order.phone_number || '')}" placeholder="+977 9800000000"></label><p class="error" hidden></p><div class="form-actions"><button type="button" class="button" id="edit-sports">Edit company & sports</button><button class="button primary">Issue invoice</button></div></form>`;
+  target.innerHTML = `<p class="eyebrow">Step 02 / Contact</p><h2>Where can we reach you?</h2><p>Use the phone number the organizer should use for registration questions.</p><form id="phone-form" class="form-stack"><label class="input-group">Phone number<input name="phone" required inputmode="tel" value="${esc(order.phone_number || '')}" placeholder="+977 9800000000"></label><p class="error" hidden></p><div class="form-actions"><button type="button" class="button" id="edit-sports">Edit company & sports</button><button class="button primary">Issue invoice</button></div></form>`;
   document.querySelector('#edit-sports').addEventListener('click', () =>
     sportsStep(order).catch((error) => {
       if (error.status === 401) renderLogin();
@@ -480,7 +480,7 @@ function receiptStep(order) {
 }
 function waitingStep(order) {
   const target = document.querySelector('#registration-content');
-  target.innerHTML = `<p class="eyebrow">Payment review / ${esc(order.status)}</p><h2>Receipt received</h2><p>Your receipt is with the organizer.</p>${order.rejection ? `<p class="error">Latest note: ${esc(order.rejection.notes)}</p><div class="form-actions"><button class="button primary" id="resubmit">Upload another receipt</button></div>` : '<div class="info-box">You can leave now. The registration is saved and will resume here after sign in.</div>'}`;
+  target.innerHTML = `<p class="eyebrow">Payment review / ${esc(order.status)}</p><h2>Receipt received</h2><p>Your receipt is with the organizer.</p>${order.rejection ? `<p class="error">Latest note: ${esc(order.rejection.notes)}</p><div class="form-actions"><button class="button primary" id="resubmit">Upload another receipt</button></div>` : '<div class="info-box">We are verifying your payment. The registration is saved and will resume here after sign in.  </div>'}`;
   document.querySelector('#resubmit')?.addEventListener('click', () => receiptStep(order));
   const poll = async () => {
     if (location.pathname !== '/register' || !target.querySelector('#review-status')) return;
