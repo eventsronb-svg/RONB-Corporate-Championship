@@ -174,6 +174,10 @@ export async function buildApp(deps: {
     return { status: 'ok' };
   });
   app.get('/event', async () => (await one(db, 'SELECT * FROM events WHERE active')) ?? null);
+  app.get('/site-settings', async () => {
+    const row = await one(db, "SELECT value FROM site_settings WHERE key='show_teams_section'");
+    return { show_teams_section: row?.value !== false };
+  });
   app.get(
     '/sports',
     async () =>

@@ -1,6 +1,7 @@
 // Leave room for multipart boundaries and fields below Vercel's 4.5 MB body limit.
 export const MAX_UPLOAD_BYTES = 4_000_000;
 const MAX_SOURCE_BYTES = 5 * 1024 * 1024;
+const MAX_DIMENSION = { photo: 1280, logo: 1600, receipt: 1600 };
 
 export async function prepareUpload(file, kind) {
   if (!(file instanceof File) || !file.size) throw new Error('Choose a file to upload.');
@@ -15,9 +16,6 @@ export async function prepareUpload(file, kind) {
     return file;
   }
   if (file.size > MAX_SOURCE_BYTES) throw new Error('Choose an image up to 5 MB.');
-  // Small files are optimized on the server, avoiding an extra lossy encode.
-  if (file.size <= MAX_UPLOAD_BYTES) return file;
-
   let bitmap;
   try {
     bitmap = await createImageBitmap(file);
@@ -28,13 +26,15 @@ export async function prepareUpload(file, kind) {
     if (bitmap.width * bitmap.height > 20_000_000) {
       throw new Error('This image has too many pixels. Choose an image under 20 megapixels.');
     }
+    const maxDimension = MAX_DIMENSION[kind] || 1600;
+    const scale = Math.min(1, maxDimension / Math.max(bitmap.width, bitmap.height));
     const canvas = document.createElement('canvas');
-    canvas.width = bitmap.width;
-    canvas.height = bitmap.height;
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
     const context = canvas.getContext('2d');
     if (!context) throw new Error('Image processing is unavailable. Choose a file under 4 MB.');
     context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    const compressed = await new Promise((resolve) => canvas.toBlob(resolve, 'image/webp', 0.92));
+    const compressed = await new Promise((resolve) => canvas.toBlob(resolve, 'image/webp', 0.7));
     if (!compressed || compressed.size > MAX_UPLOAD_BYTES) {
       throw new Error('This image is still too large after compression. Choose a file under 4 MB.');
     }

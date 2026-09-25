@@ -275,7 +275,7 @@ async function sportsView() {
   };
 }
 async function eventView() {
-  const v = (await api('/admin/event')) || {};
+  const v = (await api('/admin/site-settings')) || {};
   const localDate = (s) =>
     s
       ? new Date(new Date(s).getTime() - new Date(s).getTimezoneOffset() * 60000)
@@ -285,14 +285,12 @@ async function eventView() {
   return {
     html: `${header('Event details', 'Keep the public event information accurate and up to date.', 'EVENT SETTINGS')}<section class="surface panel"><form id="event-form"><div class="form-grid"><div class="full">${field('Event title', 'title', v.title, 'text', 'required maxlength="200"')}</div><label class="full">Description<textarea name="description" required maxlength="20000">${e(v.description)}</textarea></label>${field('Starts (your local time)', 'start_date', localDate(v.start_date), 'datetime-local', 'required')}${field('Ends (your local time)', 'end_date', localDate(v.end_date), 'datetime-local', 'required')}<div class="full">${field('Venue', 'venue', v.venue, 'text', 'required maxlength="500"')}</div></div><div class="form-footer"><button class="primary">Save event details</button><p class="form-note">Changes appear on the public event page immediately.</p></div></form></section>`,
     bind() {
+      const eventForm = document.querySelector('#event-form');
+      eventForm.innerHTML = `<label class="check"><input name="show_teams" type="checkbox" ${v.show_teams !== false ? 'checked' : ''}> Show “Meet the teams” section on landing page</label><div class="form-footer"><button class="primary">Save setting</button><p class="form-note">Controls the public landing page.</p></div>`;
       bindForm('#event-form', async (b) => {
-        await api('/admin/event', {
+        await api('/admin/site-settings', {
           method: 'PATCH',
-          body: JSON.stringify({
-            ...b,
-            start_date: new Date(b.start_date).toISOString(),
-            end_date: new Date(b.end_date).toISOString(),
-          }),
+          body: JSON.stringify({ show_teams_section: b.show_teams === 'on' }),
         });
         message('Event details saved.');
       });
@@ -366,7 +364,7 @@ function openRosterEditor(panel, orderId, item) {
       : '<span class="player-photo-placeholder" aria-hidden="true"></span>';
     fields.insertAdjacentHTML(
       'beforeend',
-      `<div class="player-row"><div class="player-photo">${preview}<button type="button" class="player-photo-clear" data-photo="${index}" aria-label="Remove photo for member ${index + 1}" ${photoKey ? '' : 'hidden'}>×</button><label class="player-photo-pick"><input name="photo-${index}" type="file" accept="image/png,image/jpeg,image/webp" aria-label="Photo for member ${index + 1}"><span>Photo</span></label></div><label class="input-group">Member ${index + 1}<input name="player" type="text" value="${e(name)}" maxlength="120" autocomplete="off" placeholder="Full name"></label><fieldset class="jersey-selector"><legend>Jersey size <span class="sr-only">for member ${index + 1}</span></legend><div class="jersey-options">${['S', 'M', 'L', 'XL'].map((option) => `<label><input type="radio" name="jersey-${index}" value="${option}" ${size === option ? 'checked' : ''}><span>${option}</span></label>`).join('')}</div></fieldset></div>`,
+      `<div class="player-row"><div class="player-photo">${preview}<button type="button" class="player-photo-clear" data-photo="${index}" aria-label="Remove photo for member ${index + 1}" ${photoKey ? '' : 'hidden'}>×</button><label class="player-photo-pick"><input name="photo-${index}" type="file" accept="image/png,image/jpeg,image/webp" aria-label="Photo for member ${index + 1}"><span>Photo</span></label></div><label class="input-group">Member ${index + 1}<input name="player" type="text" value="${e(name)}" maxlength="120" autocomplete="off" placeholder="Full name"></label><fieldset class="jersey-selector"><legend>Jersey size <span class="sr-only">for member ${index + 1}</span></legend><div class="jersey-options">${['S', 'M', 'L', 'XL', '2XL'].map((option) => `<label><input type="radio" name="jersey-${index}" value="${option}" ${size === option ? 'checked' : ''}><span>${option}</span></label>`).join('')}</div></fieldset></div>`,
     );
     if (cricket) fields.lastElementChild.insertAdjacentHTML('beforeend', `<fieldset class="jersey-selector"><legend>Sleeve style</legend><div class="jersey-options">${[['full_sleeve', 'Full sleeve'], ['half_sleeve', 'Half sleeve']].map(([value, label]) => `<label><input type="radio" name="jersey-style-${index}" value="${value}" ${style === value ? 'checked' : ''}><span>${label}</span></label>`).join('')}</div></fieldset>`);
     addButton.disabled = fields.children.length >= 100;

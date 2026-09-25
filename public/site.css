@@ -1791,3 +1791,27 @@ form.is-loading .button:disabled {
   line-height: 1.1;
   white-space: nowrap;
 }
+.jersey-sizing {
+  margin: 14px 0 18px;
+  overflow-x: auto;
+}
+.jersey-sizing strong {
+  display: block;
+  margin-bottom: 8px;
+}
+.jersey-sizing table {
+  width: 100%;
+  max-width: 360px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.jersey-sizing th,
+.jersey-sizing td {
+  padding: 7px 10px;
+  border: 1px solid var(--rule);
+  text-align: left;
+}
+.jersey-sizing th {
+  background: var(--tint);
+  font-weight: 600;
+}

@@ -42,6 +42,7 @@ const eventBody = z
     start_date: z.string().datetime({ offset: true }),
     end_date: z.string().datetime({ offset: true }),
     venue: z.string().trim().min(1).max(500),
+    show_teams: z.boolean().optional(),
   })
   .strict();
 const listQuery = z.object({
@@ -57,6 +58,18 @@ export async function registerAdmin(
   storage: Storage,
 ) {
   const guard = auth(db, c);
+  app.get('/admin/site-settings', { preHandler: guard.superAdmin }, async () => {
+    const row = await one(db, "SELECT value FROM site_settings WHERE key='show_teams_section'");
+    return { show_teams_section: row?.value !== false };
+  });
+  app.patch('/admin/site-settings', { preHandler: guard.superAdmin }, async (req) => {
+    const value = z.object({ show_teams_section: z.boolean() }).parse(req.body).show_teams_section;
+    await db.query(
+      "INSERT INTO site_settings(key,value) VALUES('show_teams_section',$1) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value",
+      [value],
+    );
+    return { show_teams_section: value };
+  });
   app.get('/admin/orders', { preHandler: guard.admin }, async (req) => {
     const q = listQuery
       .extend({
@@ -351,6 +364,14 @@ export async function registerAdmin(
     return db.transaction(async (tx) => {
       await tx.query('SELECT pg_advisory_xact_lock(427191)');
       const before = await one(tx, 'SELECT * FROM events WHERE active FOR UPDATE');
+      if (Object.keys(b).length === 1 && b.show_teams !== undefined) {
+        assert(before, 404, 'not_found', 'Event not found');
+        return one(
+          tx,
+          'UPDATE events SET show_teams=$1,updated_at=now() WHERE id=$2 RETURNING *',
+          [b.show_teams, before.id],
+        );
+      }
       const existing = before
         ? {
             title: before.title,
@@ -358,6 +379,7 @@ export async function registerAdmin(
             start_date: new Date(before.start_date).toISOString(),
             end_date: new Date(before.end_date).toISOString(),
             venue: before.venue,
+            show_teams: before.show_teams,
           }
         : {};
       const merged = eventBody.parse({ ...existing, ...b });
@@ -373,16 +395,17 @@ export async function registerAdmin(
         merged.start_date,
         merged.end_date,
         merged.venue,
+        merged.show_teams ?? true,
       ];
       const after = before
         ? await one(
             tx,
-            'UPDATE events SET title=$1,description=$2,start_date=$3,end_date=$4,venue=$5,updated_at=now() WHERE id=$6 RETURNING *',
+            'UPDATE events SET title=$1,description=$2,start_date=$3,end_date=$4,venue=$5,show_teams=$6,updated_at=now() WHERE id=$7 RETURNING *',
             [...values, before.id],
           )
         : await one(
             tx,
-            'INSERT INTO events(title,description,start_date,end_date,venue) VALUES($1,$2,$3,$4,$5) RETURNING *',
+            'INSERT INTO events(title,description,start_date,end_date,venue,show_teams) VALUES($1,$2,$3,$4,$5,$6) RETURNING *',
             values,
           );
       await audit(tx, req.actor!.id, 'event.update', 'event', after!.id, {

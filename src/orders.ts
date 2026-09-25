@@ -48,7 +48,7 @@ export const profileInput = z
   .object({
     players: z.array(z.string().trim().min(1).max(120)).max(100).optional(),
     jersey_sizes: z
-      .array(z.enum(['S', 'M', 'L', 'XL']).nullable())
+      .array(z.enum(['S', 'M', 'L', 'XL', '2XL']).nullable())
       .max(100)
       .optional(),
     jersey_style: z.enum(['full_sleeve', 'half_sleeve']).nullable().optional(),
@@ -682,6 +682,6 @@ export class Orders {
       }
     }
     await tx.query('UPDATE orders SET updated_at=now() WHERE id=$1', [id]);
-    return (await detail(tx, id)).items.find((i) => i.id === itemId);
+    return detail(tx, id);
   }
 }

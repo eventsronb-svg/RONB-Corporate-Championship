@@ -121,6 +121,7 @@ export async function validateFile(buffer: Buffer, mime: string, kind: StoredFil
       'invalid_file',
       'Unsupported image',
     );
+    if (mime === 'image/webp') return { buffer, mime };
     // Preserve displayed dimensions and aspect ratio, applying EXIF orientation
     // before stripping metadata. Compress without cropping or resizing.
     const normalized = img.rotate();
