@@ -749,6 +749,21 @@ h2 {
 .sport-choice.is-pending .registered-state {
   color: var(--pending);
 }
+.sport-choice .sport-choice-price {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.sport-choice .sport-choice-price > span {
+  margin-bottom: 0;
+}
+.sport-choice .sport-choice-vat {
+  color: var(--muted);
+  font-size: 15.6px;
+  opacity: 0.8;
+  white-space: nowrap;
+}
 .sport-choice-label {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 48px;
@@ -783,6 +798,9 @@ h2 {
   background: oklch(0.52 0.2 25 / 0.1);
   padding: 2px 6px;
   border-radius: 6px;
+}
+.info-box .incl-vat {
+  margin-left: 6px;
 }
 .registration-panel {
   margin: 24px 0;
@@ -964,6 +982,13 @@ h2 {
   white-space: pre-line;
   line-height: 1.8;
   font-weight: 600;
+}
+.incl-vat {
+  color: var(--muted);
+  font-size: 15.6px;
+  font-weight: 600;
+  opacity: 0.8;
+  white-space: nowrap;
 }
 .toast {
   position: fixed;
@@ -1494,6 +1519,19 @@ h2 {
   outline-offset: 3px;
   border-radius: 4px;
 }
+.player-row.has-photo-error .player-photo-preview,
+.player-row.has-photo-error .player-photo-placeholder {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+.player-photo-error {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+}
 .jersey-selector {
   min-width: 0;
   margin: 0;
@@ -1675,6 +1713,12 @@ h2 {
     font-size: 13.26px;
   }
   .sport-choice .registered-state {
+    font-size: 13.26px;
+  }
+  .sport-choice .sport-choice-vat {
+    font-size: 13.26px;
+  }
+  .incl-vat {
     font-size: 13.26px;
   }
   .sport-choice .sport-choice-icon {

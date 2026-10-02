@@ -42,7 +42,7 @@ Every endpoint in this section requires the captain `session` cookie. A foreign 
 | POST   | `/orders/draft`                                      | Create draft or return existing open order                             |
 | PATCH  | `/orders/:id/sports`                                 | Full selection replacement; body below                                 |
 | POST   | `/orders/:id/phone`                                  | `{ "phone_number": "+977 9800000000" }`                                |
-| POST   | `/orders/:id/invoice`                                | Lock current prices and total; repeat calls return the frozen invoice  |
+| POST   | `/orders/:id/invoice`                                | Lock current prices and VAT-inclusive total; repeat calls return the frozen invoice |
 | POST   | `/orders/:id/payment-request`                        | Create or return the existing code, QR and expiry                      |
 | POST   | `/orders/:id/receipt`                                | Multipart file field `receipt`; creates receipt and submits for review |
 | GET    | `/orders/:id/status`                                 | Full resumable order, items and payment information                    |
@@ -164,12 +164,12 @@ Organizer roles: `staff` and `super_admin`. Email matching is case-insensitive. 
 
 | Method | Path                                                      | Response                                                                                                |
 | ------ | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| GET    | `/admin/teams?search=&limit=&offset=`                     | `{teams,limit,offset}`; one row per registration with selected sports                                   |
+| GET    | `/admin/teams?search=&limit=&offset=`                     | `{teams,limit,offset}`; completed registrations and teams awaiting payment only                        |
 | GET    | `/admin/teams/:id`                                        | Team name, status, registration contact and all sport rosters with jersey sizes                         |
 | PATCH  | `/admin/teams/:id/items/:item_id/profile`                 | Replace roster: `players`, `jersey_sizes`, `captain_position`, `player_photos`; multipart logo optional |
 | POST   | `/admin/teams/:id/items/:item_id/player-photos/:position` | Upload (multipart `photo`) or replace one member photo; returns `{position, photo_url}`                 |
 
-Team IDs are order IDs. This keeps separate registrations distinct even if they share a company name. Search matches team name, sport, captain name, email, and phone. Pagination defaults to 50 rows, maximum 100. The admin Teams page uses 25 rows. Draft and historical registrations are included with their status. Empty orders without sports are excluded. Detail returns `404` for unknown IDs or orders without sports.
+Team IDs are order IDs. This keeps separate registrations distinct even if they share a company name. Search matches team name, sport, captain name, email, and phone. Pagination defaults to 50 rows, maximum 100. The admin Teams page uses 25 rows. The list is limited to registrations in `confirmed`, `contacted`, `completed` or `payment_pending`: the team desk tracks teams that are on the event or still waiting to be paid. Drafts, receipts under review, and cancelled or expired registrations are managed from `/admin/orders` instead, and `/admin/teams/:id` still resolves any order that has sports. Empty orders without sports are excluded. Detail returns `404` for unknown IDs or orders without sports.
 
 Organizers can edit a roster from the team detail view: `PATCH .../profile` accepts the same fields as the captain profile editor (players, jersey sizes, captain position and photo keys), and `POST .../player-photos/:position` stores a new member photo before saving. Replacing names or leaving jersey sizes unset returns the profile to pending. Each organizer edit and photo upload is written to the order's audit log.
 

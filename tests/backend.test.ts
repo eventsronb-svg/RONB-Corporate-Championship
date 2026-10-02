@@ -86,7 +86,8 @@ describe('registration and publication', () => {
   });
   it('gates a team until its profile is complete and sends one asynchronous confirmation', async () => {
     const order = await h.confirm();
-    expect(order.total_amount).toBe('1500.25');
+    // total_amount is the VAT-inclusive transfer amount (1500.25 x 1.13).
+    expect(order.total_amount).toBe('1695.28');
     expect((await h.call('GET', '/teams')).json()).toEqual([]);
     expect((await h.db.query('SELECT * FROM email_jobs')).rows).toHaveLength(0);
     expect((await h.call('GET', '/orders/current')).json().resume_step).toBe('team_profile');
@@ -137,6 +138,21 @@ describe('registration and publication', () => {
     const teams = (await h.call('GET', '/teams')).json();
     expect(teams).toHaveLength(1);
     expect(teams[0].logo_url).toBe(replacement.logo_url);
+  });
+  it('accepts a standalone company-logo upload before a Cricksal sleeve style is chosen', async () => {
+    await h.db.query("UPDATE sports SET name='Cricksal' WHERE id=$1", [h.sports[0].id]);
+    const order = await h.confirm();
+    const logo = h.multipart('logo');
+    const response = await h.call(
+      'PATCH',
+      `/orders/${order.id}/items/${order.items[0].id}/profile`,
+      logo.payload,
+      'user',
+      logo.headers,
+    );
+    expect(response.statusCode).toBe(200);
+    expect(response.json().items[0].logo_url).toMatch(/^https:\/\/logos\.example\/team-logos\//);
+    expect(response.json().items[0].jersey_style).toBeNull();
   });
   it('lets an organizer change member names and photos on a completed profile', async () => {
     const order = await h.confirm();
@@ -397,7 +413,7 @@ describe('registration and publication', () => {
       ).statusCode,
     ).toBe(409);
     await h.call('PATCH', `/admin/sports/${h.sports[0].id}`, { price: '1700.00' }, 'admin');
-    expect((await h.call('POST', `/orders/${o.id}/invoice`)).json().total_amount).toBe('1500.25');
+    expect((await h.call('POST', `/orders/${o.id}/invoice`)).json().total_amount).toBe('1695.28');
     for (const sql of [
       'UPDATE orders SET total_amount=1 WHERE id=$1',
       'UPDATE orders SET invoiced_at=NULL,total_amount=NULL WHERE id=$1',
@@ -411,7 +427,7 @@ describe('registration and publication', () => {
     expect(revised.status).toBe('draft');
     expect(revised.items[0].price_at_purchase).toBe('1700.00');
     expect((await one(h.db, 'SELECT * FROM orders WHERE id=$1', [o.id]))?.total_amount).toBe(
-      '1500.25',
+      '1695.28',
     );
   });
   it('takes current prices at invoice time and refuses inactive sports', async () => {
@@ -422,7 +438,7 @@ describe('registration and publication', () => {
     });
     await h.call('POST', `/orders/${o.id}/phone`, { phone_number: '9800000000' });
     await h.call('PATCH', `/admin/sports/${h.sports[0].id}`, { price: '999.99' }, 'admin');
-    expect((await h.call('POST', `/orders/${o.id}/invoice`)).json().total_amount).toBe('999.99');
+    expect((await h.call('POST', `/orders/${o.id}/invoice`)).json().total_amount).toBe('1129.99');
     await h.call('DELETE', `/admin/sports/${h.sports[0].id}`, undefined, 'admin');
     const next = (await h.call('POST', `/orders/${o.id}/cancel-and-revise`)).json();
     expect(next.items).toHaveLength(0);
@@ -491,6 +507,61 @@ describe('registration and publication', () => {
       'admin',
     );
     expect((await h.call('GET', '/teams')).json()).toHaveLength(0);
+  });
+  it('keeps the admin team desk to completed teams and teams awaiting payment', async () => {
+    const desk = async () =>
+      (await h.call('GET', '/admin/teams', undefined, 'staff'))
+        .json()
+        .teams.map((team: { id: string }) => team.id)
+        .sort();
+    const seed = async (status: string) => {
+      const user = await one(
+        h.db,
+        'INSERT INTO users(google_id,email,name) VALUES($1,$2,$3) RETURNING *',
+        [`g-${status}`, `${status}@example.com`, `${status} captain`],
+      );
+      const order = await one(
+        h.db,
+        'INSERT INTO orders(user_id,status) VALUES($1,$2) RETURNING *',
+        [user!.id, status],
+      );
+      await h.db.query(
+        'INSERT INTO order_items(order_id,sport_id,price_at_purchase,team_name) VALUES($1,$2,1000,$3)',
+        [order!.id, h.sports[0].id, `${status} team`],
+      );
+      return order!.id;
+    };
+    // Every status the order lifecycle can hold, so the desk boundary is explicit.
+    const hidden = await Promise.all(
+      [
+        'draft',
+        'phone_captured',
+        'invoiced',
+        'receipt_submitted',
+        'under_review',
+        'rejected',
+        'cancelled',
+        'expired',
+      ].map(seed),
+    );
+    const [awaiting, ...verified] = await Promise.all(
+      ['payment_pending', 'confirmed', 'contacted', 'completed'].map(seed),
+    );
+    expect(await desk()).toEqual([awaiting, ...verified].sort());
+    expect(hidden.filter((id) => [awaiting, ...verified].includes(id))).toEqual([]);
+
+    // Search narrows the same set, and pagination stays within it.
+    const found = await h.call(
+      'GET',
+      `/admin/teams?search=${encodeURIComponent('payment_pending team')}`,
+      undefined,
+      'staff',
+    );
+    expect(found.json().teams.map((team: { id: string }) => team.id)).toEqual([awaiting]);
+    expect(
+      (await h.call('GET', '/admin/teams?limit=2', undefined, 'staff')).json().teams,
+    ).toHaveLength(2);
+    expect((await h.call('GET', '/admin/teams')).statusCode).toBe(401);
   });
   it('lists existing registrations and lets the captain start a fresh one for another sport', async () => {
     const o = await h.confirm(1);
@@ -678,7 +749,7 @@ describe('background jobs', () => {
     ]);
     expect(await expireOrders(h.db)).toBe(2);
     expect((await one(h.db, 'SELECT * FROM orders WHERE id=$1', [o.id]))?.total_amount).toBe(
-      '1500.25',
+      '1695.28',
     );
     const revised = (await h.call('POST', `/orders/${o.id}/cancel-and-revise`)).json();
     expect(revised.status).toBe('draft');

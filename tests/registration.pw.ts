@@ -60,10 +60,10 @@ test('new captain signs in, submits one team, corrects rejected payment, and fin
     await expect(page.locator('#phone-form .error')).toBeVisible();
     await page.getByRole('textbox', { name: 'Phone number' }).fill('9800000000');
     await page.getByRole('button', { name: 'Issue invoice' }).click();
-    await expect(page.getByRole('heading', { name: 'Transfer 1,000 NPR' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Transfer 1,130 NPR' })).toBeVisible();
     const paymentCode = await page.locator('code').textContent();
     await page.reload();
-    await expect(page.getByRole('heading', { name: 'Transfer 1,000 NPR' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Transfer 1,130 NPR' })).toBeVisible();
     await expect(page.locator('code')).toHaveText(paymentCode!);
     await page.getByRole('button', { name: 'I have paid, upload receipt' }).click();
     await page.getByLabel('Receipt file').setInputFiles({
@@ -73,13 +73,35 @@ test('new captain signs in, submits one team, corrects rejected payment, and fin
     });
     await page.getByRole('button', { name: 'Submit receipt' }).click();
     await expect(page.locator('#receipt-form .error')).toBeVisible();
-    // A valid image above Vercel's request limit must shrink before it leaves the browser.
-    const largePng = await sharp({
+    // A receipt already inside the 20 MB budget is sent untouched, never re-encoded.
+    const smallPng = await sharp({
       create: { width: 1400, height: 1200, channels: 3, background: '#759585' },
     })
       .png({ compressionLevel: 0 })
       .toBuffer();
-    expect(largePng.length).toBeGreaterThan(4_500_000);
+    expect(smallPng.length).toBeGreaterThan(4_500_000);
+    expect(smallPng.length).toBeLessThan(20 * 1024 * 1024);
+    await page.getByLabel('Receipt file').setInputFiles({
+      name: 'small-receipt.png',
+      mimeType: 'image/png',
+      buffer: smallPng,
+    });
+    const sentAsIs = page.waitForRequest(
+      (request) => request.url().endsWith('/receipt') && request.method() === 'POST',
+    );
+    await page.getByRole('button', { name: 'Submit receipt' }).click();
+    const sentBody = (await sentAsIs).postDataBuffer()!;
+    expect(sentBody.toString('latin1')).toContain('image/png');
+    expect(sentBody.length).toBeLessThan(smallPng.length + 100_000);
+    await expect(page.getByRole('heading', { name: 'Receipt received' })).toBeVisible();
+
+    // Anything above the budget is compressed until it fits, whatever its source size.
+    const largePng = await sharp({
+      create: { width: 3200, height: 2800, channels: 3, background: '#759585' },
+    })
+      .png({ compressionLevel: 0 })
+      .toBuffer();
+    expect(largePng.length).toBeGreaterThan(20 * 1024 * 1024);
     await page.getByLabel('Receipt file').setInputFiles({
       name: 'large-receipt.png',
       mimeType: 'image/png',
@@ -90,7 +112,7 @@ test('new captain signs in, submits one team, corrects rejected payment, and fin
     );
     await page.getByRole('button', { name: 'Submit receipt' }).click();
     const requestBody = (await submitted).postDataBuffer()!;
-    expect(requestBody.length).toBeLessThan(4_100_000);
+    expect(requestBody.length).toBeLessThan(20 * 1024 * 1024 + 100_000);
     expect(requestBody.toString('latin1')).toContain('image/webp');
     await expect(page.getByRole('heading', { name: 'Receipt received' })).toBeVisible();
 
@@ -117,6 +139,13 @@ test('new captain signs in, submits one team, corrects rejected payment, and fin
     await expect(admin.getByRole('heading', { name: 'Verified on' })).toBeVisible();
     await page.reload();
     await expect(page.getByRole('heading', { name: 'Finish your team' })).toBeVisible();
+    // The roster editor is gated on a saved logo, so every Complete profile button stays
+    // disabled until one exists, and the reason is announced to screen readers.
+    const gatedButtons = page.getByRole('button', { name: 'Complete profile' });
+    expect(await gatedButtons.count()).toBeGreaterThan(0);
+    await expect(gatedButtons.first()).toBeDisabled();
+    await expect(page.getByText('Save your company logo above to unlock')).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Complete profile' })).toHaveCount(0);
     await page.setViewportSize({ width: 390, height: 844 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
@@ -124,6 +153,12 @@ test('new captain signs in, submits one team, corrects rejected payment, and fin
     await page.getByLabel('Company logo').setInputFiles(upload);
     await page.getByRole('button', { name: 'Save company logo', exact: true }).click();
     await expect(page.getByRole('status')).toHaveText('Company logo saved.');
+    // Saving the logo re-renders the step and unlocks each team profile.
+    await expect(page.getByRole('button', { name: 'Complete profile' })).toHaveCount(0);
+    await expect(page.getByText('Save your company logo above to unlock')).toHaveCount(0);
+    await expect(
+      page.locator('.sport-choice').first().getByRole('link', { name: 'Complete profile' }),
+    ).toBeVisible();
     await page
       .locator('.sport-choice')
       .filter({ hasText: 'Basketball' })
@@ -184,6 +219,44 @@ test('new captain signs in, submits one team, corrects rejected payment, and fin
     await page.getByLabel('Photo for player 1', { exact: true }).setInputFiles(upload);
     await expect(photoRow.locator('.player-photo-preview')).toBeVisible();
     await expect(photoRow.locator('.player-photo-clear')).toBeVisible();
+    // A photo that cannot be decoded is refused in the browser, and only that row is flagged.
+    await page.getByLabel('Photo for player 2', { exact: true }).setInputFiles({
+      name: 'broken.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from('not an image'),
+    });
+    await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+    const secondRow = page.locator('.player-row').nth(1);
+    await expect(page.locator('.player-row.has-photo-error')).toHaveCount(1);
+    await expect(secondRow).toHaveClass(/has-photo-error/);
+    await expect(secondRow.locator('.player-photo-error')).toHaveText('Photo problem');
+    // The original message is still shown, now naming the photo that failed.
+    await expect(page.locator('#profile-form .error')).toContainText(
+      'One of your player photos could not be uploaded. Player 2 — photo problem: This image could not be opened.',
+    );
+    await page.screenshot({ path: 'test-results/player-photo-error.png', fullPage: true });
+    // A photo far larger than the upload budget is accepted and compressed until it fits.
+    const hugePhoto = await sharp({
+      create: { width: 3200, height: 2800, channels: 3, background: '#759585' },
+    })
+      .png({ compressionLevel: 0 })
+      .toBuffer();
+    expect(hugePhoto.length).toBeGreaterThan(20 * 1024 * 1024);
+    const photoRequest = page.waitForRequest(
+      (request) => request.url().includes('/player-photos/1') && request.method() === 'POST',
+    );
+    await page.getByLabel('Photo for player 2', { exact: true }).setInputFiles({
+      name: 'huge-photo.png',
+      mimeType: 'image/png',
+      buffer: hugePhoto,
+    });
+    await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+    const photoBody = (await photoRequest).postDataBuffer()!;
+    expect(photoBody.length).toBeLessThan(20 * 1024 * 1024 + 100_000);
+    expect(photoBody.toString('latin1')).toContain('image/webp');
+    // Choosing another photo clears the highlight.
+    await expect(page.locator('.player-photo-error')).toHaveCount(0);
+    await expect(page.locator('.player-row.has-photo-error')).toHaveCount(0);
     await page.screenshot({ path: 'test-results/jersey-onboarding-mobile.png', fullPage: true });
     await page.setViewportSize({ width: 1280, height: 900 });
     const nameBox = await page
@@ -354,7 +427,7 @@ test('mobile captain can revise an expired payment and recover from session expi
   await page.getByRole('button', { name: 'Issue invoice' }).click();
   await expect(page.getByText('Temporary payment outage')).toBeVisible();
   await page.getByRole('button', { name: 'Issue invoice' }).click();
-  await expect(page.getByRole('heading', { name: 'Transfer 1,000 NPR' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Transfer 1,130 NPR' })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   const oldId = new URL(page.url()).searchParams.get('order');
   await context.request.post(`/__test/expire/${oldId}`, { headers: { origin: baseURL! } });

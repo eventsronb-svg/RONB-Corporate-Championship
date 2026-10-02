@@ -5,6 +5,10 @@ import { assert } from './errors.js';
 import { confirmationEmail } from './email-templates.js';
 export const paid = ['confirmed', 'contacted', 'completed'];
 export const openSql = "status NOT IN ('completed','cancelled','expired','rejected')";
+// Sport prices are advertised VAT-exclusive; the amount a captain must actually
+// transfer, and therefore orders.total_amount, includes VAT. Rounded to 2 decimals.
+export const VAT_RATE = 0.13;
+export const VAT_MULTIPLIER = 1 + VAT_RATE;
 // Minimum roster size required to complete a team profile, keyed by sport slug/name.
 export const MIN_ROSTER: Record<string, number> = { cricksal: 7, basketball: 3, futsal: 5 };
 export const reservedStates = [
@@ -388,8 +392,8 @@ export class Orders {
           item.price,
         ]);
       await tx.query(
-        'UPDATE orders SET total_amount=(SELECT sum(price_at_purchase) FROM order_items WHERE order_id=$1),invoiced_at=now() WHERE id=$1',
-        [id],
+        'UPDATE orders SET total_amount=(SELECT round(sum(price_at_purchase)*$2::numeric,2) FROM order_items WHERE order_id=$1),invoiced_at=now() WHERE id=$1',
+        [id, VAT_MULTIPLIER],
       );
       await transition(tx, o, 'invoiced');
       return detail(tx, id);
@@ -610,8 +614,21 @@ export class Orders {
         'invalid_jersey_sizes',
         'Send one jersey size per player together with the roster',
       );
-      const teamJerseyStyle = input.jersey_style ?? input.jersey_styles?.find(Boolean) ?? null;
-      assert(input.jersey_style !== undefined || input.jersey_styles !== undefined || itemSport?.name.toLowerCase() !== 'cricksal', 400, 'invalid_jersey_style', 'Send the team jersey style together with the roster');
+      // Sleeve style belongs to a Cricksal roster, not to a standalone company-logo
+      // upload. Keep accepting later roster edits from a page loaded before the sleeve
+      // field was introduced when that choice is already stored.
+      const teamJerseyStyle =
+        input.jersey_style ?? input.jersey_styles?.find(Boolean) ?? item.jersey_style ?? null;
+      assert(
+        input.players === undefined ||
+          input.jersey_style !== undefined ||
+          input.jersey_styles !== undefined ||
+          itemSport?.name.toLowerCase() !== 'cricksal' ||
+          item.jersey_style !== null,
+        400,
+        'invalid_jersey_style',
+        'Send the team jersey style together with the roster',
+      );
       assert(
         input.players !== undefined ||
           input.logo_url !== undefined ||

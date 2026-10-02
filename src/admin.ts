@@ -13,6 +13,7 @@ import {
   uuid,
   ensureCapacity,
   reservedStates,
+  paid,
 } from './orders.js';
 const text = z.string().trim().min(1).max(2000);
 const price = z
@@ -426,10 +427,19 @@ export async function registerAdmin(
            ARRAY(SELECT s.name FROM order_items i JOIN sports s ON s.id=i.sport_id WHERE i.order_id=o.id ORDER BY s.name) AS sports
            FROM orders o JOIN users u ON u.id=o.user_id
            WHERE EXISTS(SELECT 1 FROM order_items i WHERE i.order_id=o.id)
+           AND o.status=ANY($4::text[])
            AND ($1::text IS NULL OR u.name ILIKE $1 OR u.email ILIKE $1 OR coalesce(o.phone_number,u.phone) ILIKE $1
              OR EXISTS(SELECT 1 FROM order_items i JOIN sports s ON s.id=i.sport_id WHERE i.order_id=o.id AND (i.team_name ILIKE $1 OR s.name ILIKE $1)))
            ORDER BY o.created_at DESC,o.id LIMIT $2 OFFSET $3`,
-          [q.search ? `%${q.search}%` : null, q.limit, q.offset],
+          [
+            q.search ? `%${q.search}%` : null,
+            q.limit,
+            q.offset,
+            // The team desk only tracks teams that are on the event or still
+            // waiting to be paid; abandoned drafts and cancelled orders live
+            // in the registrations queue instead.
+            [...paid, 'payment_pending'],
+          ],
         )
       ).rows,
       limit: q.limit,

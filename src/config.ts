@@ -1,3 +1,4 @@
+import { isAbsolute } from 'node:path';
 import { z } from 'zod';
 
 // Merchant account captains transfer to. Hard-coded on purpose: never read from the environment.
@@ -28,6 +29,9 @@ const envSchema = z.object({
   S3_LOGOS_BUCKET: z.string().default('booking-public'),
   S3_LOGOS_PUBLIC_URL: z.string().default(''),
   S3_PLAYERPHOTOS_BUCKET: z.string().default('player-photos'),
+  // When set, receipts and player photos are written to this absolute directory on the host
+  // instead of object storage. Keep it outside public_html and outside the deploy root.
+  STORAGE_DIR: z.string().default(''),
   RESEND_API_KEY: z.string().default(''),
   EMAIL_FROM: z.string().default(''),
   PAYMENT_EXPIRY_MINUTES: z.coerce.number().int().min(5).max(10080).default(1440),
@@ -41,6 +45,8 @@ export function config(env: NodeJS.ProcessEnv = process.env): Config {
     throw new Error('ADMIN_LOGIN_PASSWORD must contain at least 16 characters');
   if (new URL(c.APP_ORIGIN).origin !== c.APP_ORIGIN)
     throw new Error('APP_ORIGIN must be an origin without a trailing slash');
+  if (c.STORAGE_DIR && !isAbsolute(c.STORAGE_DIR))
+    throw new Error('STORAGE_DIR must be an absolute path');
   if (
     !c.S3_RECEIPTS_BUCKET ||
     !c.S3_LOGOS_BUCKET ||

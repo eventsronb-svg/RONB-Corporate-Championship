@@ -1,7 +1,19 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { createServer } from 'node:http';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import sharp from 'sharp';
-import { resendMailer, s3Storage, validateFile, DeliveryError } from '../src/providers.js';
+import {
+  resendMailer,
+  s3Storage,
+  validateFile,
+  DeliveryError,
+  fileToken,
+  fileTokenValid,
+  hybridStorage,
+  localStorage,
+} from '../src/providers.js';
 import { config } from '../src/config.js';
 import vercelHandler from '../src/app.js';
 const base = {
@@ -178,6 +190,29 @@ it('normalizes images, preserves original logo dimensions, and rejects malformed
     validateFile(Buffer.from('not a pdf'), 'application/pdf', 'receipt'),
   ).rejects.toMatchObject({ code: 'invalid_file' });
 });
+it('accepts photos and receipts up to 20 MB while logos stay at 5 MB', async () => {
+  // A receipt PDF is returned untouched, so its accepted size can be asserted directly.
+  const header = Buffer.from('%PDF-1.7\n');
+  const pdf = (bytes: number) => Buffer.concat([header, Buffer.alloc(bytes - header.length)]);
+  const sixMb = await validateFile(pdf(6 * 1024 * 1024), 'application/pdf', 'receipt');
+  expect(sixMb.buffer.length).toBe(6 * 1024 * 1024);
+  expect(sixMb.mime).toBe('application/pdf');
+  await expect(
+    validateFile(pdf(20 * 1024 * 1024 + 1), 'application/pdf', 'receipt'),
+  ).rejects.toMatchObject({ code: 'invalid_file' });
+  // The size cap is asserted before decoding, so an oversized photo fails on the cap alone.
+  await expect(
+    validateFile(Buffer.alloc(20 * 1024 * 1024 + 1), 'image/png', 'photo'),
+  ).rejects.toMatchObject({ code: 'invalid_file' });
+  // Under 20 MB a photo clears the size gate and only fails later, on decoding the filler.
+  await expect(
+    validateFile(Buffer.alloc(5 * 1024 * 1024 + 1), 'image/png', 'photo'),
+  ).rejects.toMatchObject({ message: 'The image could not be decoded' });
+  await expect(
+    validateFile(Buffer.alloc(6 * 1024 * 1024), 'application/pdf', 'logo'),
+  ).rejects.toMatchObject({ code: 'invalid_file' });
+});
+
 it('fails closed for missing provider settings and shared public/private buckets', async () => {
   expect(() =>
     config({ ...base, S3_RECEIPTS_BUCKET: 'shared', S3_LOGOS_BUCKET: 'shared' }),
@@ -265,4 +300,138 @@ it('keeps receipt PDFs unchanged and rejects corrupt images', async () => {
   await expect(validateFile(Buffer.from('broken'), 'image/jpeg', 'receipt')).rejects.toMatchObject({
     code: 'invalid_file',
   });
+});
+
+it('stores receipts and photos on disk, signs short-lived links, and refuses traversal', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'ronb-storage-'));
+  try {
+    const c = config({ ...base, STORAGE_DIR: root });
+    const storage = localStorage(c);
+    const bytes = await sharp({
+      create: { width: 4, height: 4, channels: 3, background: '#ffffff' },
+    })
+      .png()
+      .toBuffer();
+    // Keys keep the same "<folder>/<uuid>.<ext>" shape object storage used, so the
+    // database needs no migration when the directory is switched on.
+    const photo = await storage.put('photo', bytes, 'image/png');
+    expect(photo.key).toMatch(/^player-photos\/[0-9a-f-]{36}\.png$/);
+    expect(await readFile(join(root, photo.key))).toEqual(bytes);
+    const stored = await storage.read!('photo', photo.key);
+    expect(stored?.mime).toBe('image/png');
+    expect(stored?.body).toEqual(bytes);
+    expect(await storage.read!('photo', 'player-photos/missing.png')).toBeUndefined();
+
+    const pdf = await storage.put('receipt', Buffer.from('%PDF-1.7\n'), 'application/pdf');
+    expect(pdf.key).toMatch(/^receipts\/[0-9a-f-]{36}\.pdf$/);
+
+    const url = new URL(await storage.signPlayerPhoto(photo.key), c.APP_ORIGIN);
+    expect(url.pathname).toBe(`/files/photo/${photo.key}`);
+    const expires = Number(url.searchParams.get('expires'));
+    const token = url.searchParams.get('token')!;
+    expect(expires).toBeGreaterThan(Date.now());
+    expect(fileTokenValid(c, 'photo', photo.key, expires, token)).toBe(true);
+    expect(fileTokenValid(c, 'photo', photo.key, expires, 'x'.repeat(token.length))).toBe(false);
+    expect(fileTokenValid(c, 'receipt', photo.key, expires, token)).toBe(false);
+    expect(fileTokenValid(c, 'photo', photo.key, expires - 600_000, token)).toBe(false);
+    expect(fileToken(c, 'photo', photo.key, expires)).toBe(token);
+
+    // A traversal attempt is refused even though the string starts with a valid folder.
+    // read() reports a missing file as undefined, so the guard is asserted on remove().
+    for (const [kind, key] of [
+      ['photo', 'player-photos/../../escape.png'],
+      ['photo', 'player-photos/../receipts/x.png'],
+      ['photo', 'player-photos/nested/x.png'],
+      ['photo', '/etc/passwd'],
+      ['receipt', 'receipts/../../escape.pdf'],
+      ['receipt', 'player-photos/x.pdf'],
+    ] as const) {
+      await expect(storage.remove(kind, key)).rejects.toMatchObject({ code: 'invalid_key' });
+      await expect(storage.read!(kind, key)).rejects.toMatchObject({ code: 'invalid_key' });
+    }
+
+    await storage.remove('photo', photo.key);
+    expect(await storage.read!('photo', photo.key)).toBeUndefined();
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+it('serves disk-backed files without touching object storage', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'ronb-hybrid-'));
+  try {
+    // No S3 credentials at all: if the hybrid backend reached for object storage on a
+    // locally stored file it would fail with storage_unconfigured instead of returning a link.
+    const c = config({ ...base, STORAGE_DIR: root });
+    const storage = hybridStorage(c);
+    const stored = await storage.put('photo', Buffer.from([1, 2, 3]), 'image/png');
+    expect(stored.key).toMatch(/^player-photos\//);
+    expect(stored.url).toBe(stored.key);
+    const url = new URL(await storage.signPlayerPhoto(stored.key), c.APP_ORIGIN);
+    expect(url.pathname).toBe(`/files/photo/${stored.key}`);
+    expect(
+      fileTokenValid(
+        c,
+        'photo',
+        stored.key,
+        Number(url.searchParams.get('expires')),
+        url.searchParams.get('token')!,
+      ),
+    ).toBe(true);
+    expect((await storage.read!('photo', stored.key))?.body).toEqual(Buffer.from([1, 2, 3]));
+
+    // A key that is not on disk falls back to object storage, which is unconfigured here.
+    await expect(
+      storage.signPlayerPhoto('player-photos/00000000-0000-0000-0000-000000000000.png'),
+    ).rejects.toMatchObject({ code: 'storage_unconfigured' });
+    expect(await storage.read!('photo', 'player-photos/missing.png')).toBeUndefined();
+
+    // A malformed key is rejected outright rather than being sent to object storage.
+    await expect(storage.signPlayerPhoto('player-photos/../../escape.png')).rejects.toMatchObject({
+      code: 'invalid_key',
+    });
+
+    // Removing a file that was never written must not throw.
+    await expect(
+      storage.remove('photo', 'player-photos/00000000-0000-0000-0000-000000000000.png'),
+    ).resolves.toBeUndefined();
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+it('requires an absolute STORAGE_DIR and keeps logos on object storage', () => {
+  expect(() => config({ ...base, STORAGE_DIR: 'relative/dir' })).toThrow('STORAGE_DIR');
+  expect(config({ ...base }).STORAGE_DIR).toBe('');
+  // Production still requires the logo bucket: logos stay remote even with STORAGE_DIR set.
+  expect(() =>
+    config({
+      ...base,
+      NODE_ENV: 'production',
+      STORAGE_DIR: '/home/user/ronb-storage',
+      S3_ENDPOINT: 'https://s3.example',
+      S3_ACCESS_KEY_ID: 'k',
+      S3_SECRET_ACCESS_KEY: 's',
+      RESEND_API_KEY: 'r',
+      EMAIL_FROM: 'a@example.com',
+      GOOGLE_CLIENT_ID: 'g',
+      GOOGLE_CLIENT_SECRET: 'gs',
+    }),
+  ).toThrow('S3_LOGOS_PUBLIC_URL');
+  expect(() =>
+    config({
+      ...base,
+      NODE_ENV: 'production',
+      APP_ORIGIN: 'https://ronb.example',
+      STORAGE_DIR: '/home/user/ronb-storage',
+      S3_ENDPOINT: 'https://s3.example',
+      S3_ACCESS_KEY_ID: 'k',
+      S3_SECRET_ACCESS_KEY: 's',
+      S3_LOGOS_PUBLIC_URL: 'https://logos.example',
+      RESEND_API_KEY: 'r',
+      EMAIL_FROM: 'a@example.com',
+      GOOGLE_CLIENT_ID: 'g',
+      GOOGLE_CLIENT_SECRET: 'gs',
+    }),
+  ).not.toThrow();
 });

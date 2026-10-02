@@ -1,4 +1,5 @@
-import { prepareUploadForm } from './uploads.js?v=20260924-1';
+import { prepareUploadForm } from './uploads.js?v=20261001-2';
+import { exportRosterPdf, exportSummary, rowsFromFields } from './pdf.js?v=20260930-2';
 
 const main = document.querySelector('#main');
 const toast = document.querySelector('#toast');
@@ -94,13 +95,13 @@ function home() {
     <section class="hero" aria-labelledby="hero-title">
       <div class="hero-copy">
         <p class="eyebrow">RONB presents · October 2026</p>
-        <img class="hero-logo-mobile" src="/assets/images/logo.webp?v=20260923-3" alt="Corporate Championship" width="1600" height="1600" />
+        <img class="hero-logo-mobile" src="/assets/images/logo.webp?v=20260927-2" alt="Corporate Championship" width="1600" height="1600" />
         <h1 class="hero-title" id="hero-title">Corporate<br><span>Championship</span></h1>
         <p class="hero-sub">Your colleagues. Your dream team. Four days of sports, networking, and a little friendly competition.  </p>
         <div class="hero-actions"><a class="button primary" href="/register">Bring your team</a><a class="button" href="#sports">Find your sport</a></div>
         <p class="hero-note">Out of office. Into the game.</p>
       </div>
-      <img class="hero-visual" src="/assets/images/logo.webp?v=20260923-3" alt="Corporate Championship" width="1600" height="1600" />
+      <img class="hero-visual" src="/assets/images/logo.webp?v=20260927-2" alt="Corporate Championship" width="1600" height="1600" />
     </section>
     <div class="event-strip"><div><span>Save the dates</span><strong>October 10-13, 2026</strong></div><div><span>Meet us at</span><strong>Royal Sports Park, Chunikhel</strong></div><div><span>TEAM UP & TURN UP</span><strong>Ready to Bring the Heat?</strong></div></div>
     <section class="section" id="sports">${sectionHeader('A game for your team', 'Good colleagues. Great teammates.', 'Pick your sport, rally your people, and give the office something new to talk about.')}<div class="sport-grid">${data.sports.map((sport) => `<a class="sport sport-${sport.slug}" href="/register?focus=${encodeURIComponent(sport.slug)}"><div class="sport-top"><span class="sport-format">Open for registration</span></div><h3>${esc(sport.name)}</h3>${sport.description ? `<p>${esc(sport.description)}</p>` : ''}<span class="sport-link">Let's play</span>${sportIcon(sport)}</a>`).join('')}</div><p class="section-note">Registration fees and available places are shown when you sign in.</p></section>
@@ -378,18 +379,16 @@ async function sportsStep(order) {
               .filter(Boolean)
               .join(' ');
             const label = state
-              ? state === 'verified'
-                ? 'Registered · Verified'
-                : 'Registered · Pending'
+              ? `<span class="registered-state">${state === 'verified' ? 'Registered · Verified' : 'Registered · Pending'}</span>`
               : full
-                ? 'Slots filled'
-                : money(sport.price);
+                ? '<span class="slots-filled">Slots filled</span>'
+                : `<span class="sport-choice-price"><span class="sport-choice-amount">${money(sport.price)}</span><span class="sport-choice-vat">excl. of VAT</span></span>`;
             const title = state
               ? 'This company is already registered for this sport'
               : full
                 ? 'No registration slots remaining'
                 : '';
-            return `<div class="sport-choice${cls ? ` ${cls}` : ''}"><input type="radio" name="sport" id="sport-${sport.id}" value="${sport.id}" ${selected.has(sport.id) && !disabled ? 'checked' : ''} ${state || full ? 'disabled aria-disabled="true"' : ''}${title ? ` title="${title}"` : ''}><label class="sport-choice-label" for="sport-${sport.id}"><span class="sport-choice-copy"><strong>${esc(sport.name)}</strong><span class="${state ? 'registered-state' : full ? 'slots-filled' : ''}">${label}</span></span>${sportIcon(sport, 'sport-choice-icon')}</label></div>`;
+            return `<div class="sport-choice${cls ? ` ${cls}` : ''}"><input type="radio" name="sport" id="sport-${sport.id}" value="${sport.id}" ${selected.has(sport.id) && !disabled ? 'checked' : ''} ${state || full ? 'disabled aria-disabled="true"' : ''}${title ? ` title="${title}"` : ''}><label class="sport-choice-label" for="sport-${sport.id}"><span class="sport-choice-copy"><strong>${esc(sport.name)}</strong>${label}</span>${sportIcon(sport, 'sport-choice-icon')}</label></div>`;
           })
           .join('')
       : '<p class="teams-state">No sports are open yet. Ask the organizer to add the championship formats.</p>'
@@ -457,14 +456,14 @@ function phoneStep(order) {
 async function paymentStep(order) {
   const target = document.querySelector('#registration-content');
   const payment = await post(`/orders/${order.id}/payment-request`);
-  target.innerHTML = `<p class="eyebrow">Step 03 / Payment</p><h2>Transfer ${money(order.total_amount)}</h2><p>Use the bank details below. <span class="remarks-copy">Put the unique Remarks code in the transfer remarks exactly as shown.</span></p><div class="info-box"><strong>Amount: ${money(order.total_amount)}</strong><br><span class="remarks-label">Remarks code:</span> <code>${esc(payment.unique_code)}</code><br>Expires: ${new Date(payment.expires_at).toLocaleString()}</div><div class="bank-details">${esc(payment.bank_details)}</div><p>${esc(payment.instructions)}</p><div class="form-actions"><button class="button primary" id="receipt-next">I have paid, upload receipt</button></div>`;
+  target.innerHTML = `<p class="eyebrow">Step 03 / Payment</p><h2>Transfer ${money(order.total_amount)}</h2><p>Use the bank details below. <span class="remarks-copy">Put the unique Remarks code in the transfer remarks exactly as shown.</span></p><div class="info-box"><strong>Amount: ${money(order.total_amount)} <span class="incl-vat">Incl. of VAT</span></strong><br><span class="remarks-label">Remarks code:</span> <code>${esc(payment.unique_code)}</code><br>Expires: ${new Date(payment.expires_at).toLocaleString()}</div><div class="bank-details">${esc(payment.bank_details)}</div><p>${esc(payment.instructions)}</p><div class="form-actions"><button class="button primary" id="receipt-next">I have paid, upload receipt</button></div>`;
   document
     .querySelector('#receipt-next')
     .addEventListener('click', () => receiptStep({ ...order, status: 'payment_pending' }));
 }
 function receiptStep(order) {
   const target = document.querySelector('#registration-content');
-  target.innerHTML = `<p class="eyebrow">Step 04 / Receipt</p><h2>Upload proof of payment</h2><p>Send a clear PNG, JPEG, or WebP receipt up to 5 MB, or a PDF under 4 MB. Large images are compressed automatically before upload. The organizer will review it alongside your exact amount and code.</p><form id="receipt-form" class="form-stack"><label class="input-group">Receipt file<input name="receipt" type="file" accept="image/png,image/jpeg,image/webp,application/pdf" required></label><p class="error" hidden></p><div class="form-actions"><button class="button primary">Submit receipt</button></div></form>`;
+  target.innerHTML = `<p class="eyebrow">Step 04 / Receipt</p><h2>Upload proof of payment</h2><p>Send a clear PNG, JPEG, or WebP receipt, or a PDF. Images up to 20 MB are sent as they are, and anything larger is compressed automatically before upload. The organizer will review it alongside your exact amount and code.</p><form id="receipt-form" class="form-stack"><label class="input-group">Receipt file<input name="receipt" type="file" accept="image/png,image/jpeg,image/webp,application/pdf" required></label><p class="error" hidden></p><div class="form-actions"><button class="button primary">Submit receipt</button></div></form>`;
   if (order.rejection) {
     const note = document.createElement('p');
     note.className = 'error';
@@ -517,8 +516,14 @@ function profileStep(order) {
   const pending = order.items.filter((item) => !item.profile_completed_at);
   const companyItem = order.items.find((item) => item.logo_url) || order.items[0];
   const companyLocked = order.company_locked;
-  target.innerHTML = `<p class="eyebrow">Step 05 / Team profile</p><h2>Finish your team</h2><p>${companyLocked ? 'Payment is confirmed. Complete the roster for your team with your saved company logo. A confirmed team appears on the public listing after you mark its profile done.' : 'Payment is confirmed. Upload your company logo, then complete the roster for your team. A confirmed team appears on the public listing after you mark its profile done.'}</p><div class="choice-list">${pending.map((item) => `<div class="sport-choice"><div><strong>${esc(item.team_name)}</strong><span>${esc(item.sport_name)}</span></div><a class="button primary" href="#profile/${item.id}">Complete profile</a></div>`).join('')}</div>`;
-  if (!companyItem?.logo_url) target.querySelector('.choice-list').hidden = true;
+  // The roster editor is only reachable once a logo is saved, so the button stays visibly
+  // disabled until then rather than disappearing and leaving the captain without a next step.
+  const hasLogo = order.items.some((item) => item.logo_url);
+  const action = (item) =>
+    hasLogo
+      ? `<a class="button primary" href="#profile/${item.id}">Complete profile</a>`
+      : `<button class="button primary" type="button" disabled aria-describedby="logo-gate-note">Complete profile</button>`;
+  target.innerHTML = `<p class="eyebrow">Step 05 / Team profile</p><h2>Finish your team</h2><p>${companyLocked ? 'Payment is confirmed. Complete the roster for your team with your saved company logo. A confirmed team appears on the public listing after you mark its profile done.' : 'Payment is confirmed. Upload your company logo, then complete the roster for your team. A confirmed team appears on the public listing after you mark its profile done.'}</p><div class="choice-list">${pending.map((item) => `<div class="sport-choice"><div><strong>${esc(item.team_name)}</strong><span>${esc(item.sport_name)}</span></div>${action(item)}</div>`).join('')}</div>${hasLogo ? '' : '<p class="info-box" id="logo-gate-note">Save your company logo above to unlock each team profile.</p>'}`;
   if (companyItem) {
     if (companyLocked && companyItem.logo_url) {
       target
@@ -554,7 +559,7 @@ function profileEditor(order, itemId) {
   if (!item) return;
   const required = MIN_ROSTER[item.sport_name.toLowerCase()] ?? 1;
   const target = document.querySelector('#registration-content');
-  target.innerHTML = `<button class="button" type="submit" form="profile-form" name="save" value="back">← Back to overview</button><p class="eyebrow">${esc(item.sport_name)} / Team profile</p><h2>${esc(item.team_name)}</h2><p>Your roster is saved as a draft when you return to the overview.</p>${!item.logo_url ? '<p class="info-box">Add your company logo on the overview before marking this profile done.</p>' : ''}<form id="profile-form" class="form-stack"><fieldset class="roster-fields"><legend>Players</legend><p class="form-note">Add at least ${required} player${required > 1 ? 's' : ''}, including your team captain. Choose a jersey size and add a photo (JPG, PNG or WebP, under 4 MB) for every player.</p><div id="player-fields" class="player-fields"></div><button class="button" id="add-player" type="button">Add player</button></fieldset><label class="input-group">Team captain<select name="captain_position" aria-describedby="captain-note"><option value="">Choose a player</option></select></label><p id="captain-note" class="form-note">Choose one of the players above. The captain counts as part of your roster.</p><p class="error" hidden></p><div class="form-actions"><button class="button" name="save" value="save">Save draft</button><button class="button primary" name="complete" value="complete">Save and mark done</button></div></form>`;
+  target.innerHTML = `<button class="button" type="submit" form="profile-form" name="save" value="back">← Back to overview</button><p class="eyebrow">${esc(item.sport_name)} / Team profile</p><h2>${esc(item.team_name)}</h2><p>Your roster is saved as a draft when you return to the overview.</p>${!item.logo_url ? '<p class="info-box">Add your company logo on the overview before marking this profile done.</p>' : ''}<form id="profile-form" class="form-stack"><fieldset class="roster-fields"><legend>Players</legend><p class="form-note">Add at least ${required} player${required > 1 ? 's' : ''}, including your team captain. Choose a jersey size and add a photo (JPG, PNG or WebP) for every player. Photos up to 20 MB are sent as they are, and anything larger is compressed automatically, so any size works.</p><div id="player-fields" class="player-fields"></div><button class="button" id="add-player" type="button">Add player</button></fieldset><label class="input-group">Team captain<select name="captain_position" aria-describedby="captain-note"><option value="">Choose a player</option></select></label><p id="captain-note" class="form-note">Choose one of the players above. The captain counts as part of your roster.</p><p class="error" hidden></p><div class="form-actions"><button class="button" type="button" id="export-pdf">Export PDF</button><button class="button" name="save" value="save">Save draft</button><button class="button primary" name="complete" value="complete">Save and mark done</button></div></form>`;
   target.querySelector('.roster-fields .form-note').insertAdjacentHTML('afterend', '<div class="jersey-sizing"><strong>Jersey sizing</strong><table><thead><tr><th>Size</th><th>Chest</th><th>Length</th></tr></thead><tbody><tr><td>S</td><td>38</td><td>26</td></tr><tr><td>M</td><td>40</td><td>27</td></tr><tr><td>L</td><td>42</td><td>28</td></tr><tr><td>XL</td><td>44</td><td>29</td></tr><tr><td>2XL</td><td>46</td><td>30</td></tr></tbody></table></div>');
   const fields = target.querySelector('#player-fields');
   const cricket = item.sport_name.toLowerCase() === 'cricksal';
@@ -562,6 +567,42 @@ function profileEditor(order, itemId) {
   const captain = target.querySelector('[name="captain_position"]');
   const addButton = target.querySelector('#add-player');
   const photoSelections = new Map();
+  const photoLabel = (index) => {
+    const position = index + 1;
+    const name = fields.children[index]?.querySelector('input[name="player"]')?.value.trim() || '';
+    // A name such as "Player 2" already says which player it is.
+    if (!name || /^player\s*\d+$/i.test(name)) return `Player ${position}`;
+    return `${name} (Player ${position})`;
+  };
+  const clearPhotoErrors = () => {
+    for (const row of fields.querySelectorAll('.player-row')) {
+      row.classList.remove('has-photo-error');
+      row.querySelector('.player-photo-error')?.remove();
+      const input = row.querySelector('input[name^="photo-"]');
+      input?.removeAttribute('aria-describedby');
+      input?.removeAttribute('aria-invalid');
+    }
+  };
+  const markPhotoError = (index, message) => {
+    const row = fields.children[index];
+    const input = row?.querySelector(`input[name="photo-${index}"]`);
+    if (!row || !input) return;
+    const note = document.createElement('p');
+    note.className = 'player-photo-error';
+    note.id = `player-photo-error-${index}`;
+    note.setAttribute('role', 'alert');
+    note.textContent = message;
+    row.classList.add('has-photo-error');
+    row.append(note);
+    input.setAttribute('aria-describedby', note.id);
+    input.setAttribute('aria-invalid', 'true');
+  };
+  const focusPhotoError = (index) => {
+    const row = fields.children[index];
+    if (!row) return;
+    row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    row.querySelector(`input[name="photo-${index}"]`)?.focus({ preventScroll: true });
+  };
   const syncCaptain = () => {
     const selected = captain.value;
     captain.innerHTML =
@@ -593,6 +634,7 @@ function profileEditor(order, itemId) {
     addPlayer(item.players[index] || '', item.jersey_sizes?.[index], item.photo_urls?.[index], item.jersey_styles?.[index]);
   fields.addEventListener('input', () => {
     syncCaptain();
+    clearPhotoErrors();
     target.querySelector('#profile-form .error').hidden = true;
   });
   fields.addEventListener('change', (event) => {
@@ -600,6 +642,7 @@ function profileEditor(order, itemId) {
     if (!(input instanceof HTMLInputElement)) return;
     const match = input.name && /^photo-(\d+)$/.exec(input.name);
     if (!match || !input.files?.[0]) return;
+    clearPhotoErrors();
     const index = Number(match[1]);
     const row = input.closest('.player-row');
     let preview = row.querySelector('.player-photo-preview');
@@ -643,6 +686,28 @@ function profileEditor(order, itemId) {
     item.captain_position === null || item.captain_position === undefined
       ? ''
       : String(item.captain_position);
+  target.querySelector('#export-pdf').addEventListener('click', async (event) => {
+    const error = target.querySelector('#profile-form .error');
+    const result = await exportRosterPdf({
+      rows: rowsFromFields(fields, captain),
+      company: order.company_name || item.team_name,
+      team: item.team_name,
+      sport: item.sport_name,
+      button: event.currentTarget,
+    });
+    if (result.empty) {
+      error.textContent = 'Add a player before exporting the team profile.';
+      error.hidden = false;
+      return;
+    }
+    if (result.failed) {
+      error.textContent = 'Could not create the team PDF. Try again.';
+      error.hidden = false;
+      return;
+    }
+    error.hidden = true;
+    say(exportSummary(result.skipped));
+  });
   bindSubmission('#profile-form', async (event) => {
     event.preventDefault();
     const form = event.currentTarget;
@@ -710,26 +775,40 @@ function profileEditor(order, itemId) {
     };
     if (photoSelections.size) {
       busy(true);
-      try {
-        await Promise.all(
-          [...photoSelections].map(async ([index, file]) => {
-            if (file === null) {
-              playerPhotos[index] = null;
-              return;
-            }
-            const fd = new FormData();
-            fd.append('photo', file);
-            const uploaded = await api(
-              `/orders/${order.id}/items/${item.id}/player-photos/${index}`,
-              { method: 'POST', body: fd },
-            );
-            playerPhotos[index] = uploaded.photo_url;
-          }),
-        );
-      } catch (uploadError) {
+      const selections = [...photoSelections];
+      const results = await Promise.allSettled(
+        selections.map(async ([index, file]) => {
+          if (file === null) {
+            playerPhotos[index] = null;
+            return;
+          }
+          const fd = new FormData();
+          fd.append('photo', file);
+          const uploaded = await api(
+            `/orders/${order.id}/items/${item.id}/player-photos/${index}`,
+            { method: 'POST', body: fd },
+          );
+          playerPhotos[index] = uploaded.photo_url;
+        }),
+      );
+      const failed = results
+        .map((result, position) => ({ index: selections[position][0], cause: result.reason }))
+        .filter(({ cause }) => cause);
+      if (failed.length) {
         busy(false);
-        error.textContent = `One of your player photos could not be uploaded. ${uploadError.message}`;
+        clearPhotoErrors();
+        const reasons = failed.map(({ index, cause }) => {
+          const label =
+            cause.code === 'image_too_big' || cause.status === 413
+              ? 'Image too big'
+              : 'Photo problem';
+          markPhotoError(index, label);
+          const detail = String(cause.message || 'Try a different photo.').replace(/[.!?]+$/, '');
+          return `${photoLabel(index)} — ${label.toLowerCase()}: ${detail}`;
+        });
+        error.textContent = `One of your player photos could not be uploaded. ${reasons.join('; ')}. Fix the highlighted ${failed.length === 1 ? 'photo' : 'photos'} and save again.`;
         error.hidden = false;
+        focusPhotoError(failed[0].index);
         return;
       }
     }

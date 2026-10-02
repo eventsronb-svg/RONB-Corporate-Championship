@@ -2,6 +2,7 @@ import { afterEach, beforeEach, expect, it } from 'vitest';
 import { setup } from './helpers.js';
 import { one } from '../src/db.js';
 import { deliverOne } from '../src/jobs.js';
+import { VAT_MULTIPLIER } from '../src/orders.js';
 import { DeliveryError } from '../src/providers.js';
 let h: Awaited<ReturnType<typeof setup>>;
 beforeEach(async () => {
@@ -44,7 +45,11 @@ it('serializes invoice creation with sport edits without mixing the invoice and 
   expect([200, 409]).toContain(edit.statusCode);
   const final = (await h.call('GET', `/orders/${o.id}/status`)).json();
   expect(Number(final.total_amount)).toBe(
-    final.items.reduce((total: number, i: any) => total + Number(i.price_at_purchase), 0),
+    Math.round(
+      final.items.reduce((total: number, i: any) => total + Number(i.price_at_purchase), 0) *
+        VAT_MULTIPLIER *
+        100,
+    ) / 100,
   );
 });
 it('claims one email job only once across competing workers', async () => {

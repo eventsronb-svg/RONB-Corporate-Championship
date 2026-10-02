@@ -14,8 +14,9 @@ import { type Config, config } from './config.js';
 import {
   type GoogleProvider,
   type Storage,
+  fileTokenValid,
   googleProvider,
-  s3Storage,
+  hybridStorage,
   validateFile,
 } from './providers.js';
 import { auth, registerAuth } from './auth.js';
@@ -87,7 +88,7 @@ export async function buildApp(deps: {
           },
         }
       : false,
-    bodyLimit: 6 * 1024 * 1024,
+    bodyLimit: 21 * 1024 * 1024,
     requestTimeout: 30000,
   });
   await app.register(cookie, { secret: c.COOKIE_SECRET });
@@ -111,7 +112,9 @@ export async function buildApp(deps: {
     timeWindow: '1 minute',
   });
   await app.register(multipart, {
-    limits: { fileSize: 5 * 1024 * 1024, files: 1, fields: 1, parts: 2, fieldSize: 20000 },
+    // Must stay above the largest single upload (one photo or receipt) so that multipart
+    // framing and the accompanying JSON field still fit inside bodyLimit.
+    limits: { fileSize: 20 * 1024 * 1024, files: 1, fields: 1, parts: 2, fieldSize: 20000 },
   });
   app.decorateRequest('actor', undefined);
   app.addHook('onRequest', async (req, reply) => {
@@ -348,6 +351,31 @@ export async function buildApp(deps: {
       return reply.redirect(await storage.signPlayerPhoto(photo.photo_url));
     },
   );
+  // Serves objects held in STORAGE_DIR. Authorization is the HMAC that localStorage() put in
+  // the query string, so this route deliberately has no session guard of its own.
+  app.get('/files/:kind/*', async (req, reply) => {
+    const params = z
+      .object({ kind: z.enum(['receipt', 'photo']), '*': z.string() })
+      .parse(req.params);
+    const kind = params.kind;
+    const key = params['*'];
+    const { expires, token } = z
+      .object({ expires: z.coerce.number(), token: z.string().min(16) })
+      .parse(req.query);
+    assert(
+      c.STORAGE_DIR && fileTokenValid(c, kind, key, expires, token),
+      403,
+      'invalid_link',
+      'This file link is invalid or has expired',
+    );
+    const file = await storage.read?.(kind, key);
+    assert(file, 404, 'not_found', 'File not found');
+    return reply
+      .header('Content-Type', file.mime)
+      .header('Content-Disposition', 'inline')
+      .header('Cache-Control', 'private, no-store')
+      .send(file.body);
+  });
   app.post(
     '/orders/:id/items/:item_id/player-photos/:position',
     { preHandler: guard.user },
@@ -549,7 +577,7 @@ async function getServerApp(): Promise<ServerApp> {
       db: postgres(c.DATABASE_URL),
       config: c,
       google: googleProvider(c),
-      storage: s3Storage(c),
+      storage: hybridStorage(c),
       logger: true,
     });
   }

@@ -1,3 +1,6 @@
+import { exportRosterPdf, exportSummary, rowsFromFields } from './pdf.js?v=20260930-2';
+import { prepareUploadForm } from './uploads.js?v=20261001-2';
+
 const main = document.querySelector('#content');
 const notice = document.querySelector('#notice');
 const states = [
@@ -56,6 +59,9 @@ function message(text, error = false) {
   notice.hidden = false;
 }
 async function api(path, options = {}) {
+  // Roster photo uploads go through the same compression ladder as captain uploads, so an
+  // organizer can add a photo of any size without hitting the server's byte cap.
+  if (options.body instanceof FormData) await prepareUploadForm(options.body);
   const response = await fetch(path, {
     credentials: 'same-origin',
     ...options,
@@ -303,7 +309,7 @@ async function teamsView(params) {
   const data = await api(`/admin/teams?${q}`);
   const offset = Number(q.get('offset') || 0);
   return {
-    html: `${header('Teams', 'Browse sports, team members and jersey sizes.', 'PARTICIPANTS')}<section class="surface"><form class="toolbar" id="team-search"><label>Search teams<input name="search" value="${e(q.get('search'))}" placeholder="Team, sport, captain, email or phone"></label><button class="primary">Search</button></form>${data.teams.length ? `<div class="table-scroll"><table><thead><tr><th>Team</th><th>Sports</th><th>Captain</th><th>Status</th><th>Registered</th></tr></thead><tbody>${data.teams.map((t) => `<tr class="clickable-row" data-team="${e(t.id)}"><td><a href="#team/${e(t.id)}" class="strong">${e(t.team_name)}</a></td><td>${e(sportLabels(t.sports))}</td><td><span class="strong">${e(t.captain_name)}</span><span class="sub">${e(t.email)}</span><span class="sub">${e(t.phone || 'No phone provided')}</span></td><td>${registrationStatus(t.status)}</td><td>${e(date(t.created_at))}</td></tr>`).join('')}</tbody></table></div>` : empty('No teams found.', 'Try a different team, sport or captain. Teams appear after sports are selected.')}<div class="pagination"><span>Showing ${data.teams.length ? offset + 1 : 0}–${offset + data.teams.length}</span><div><button id="prev" ${offset === 0 ? 'disabled' : ''}>Previous</button> <button id="next" ${data.teams.length < 25 ? 'disabled' : ''}>Next</button></div></div></section>`,
+    html: `${header('Teams', 'Browse sports, team members and jersey sizes. Lists completed registrations and teams still awaiting payment.', 'PARTICIPANTS')}<section class="surface"><form class="toolbar" id="team-search"><label>Search teams<input name="search" value="${e(q.get('search'))}" placeholder="Team, sport, captain, email or phone"></label><button class="primary">Search</button></form>${data.teams.length ? `<div class="table-scroll"><table><thead><tr><th>Team</th><th>Sports</th><th>Captain</th><th>Status</th><th>Registered</th></tr></thead><tbody>${data.teams.map((t) => `<tr class="clickable-row" data-team="${e(t.id)}"><td><a href="#team/${e(t.id)}" class="strong">${e(t.team_name)}</a></td><td>${e(sportLabels(t.sports))}</td><td><span class="strong">${e(t.captain_name)}</span><span class="sub">${e(t.email)}</span><span class="sub">${e(t.phone || 'No phone provided')}</span></td><td>${registrationStatus(t.status)}</td><td>${e(date(t.created_at))}</td></tr>`).join('')}</tbody></table></div>` : empty('No teams found.', 'Only completed registrations and teams awaiting payment are listed here. Everything else stays in Registrations.')}<div class="pagination"><span>Showing ${data.teams.length ? offset + 1 : 0}–${offset + data.teams.length}</span><div><button id="prev" ${offset === 0 ? 'disabled' : ''}>Previous</button> <button id="next" ${data.teams.length < 25 ? 'disabled' : ''}>Next</button></div></div></section>`,
     bind() {
       bindForm('#team-search', async (b) => {
         location.hash = `teams?${new URLSearchParams(b)}`;
@@ -507,7 +513,7 @@ async function teamDetail(id) {
         )
         .join('') +
       '</tbody></table></div>';
-    return `<section class="surface panel sport-roster" data-item="${e(item.id)}"><div class="team-row">${item.logo_url ? `<img class="team-logo" src="${e(item.logo_url)}" alt="${e(item.team_name)} logo">` : ''}<div><h2>${e(item.sport_name)}</h2><p>${e(item.team_name)} · ${item.players.length} members</p></div><span class="status ${item.profile_completed_at ? 'confirmed' : ''}">${item.profile_completed_at ? 'Profile complete' : 'Profile pending'}</span><button class="button roster-edit-button" type="button" data-edit-roster>Edit roster</button></div><div class="roster-view">${hasRoster ? table : '<p class="form-note">No team members added yet. The captain can complete this roster after payment confirmation.</p>'}</div><form class="roster-editor" hidden><fieldset class="roster-fields"><legend>Team members</legend><p class="form-note">Edit member names, jersey sizes and photos. Photos are private and only visible to the organizer and the captain.</p><div class="player-fields" data-player-fields></div><button class="button" type="button" data-add-player>Add member</button></fieldset><label class="input-group">Team captain<select name="captain_position"><option value="">Choose a player</option></select></label><p class="error" hidden></p><div class="form-actions"><button class="button" type="button" data-cancel-roster>Cancel</button><button class="button primary" type="submit">Save roster</button></div></form></section>`;
+    return `<section class="surface panel sport-roster" data-item="${e(item.id)}"><div class="team-row">${item.logo_url ? `<img class="team-logo" src="${e(item.logo_url)}" alt="${e(item.team_name)} logo">` : ''}<div><h2>${e(item.sport_name)}</h2><p>${e(item.team_name)} · ${item.players.length} members</p></div><span class="status ${item.profile_completed_at ? 'confirmed' : ''}">${item.profile_completed_at ? 'Profile complete' : 'Profile pending'}</span><button class="button" type="button" data-export-roster ${hasRoster ? '' : 'disabled'}>Export PDF</button><button class="button roster-edit-button" type="button" data-edit-roster>Edit roster</button></div><div class="roster-view">${hasRoster ? table : '<p class="form-note">No team members added yet. The captain can complete this roster after payment confirmation.</p>'}</div><form class="roster-editor" hidden><fieldset class="roster-fields"><legend>Team members</legend><p class="form-note">Edit member names, jersey sizes and photos. Photos are private and only visible to the organizer and the captain.</p><div class="player-fields" data-player-fields></div><button class="button" type="button" data-add-player>Add member</button></fieldset><label class="input-group">Team captain<select name="captain_position"><option value="">Choose a player</option></select></label><p class="error" hidden></p><div class="form-actions"><button class="button" type="button" data-cancel-roster>Cancel</button><button class="button primary" type="submit">Save roster</button></div></form></section>`;
   };
   return {
     html: `<a class="back" href="#teams">← All teams</a>${header(team.team_name, `${team.contact.name} · ${team.contact.email} · ${team.phone || team.contact.phone || 'No phone provided'}`, 'TEAM PROFILE')}<div class="team-detail-meta">${registrationStatus(team.status)}<a href="#order/${e(team.id)}">View registration ↗</a></div><div class="stack">${team.items.map((item) => { const html = rosterPanel(item); const sleeve = item.sport_name.toLowerCase() === 'cricksal' && item.jersey_style ? `<p class="sub team-sleeve">Team sleeve: ${item.jersey_style === 'full_sleeve' ? 'Full sleeve' : 'Half sleeve'}</p>` : ''; return html.replace('</div><span class="status', `${sleeve}</div><span class="status`); }).join('')}</div>`,
@@ -517,6 +523,38 @@ async function teamDetail(id) {
           const panel = button.closest('.sport-roster');
           const item = team.items.find((candidate) => candidate.id === panel?.dataset.item);
           if (panel && item) openRosterEditor(panel, team.id, item);
+        });
+      });
+      document.querySelectorAll('[data-export-roster]').forEach((button) => {
+        button.addEventListener('click', async () => {
+          const panel = button.closest('.sport-roster');
+          const item = team.items.find((candidate) => candidate.id === panel?.dataset.item);
+          if (!panel || !item) return;
+          // An open editor holds unsaved edits, so export what is on screen.
+          const editor = panel.querySelector('.roster-editor');
+          const fields = editor?.querySelector('[data-player-fields]');
+          const rows = fields?.children.length
+            ? rowsFromFields(fields, editor.querySelector('[name="captain_position"]'))
+            : item.players
+                .map((name, index) => ({
+                  name,
+                  size: item.jersey_sizes?.[index] || '',
+                  captain: item.captain_position === index,
+                  image: item.photo_urls?.[index]
+                    ? `/admin/orders/${team.id}/items/${item.id}/player-photos/${index}`
+                    : null,
+                }))
+                .map((row, index) => ({ ...row, name: row.name || `Player ${index + 1}` }));
+          const result = await exportRosterPdf({
+            rows,
+            company: team.team_name,
+            team: item.team_name,
+            sport: item.sport_name,
+            button,
+          });
+          if (result.empty) message('This roster has no players to export.', true);
+          else if (result.failed) message('Could not create the team PDF. Try again.', true);
+          else message(exportSummary(result.skipped));
         });
       });
     },

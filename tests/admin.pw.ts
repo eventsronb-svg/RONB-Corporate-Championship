@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import sharp from 'sharp';
 import { passwordAdminCredentials } from './credentials.js';
 test('shows the organizer login on desktop and mobile', async ({ page }) => {
   await page.goto('/admin');
@@ -130,15 +131,26 @@ test('reviews an order, changes settings, and manages organizer access', async (
   await page.locator('[name="player"]').nth(1).fill('Nisha Thapa');
   await page.locator('[name="jersey-0"]').first().click();
   await page.locator('[name="jersey-1"]').nth(2).click();
+  // An organizer photo is compressed by the admin panel exactly like a captain's, so a
+  // source far above the upload budget still reaches the server in one request.
+  const oversizedPhoto = await sharp({
+    create: { width: 3200, height: 2800, channels: 3, background: '#759585' },
+  })
+    .png({ compressionLevel: 0 })
+    .toBuffer();
+  expect(oversizedPhoto.length).toBeGreaterThan(20 * 1024 * 1024);
+  const photoUpload = page.waitForRequest(
+    (request) => request.url().includes('/player-photos/0') && request.method() === 'POST',
+  );
   await page.locator('[name="photo-0"]').setInputFiles({
     name: 'member.png',
     mimeType: 'image/png',
-    buffer: Buffer.from(
-      'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWMondqKFTEMLQkA9gJjwQnCgxkAAAAASUVORK5CYII=',
-      'base64',
-    ),
+    buffer: oversizedPhoto,
   });
   await page.getByRole('button', { name: 'Save roster' }).click();
+  const uploadedBody = (await photoUpload).postDataBuffer()!;
+  expect(uploadedBody.length).toBeLessThan(20 * 1024 * 1024 + 100_000);
+  expect(uploadedBody.toString('latin1')).toContain('image/webp');
   await expect(page.getByRole('status')).toHaveText('Team roster saved.');
   await expect(page.locator('.roster-view .table-scroll')).toContainText('Ramesh Gurung');
   await expect(page.locator('.roster-view .table-scroll')).toContainText('Nisha Thapa');
