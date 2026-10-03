@@ -142,6 +142,8 @@ function navigation() {
   const links = [
     ['orders', 'Registrations'],
     ['teams', 'Teams'],
+    ['futsal', 'Futsal'],
+    ['basketball', 'Basketball'],
     ...(me.role === 'super_admin'
       ? [
           ['sports', 'Sports & pricing'],
@@ -372,7 +374,19 @@ function openRosterEditor(panel, orderId, item) {
       'beforeend',
       `<div class="player-row"><div class="player-photo">${preview}<button type="button" class="player-photo-clear" data-photo="${index}" aria-label="Remove photo for member ${index + 1}" ${photoKey ? '' : 'hidden'}>×</button><label class="player-photo-pick"><input name="photo-${index}" type="file" accept="image/png,image/jpeg,image/webp" aria-label="Photo for member ${index + 1}"><span>Photo</span></label></div><label class="input-group">Member ${index + 1}<input name="player" type="text" value="${e(name)}" maxlength="120" autocomplete="off" placeholder="Full name"></label><fieldset class="jersey-selector"><legend>Jersey size <span class="sr-only">for member ${index + 1}</span></legend><div class="jersey-options">${['S', 'M', 'L', 'XL', '2XL'].map((option) => `<label><input type="radio" name="jersey-${index}" value="${option}" ${size === option ? 'checked' : ''}><span>${option}</span></label>`).join('')}</div></fieldset></div>`,
     );
-    if (cricket) fields.lastElementChild.insertAdjacentHTML('beforeend', `<fieldset class="jersey-selector"><legend>Sleeve style</legend><div class="jersey-options">${[['full_sleeve', 'Full sleeve'], ['half_sleeve', 'Half sleeve']].map(([value, label]) => `<label><input type="radio" name="jersey-style-${index}" value="${value}" ${style === value ? 'checked' : ''}><span>${label}</span></label>`).join('')}</div></fieldset>`);
+    if (cricket)
+      fields.lastElementChild.insertAdjacentHTML(
+        'beforeend',
+        `<fieldset class="jersey-selector"><legend>Sleeve style</legend><div class="jersey-options">${[
+          ['full_sleeve', 'Full sleeve'],
+          ['half_sleeve', 'Half sleeve'],
+        ]
+          .map(
+            ([value, label]) =>
+              `<label><input type="radio" name="jersey-style-${index}" value="${value}" ${style === value ? 'checked' : ''}><span>${label}</span></label>`,
+          )
+          .join('')}</div></fieldset>`,
+      );
     addButton.disabled = fields.children.length >= 100;
   };
   for (
@@ -380,7 +394,12 @@ function openRosterEditor(panel, orderId, item) {
     index < Math.max(MIN_ROSTER[item.sport_name.toLowerCase()] ?? 1, item.players.length);
     index++
   )
-    addRow(item.players[index] || '', item.jersey_sizes?.[index], item.photo_urls?.[index], item.jersey_style);
+    addRow(
+      item.players[index] || '',
+      item.jersey_sizes?.[index],
+      item.photo_urls?.[index],
+      item.jersey_style,
+    );
   fields.addEventListener('input', () => {
     syncCaptain();
     error.hidden = true;
@@ -469,15 +488,17 @@ function openRosterEditor(panel, orderId, item) {
     error.hidden = true;
     try {
       await Promise.all(
-        filled.filter((row) => row.photo instanceof File).map(async (row) => {
-          const fd = new FormData();
-          fd.append('photo', row.photo);
-          const uploaded = await api(
-            `/admin/orders/${orderId}/items/${item.id}/player-photos/${row.domIndex}`,
-            { method: 'POST', body: fd },
-          );
-          row.photo = uploaded.photo_url;
-        }),
+        filled
+          .filter((row) => row.photo instanceof File)
+          .map(async (row) => {
+            const fd = new FormData();
+            fd.append('photo', row.photo);
+            const uploaded = await api(
+              `/admin/orders/${orderId}/items/${item.id}/player-photos/${row.domIndex}`,
+              { method: 'POST', body: fd },
+            );
+            row.photo = uploaded.photo_url;
+          }),
       );
       await api(`/admin/orders/${orderId}/items/${item.id}/profile`, {
         method: 'PATCH',
@@ -516,7 +537,16 @@ async function teamDetail(id) {
     return `<section class="surface panel sport-roster" data-item="${e(item.id)}"><div class="team-row">${item.logo_url ? `<img class="team-logo" src="${e(item.logo_url)}" alt="${e(item.team_name)} logo">` : ''}<div><h2>${e(item.sport_name)}</h2><p>${e(item.team_name)} · ${item.players.length} members</p></div><span class="status ${item.profile_completed_at ? 'confirmed' : ''}">${item.profile_completed_at ? 'Profile complete' : 'Profile pending'}</span><button class="button" type="button" data-export-roster ${hasRoster ? '' : 'disabled'}>Export PDF</button><button class="button roster-edit-button" type="button" data-edit-roster>Edit roster</button></div><div class="roster-view">${hasRoster ? table : '<p class="form-note">No team members added yet. The captain can complete this roster after payment confirmation.</p>'}</div><form class="roster-editor" hidden><fieldset class="roster-fields"><legend>Team members</legend><p class="form-note">Edit member names, jersey sizes and photos. Photos are private and only visible to the organizer and the captain.</p><div class="player-fields" data-player-fields></div><button class="button" type="button" data-add-player>Add member</button></fieldset><label class="input-group">Team captain<select name="captain_position"><option value="">Choose a player</option></select></label><p class="error" hidden></p><div class="form-actions"><button class="button" type="button" data-cancel-roster>Cancel</button><button class="button primary" type="submit">Save roster</button></div></form></section>`;
   };
   return {
-    html: `<a class="back" href="#teams">← All teams</a>${header(team.team_name, `${team.contact.name} · ${team.contact.email} · ${team.phone || team.contact.phone || 'No phone provided'}`, 'TEAM PROFILE')}<div class="team-detail-meta">${registrationStatus(team.status)}<a href="#order/${e(team.id)}">View registration ↗</a></div><div class="stack">${team.items.map((item) => { const html = rosterPanel(item); const sleeve = item.sport_name.toLowerCase() === 'cricksal' && item.jersey_style ? `<p class="sub team-sleeve">Team sleeve: ${item.jersey_style === 'full_sleeve' ? 'Full sleeve' : 'Half sleeve'}</p>` : ''; return html.replace('</div><span class="status', `${sleeve}</div><span class="status`); }).join('')}</div>`,
+    html: `<a class="back" href="#teams">← All teams</a>${header(team.team_name, `${team.contact.name} · ${team.contact.email} · ${team.phone || team.contact.phone || 'No phone provided'}`, 'TEAM PROFILE')}<div class="team-detail-meta">${registrationStatus(team.status)}<a href="#order/${e(team.id)}">View registration ↗</a></div><div class="stack">${team.items
+      .map((item) => {
+        const html = rosterPanel(item);
+        const sleeve =
+          item.sport_name.toLowerCase() === 'cricksal' && item.jersey_style
+            ? `<p class="sub team-sleeve">Team sleeve: ${item.jersey_style === 'full_sleeve' ? 'Full sleeve' : 'Half sleeve'}</p>`
+            : '';
+        return html.replace('</div><span class="status', `${sleeve}</div><span class="status`);
+      })
+      .join('')}</div>`,
     bind() {
       document.querySelectorAll('[data-edit-roster]').forEach((button) => {
         button.addEventListener('click', () => {
@@ -587,6 +617,205 @@ async function adminsView() {
     },
   };
 }
+async function futsalView() {
+  const data = await api('/admin/futsal');
+  const byId = new Map(data.teams.map((team) => [team.id, team]));
+  const teamName = (id) => byId.get(id)?.team_name || 'Team pending';
+  const matchRow = (match) =>
+    `<tr class="futsal-match-${e(match.status)}" data-match="${e(match.id)}"><td>${e(match.stage === 'group' ? `Group ${match.group_code}` : match.stage)}</td><td>${e(teamName(match.home_team_id))}</td><td><input class="score-input" name="home_score" type="number" min="0" value="${match.home_score}" ${match.status === 'live' ? '' : 'disabled'}></td><td>–</td><td><input class="score-input" name="away_score" type="number" min="0" value="${match.away_score}" ${match.status === 'live' ? '' : 'disabled'}></td><td>${e(teamName(match.away_team_id))}</td><td>${status(match.status)}</td><td>${match.status === 'scheduled' && match.home_team_id && match.away_team_id ? '<button data-start>Start</button>' : ''}${match.status === 'live' ? '<button data-save>Save</button> <button class="primary" data-end>End match</button>' : ''}</td></tr>`;
+  const matches = [...data.groups.flatMap((group) => group.matches), ...data.bracket];
+  const controls =
+    me.role === 'super_admin'
+      ? `<div class="actions"><button data-futsal="import">Import confirmed teams</button><button data-futsal="groups">Generate groups</button><button data-futsal="fixtures">Generate group fixtures</button><button data-futsal="bracket">Generate 16-team bracket</button></div>`
+      : '';
+  return {
+    html: `${header('Futsal championship', 'Start live matches, save scores and complete matches to update the public tables.', 'EVENT OPERATIONS', `${data.teams.length} TEAMS`)}<section class="surface panel">${controls}<p class="form-note">Group matches use 3 points for a win, 1 for a draw. Tied knockout matches require the penalty winner when ended.</p></section><section class="surface panel section-gap"><div class="table-scroll"><table><thead><tr><th>Stage</th><th>Home</th><th>Score</th><th></th><th>Score</th><th>Away</th><th>Status</th><th>Action</th></tr></thead><tbody>${matches.map(matchRow).join('') || '<tr><td colspan="8">Import teams, then generate groups and fixtures.</td></tr>'}</tbody></table></div></section>`,
+    bind() {
+      document.querySelectorAll('[data-futsal]').forEach((button) =>
+        button.addEventListener('click', async () => {
+          const actions = {
+            import: '/admin/futsal/import',
+            groups: '/admin/futsal/generate-groups',
+            fixtures: '/admin/futsal/generate-fixtures',
+            bracket: '/admin/futsal/generate-knockout',
+          };
+          if (
+            button.dataset.futsal !== 'import' &&
+            !window.confirm(
+              `Run ${button.textContent.toLowerCase()}? This cannot be undone from this screen.`,
+            )
+          )
+            return;
+          try {
+            await post(actions[button.dataset.futsal]);
+            await render();
+            message('Futsal championship updated.');
+          } catch (err) {
+            message(err.message, true);
+          }
+        }),
+      );
+      document.querySelectorAll('[data-start]').forEach((button) =>
+        button.addEventListener('click', async () => {
+          try {
+            await post(`/admin/futsal/matches/${button.closest('tr').dataset.match}/start`);
+            await render();
+            message('Match is live on /futsal/match.');
+          } catch (err) {
+            message(err.message, true);
+          }
+        }),
+      );
+      async function scores(row) {
+        return {
+          home_score: Number(row.querySelector('[name=home_score]').value),
+          away_score: Number(row.querySelector('[name=away_score]').value),
+          version: matches.find((m) => m.id === row.dataset.match).version,
+        };
+      }
+      document.querySelectorAll('[data-save]').forEach((button) =>
+        button.addEventListener('click', async () => {
+          const row = button.closest('tr');
+          try {
+            await api(`/admin/futsal/matches/${row.dataset.match}`, {
+              method: 'PATCH',
+              body: JSON.stringify(await scores(row)),
+            });
+            await render();
+            message('Live score saved.');
+          } catch (err) {
+            message(err.message, true);
+          }
+        }),
+      );
+      document.querySelectorAll('[data-end]').forEach((button) =>
+        button.addEventListener('click', async () => {
+          const row = button.closest('tr');
+          const match = matches.find((m) => m.id === row.dataset.match);
+          try {
+            const saved = await scores(row);
+            const updated = await api(`/admin/futsal/matches/${row.dataset.match}`, {
+              method: 'PATCH',
+              body: JSON.stringify(saved),
+            });
+            const body = { version: updated.version };
+            if (match.stage !== 'group' && saved.home_score === saved.away_score) {
+              const winner = window.prompt(
+                `Tied knockout: enter the penalty winner exactly as shown:\n${teamName(match.home_team_id)}\nor\n${teamName(match.away_team_id)}`,
+              );
+              const team = [match.home_team_id, match.away_team_id].find(
+                (id) => teamName(id).toLowerCase() === winner?.trim().toLowerCase(),
+              );
+              if (!team) throw Error('Choose one of the two teams as the penalty winner.');
+              body.penalty_winner_id = team;
+            }
+            await post(`/admin/futsal/matches/${row.dataset.match}/end`, body);
+            await render();
+            message('Match completed and standings updated.');
+          } catch (err) {
+            message(err.message, true);
+          }
+        }),
+      );
+    },
+  };
+}
+async function basketballView() {
+  const data = await api('/admin/basketball');
+  const byId = new Map(data.teams.map((team) => [team.id, team]));
+  const teamName = (id) => byId.get(id)?.team_name || 'Team pending';
+  const matches = [...data.groups.flatMap((group) => group.matches), ...data.bracket];
+  const matchRow = (match) =>
+    `<tr class="basketball-match-${e(match.status)}" data-match="${e(match.id)}"><td>${e(match.stage === 'group' ? `Group ${match.group_code}` : match.stage)}</td><td>${e(teamName(match.home_team_id))}</td><td><input class="score-input" name="home_score" type="number" min="0" value="${match.home_score}" ${match.status === 'live' ? '' : 'disabled'}></td><td>–</td><td><input class="score-input" name="away_score" type="number" min="0" value="${match.away_score}" ${match.status === 'live' ? '' : 'disabled'}></td><td>${e(teamName(match.away_team_id))}</td><td>${status(match.status)}</td><td>${match.status === 'scheduled' && match.home_team_id && match.away_team_id ? '<button data-basket-start>Start</button>' : ''}${match.status === 'live' ? '<button data-basket-save>Save</button> <button class="primary" data-basket-end>End match</button>' : ''}</td></tr>`;
+  const controls =
+    me.role === 'super_admin'
+      ? `<div class="actions"><button data-basketball="import">Import confirmed teams</button><button data-basketball="groups">Generate groups</button><button data-basketball="fixtures">Generate group fixtures</button></div><p class="form-note">When all 24 group matches are complete, the top two teams from each group automatically enter the 8-team knockout bracket.</p>`
+      : '';
+  return {
+    html: `${header('Basketball championship', 'Run group matches, award two points for each win, and select the eight knockout teams.', 'EVENT OPERATIONS', `${data.teams.length} TEAMS`)}<section class="surface panel">${controls}</section><section class="surface panel section-gap"><div class="table-scroll"><table><thead><tr><th>Stage</th><th>Home</th><th>Score</th><th></th><th>Score</th><th>Away</th><th>Status</th><th>Action</th></tr></thead><tbody>${matches.map(matchRow).join('') || '<tr><td colspan="8">Import teams, then generate groups and fixtures.</td></tr>'}</tbody></table></div></section>`,
+    bind() {
+      document.querySelectorAll('[data-basketball]').forEach((button) =>
+        button.addEventListener('click', async () => {
+          const actions = {
+            import: '/admin/basketball/import',
+            groups: '/admin/basketball/generate-groups',
+            fixtures: '/admin/basketball/generate-fixtures',
+          };
+          if (
+            button.dataset.basketball !== 'import' &&
+            !window.confirm(`Run ${button.textContent.toLowerCase()}?`)
+          )
+            return;
+          try {
+            await post(actions[button.dataset.basketball]);
+            await render();
+            message('Basketball championship updated.');
+          } catch (err) {
+            message(err.message, true);
+          }
+        }),
+      );
+      document.querySelectorAll('[data-basket-start]').forEach((button) =>
+        button.addEventListener('click', async () => {
+          try {
+            await post(`/admin/basketball/matches/${button.closest('tr').dataset.match}/start`);
+            await render();
+            message('Match is live on /basketball/match.');
+          } catch (err) {
+            message(err.message, true);
+          }
+        }),
+      );
+      async function scores(row) {
+        return {
+          home_score: Number(row.querySelector('[name=home_score]').value),
+          away_score: Number(row.querySelector('[name=away_score]').value),
+          version: matches.find((m) => m.id === row.dataset.match).version,
+        };
+      }
+      document.querySelectorAll('[data-basket-save]').forEach((button) =>
+        button.addEventListener('click', async () => {
+          const row = button.closest('tr');
+          try {
+            await api(`/admin/basketball/matches/${row.dataset.match}`, {
+              method: 'PATCH',
+              body: JSON.stringify(await scores(row)),
+            });
+            await render();
+            message('Live score saved.');
+          } catch (err) {
+            message(err.message, true);
+          }
+        }),
+      );
+      document.querySelectorAll('[data-basket-end]').forEach((button) =>
+        button.addEventListener('click', async () => {
+          const row = button.closest('tr');
+          const match = matches.find((m) => m.id === row.dataset.match);
+          try {
+            const saved = await scores(row);
+            const body = { ...saved };
+            if (match.stage !== 'group' && saved.home_score === saved.away_score) {
+              const winner = window.prompt(
+                `Tied knockout: enter the winner exactly as shown:\n${teamName(match.home_team_id)}\nor\n${teamName(match.away_team_id)}`,
+              );
+              const id = [match.home_team_id, match.away_team_id].find(
+                (value) => teamName(value).toLowerCase() === winner?.trim().toLowerCase(),
+              );
+              if (!id) throw Error('Choose one of the two teams as the winner.');
+              body.penalty_winner_id = id;
+            }
+            await post(`/admin/basketball/matches/${row.dataset.match}/end`, body);
+            await render();
+            message('Match completed and standings updated.');
+          } catch (err) {
+            message(err.message, true);
+          }
+        }),
+      );
+    },
+  };
+}
 async function render() {
   if (!me) return login();
   const version = ++viewVersion;
@@ -612,6 +841,8 @@ async function render() {
     else if (section === 'teams' || section === 'users') view = await teamsView(params);
     else if (section === 'team' && id) view = await teamDetail(id);
     else if (section === 'sports') view = await sportsView();
+    else if (section === 'futsal') view = await futsalView();
+    else if (section === 'basketball') view = await basketballView();
     else if (section === 'event') view = await eventView();
     else if (section === 'admins') view = await adminsView();
     else throw new Error('This page does not exist.');

@@ -31,6 +31,8 @@ import {
   audit,
 } from './orders.js';
 import { registerAdmin } from './admin.js';
+import { registerFutsal } from './futsal.js';
+import { registerBasketball } from './basketball.js';
 import { assert, HttpError } from './errors.js';
 async function parseProfileUpdate(
   req: FastifyRequest,
@@ -49,7 +51,14 @@ async function parseProfileUpdate(
         upload = await validateFile(await part.toBuffer(), part.mimetype, 'logo');
       } else {
         assert(
-          ['players', 'captain_position', 'jersey_sizes', 'jersey_style', 'jersey_styles', 'player_photos'].includes(part.fieldname),
+          [
+            'players',
+            'captain_position',
+            'jersey_sizes',
+            'jersey_style',
+            'jersey_styles',
+            'player_photos',
+          ].includes(part.fieldname),
           400,
           'invalid_field',
           'Only players, captain_position, jersey_sizes, jersey_style, player_photos and logo fields are accepted',
@@ -502,10 +511,16 @@ export async function buildApp(deps: {
     },
   );
   await registerAdmin(app, db, c, storage);
+  await registerFutsal(app, db, c);
+  await registerBasketball(app, db, c);
   await app.register(staticPlugin, { root: resolve('public'), prefix: '/assets/' });
   app.get('/admin', async (_req, reply) => reply.sendFile('admin.html'));
   app.get('/', async (_req, reply) => reply.sendFile('index.html'));
   app.get('/register', async (_req, reply) => reply.sendFile('index.html'));
+  app.get('/futsal', async (_req, reply) => reply.sendFile('futsal.html'));
+  app.get('/futsal/match', async (_req, reply) => reply.sendFile('futsal-match.html'));
+  app.get('/basketball', async (_req, reply) => reply.sendFile('basketball.html'));
+  app.get('/basketball/match', async (_req, reply) => reply.sendFile('basketball-match.html'));
   return app;
 }
 
@@ -531,6 +546,14 @@ function staticPath(pathname: string): string | undefined {
   let relativePath: string;
   if (pathname === '/' || pathname === '/register') {
     relativePath = 'index.html';
+  } else if (pathname === '/futsal') {
+    relativePath = 'futsal.html';
+  } else if (pathname === '/futsal/match') {
+    relativePath = 'futsal-match.html';
+  } else if (pathname === '/basketball') {
+    relativePath = 'basketball.html';
+  } else if (pathname === '/basketball/match') {
+    relativePath = 'basketball-match.html';
   } else if (pathname.startsWith('/assets/')) {
     relativePath = pathname.slice('/assets/'.length);
   } else {

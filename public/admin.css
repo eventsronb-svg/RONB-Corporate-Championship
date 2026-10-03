@@ -344,6 +344,26 @@ tbody tr:last-child td {
 tbody tr:hover {
   background: var(--bg);
 }
+/* Championship scoring states need to be unmistakable at a glance. */
+tbody tr.futsal-match-live,
+tbody tr.futsal-match-live:hover {
+  background: #d51f3a;
+  color: #fff;
+}
+tbody tr.futsal-match-completed,
+tbody tr.futsal-match-completed:hover {
+  background: #157a40;
+  color: #fff;
+}
+tbody tr.futsal-match-live td,
+tbody tr.futsal-match-completed td {
+  border-bottom-color: rgb(255 255 255 / 0.28);
+}
+tbody tr.futsal-match-live .status,
+tbody tr.futsal-match-completed .status {
+  background: rgb(255 255 255 / 0.2);
+  color: inherit;
+}
 .sub {
   display: block;
   color: var(--muted);
