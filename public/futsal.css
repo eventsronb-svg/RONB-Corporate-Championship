@@ -29,6 +29,14 @@ body.futsal-live .live-card {
   background: rgb(0 0 0 / 0.1);
   box-shadow: 0 24px 70px rgb(83 0 16 / 0.22);
 }
+body.futsal-live .sport {
+  margin-bottom: 18px;
+  color: #fff;
+  font-family: VarsityTeam, Ultimate, sans-serif;
+  font-size: clamp(36px, 5.2vw, 73px);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
 body.futsal-live .group {
   color: #fff;
   font-family: VarsityTeam, Ultimate, sans-serif;
@@ -170,8 +178,10 @@ body.futsal-live .live-page {
   padding: 0;
   overflow: hidden;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: clamp(18px, 3vw, 42px);
 }
 body.futsal-live .no-match-brand {
   width: min(88vw, 560px);
@@ -417,20 +427,124 @@ body {
   color: var(--ink);
   font-family: var(--font-body);
 }
-header {
-  min-height: 72px;
-  background: var(--accent);
-  color: var(--on-accent);
+/* Masthead shared with the main site. These pages load futsal.css rather than
+   site.css, so the .masthead rules from site.css are restated here rather than
+   pulling in that stylesheet, whose global body/main/h1 rules would collide with
+   the ones below. The live-match pages carry no header element at all. */
+.masthead {
+  height: 80px;
+  min-height: 0;
+  width: 100%;
+  padding: 0 clamp(20px, 4vw, 48px);
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 0 clamp(20px, 5vw, 72px);
-  font-weight: 700;
-  letter-spacing: 0.06em;
+  justify-content: center;
+  gap: clamp(16px, 3vw, 40px);
+  background: var(--accent);
+  color: var(--on-accent);
 }
-header a {
+.masthead a {
   color: inherit;
   text-decoration: none;
+}
+.masthead .wordmark {
+  flex-shrink: 0;
+  /* Fluid for the same reason as site.css: these pages carry a fourth item (the
+     live-match link), so the wordmark has less room than on the main site. */
+  font-size: clamp(20px, 2.5vw, 29.9px);
+  font-weight: 600;
+  letter-spacing: -1px;
+}
+/* Sized by height to hold the 1185x471 aspect ratio; max-width keeps it from
+   pushing the wordmark or the register button out of the bar. */
+.masthead-logo {
+  display: block;
+  flex-shrink: 0;
+  height: clamp(30px, 4.4vw, 46px);
+  width: auto;
+  max-width: 30vw;
+}
+.masthead-match {
+  flex-shrink: 0;
+  white-space: nowrap;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 15px;
+}
+.masthead-match:hover {
+  text-decoration: underline;
+}
+.masthead .masthead-link {
+  flex-shrink: 0;
+  white-space: nowrap;
+  border: 1px solid var(--on-accent);
+  border-radius: 100px;
+  padding: 12px 19px;
+  font-weight: 600;
+  font-size: 18.2px;
+  background: var(--on-accent);
+  color: #000 !important;
+}
+/* The mark is a brand element, so unlike the nav it replaced it stays visible at
+   every width and simply scales down. */
+/* Breakpoints mirror site.css (1024 / 767 / 380) so the masthead renders at the
+   same size on these pages as on the main site. */
+@media (max-width: 1024px) {
+  .masthead-logo {
+    height: clamp(30px, 4vw, 40px);
+  }
+  .masthead .masthead-link {
+    font-size: 16px;
+    padding: 12px 16px;
+  }
+  /* Wordmark, mark, live-match link and register button no longer fit together at
+     this width, so the secondary link is dropped rather than wrapping the header. */
+  .masthead-match {
+    display: none;
+  }
+}
+@media (max-width: 767px) {
+  .masthead {
+    height: 72px;
+    padding: 0 16px;
+    gap: clamp(12px, 3vw, 24px);
+  }
+  .masthead .wordmark {
+    font-size: 20.4px;
+  }
+  .masthead-logo {
+    height: 26px;
+    max-width: 24vw;
+  }
+  .masthead .masthead-link {
+    font-size: 13.26px;
+    padding: 10px 13px;
+  }
+}
+@media (max-width: 520px) {
+  .masthead {
+    gap: 10px;
+  }
+}
+/* Mirrors the <=380px step in site.css so both headers fit the same narrow space. */
+@media (max-width: 380px) {
+  .masthead {
+    padding: 0 12px;
+    gap: 12px;
+  }
+  .masthead .masthead-link {
+    font-size: 12px;
+    padding: 10px;
+  }
+}
+/* Below this the bar cannot hold wordmark, mark and button together. The mark is
+   the branding that matters, so the wordmark text is dropped rather than letting
+   the header scroll sideways or crushing the logo. */
+@media (max-width: 700px) {
+  .masthead .wordmark {
+    display: none;
+  }
 }
 main {
   max-width: 1200px;

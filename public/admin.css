@@ -351,12 +351,15 @@ tbody tr.futsal-match-live:hover {
   color: #fff;
 }
 tbody tr.futsal-match-completed,
-tbody tr.futsal-match-completed:hover {
+tbody tr.futsal-match-completed:hover,
+tbody tr.basketball-match-completed,
+tbody tr.basketball-match-completed:hover {
   background: #157a40;
   color: #fff;
 }
 tbody tr.futsal-match-live td,
-tbody tr.futsal-match-completed td {
+tbody tr.futsal-match-completed td,
+tbody tr.basketball-match-completed td {
   border-bottom-color: rgb(255 255 255 / 0.28);
 }
 tbody tr.futsal-match-live .status,
@@ -976,7 +979,9 @@ tbody tr.futsal-match-completed .status {
   cursor: pointer;
   z-index: 2;
 }
-.player-photo-pick span { display: none; }
+.player-photo-pick span {
+  display: none;
+}
 .player-photo-pick input {
   position: absolute;
   inset: 0;

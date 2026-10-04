@@ -104,10 +104,13 @@ function drawBracketConnections() {
 }
 
 function ongoing(match) {
-  if (!match || match.status !== 'live') return '';
+  if (!match || !['live', 'scheduled'].includes(match.status)) return '';
   const side = (value) =>
     `<div class="ongoing-side"><img src="${esc(value?.logo_url || '/assets/images/logo.webp')}" alt="${esc(value?.team_name || 'Team')} logo"><strong>${esc(value?.team_name || 'Team')}</strong></div>`;
-  return `<section class="ongoing-match"><p>Live now · ${match.stage === 'group' ? `Group ${esc(match.group_code)}` : esc(match.stage)}</p><div class="ongoing-scoreboard">${side(match.home_team)}<b>${match.home_score} – ${match.away_score}</b>${side(match.away_team)}</div></section>`;
+  const label = match.status === 'live' ? 'Live now' : 'Upcoming match';
+  const stage = match.stage === 'group' ? `Group ${esc(match.group_code)}` : esc(match.stage);
+  const score = match.status === 'live' ? `${match.home_score} – ${match.away_score}` : '—';
+  return `<section class="ongoing-match"><p>${label} · ${stage}</p><div class="ongoing-scoreboard">${side(match.home_team)}<b>${score}</b>${side(match.away_team)}</div></section>`;
 }
 
 function render(data, live) {
