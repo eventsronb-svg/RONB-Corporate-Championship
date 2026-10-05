@@ -447,6 +447,12 @@ body {
   color: inherit;
   text-decoration: none;
 }
+.masthead-brand {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: clamp(8px, 1vw, 14px);
+}
 .masthead .wordmark {
   flex-shrink: 0;
   /* Fluid for the same reason as site.css: these pages carry a fourth item (the
@@ -454,6 +460,12 @@ body {
   font-size: clamp(20px, 2.5vw, 29.9px);
   font-weight: 600;
   letter-spacing: -1px;
+}
+.masthead-presents {
+  flex-shrink: 0;
+  font-size: clamp(14px, 1.4vw, 18px);
+  font-style: italic;
+  font-weight: 500;
 }
 /* Sized by height to hold the 1185x471 aspect ratio; max-width keeps it from
    pushing the wordmark or the register button out of the bar. */
@@ -605,6 +617,17 @@ td {
 th:first-child,
 td:first-child {
   text-align: left;
+}
+.qualified-team td {
+  background: #157a40;
+  border-bottom-color: #157a40;
+  color: #fff;
+}
+.qualified-team td:first-child {
+  border-radius: 8px 0 0 8px;
+}
+.qualified-team td:last-child {
+  border-radius: 0 8px 8px 0;
 }
 .team {
   display: flex;

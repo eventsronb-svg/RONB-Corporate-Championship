@@ -99,7 +99,7 @@ draft ──> phone_captured ──> invoiced ──> payment_pending ──> re
   │                                              │                    │                    │
   │ (sports + team names editable here)          │                    ├──> rejected ───────┘ (user re-uploads)
   │                                               │                    │
-  └── (idle > 7 days) ──> expired                 └── (code idle) ──> expired
+  └── remains open until resolved                └── remains open until resolved
 
 Any non-terminal state ──> cancelled  (via cancel-and-revise, spawns new pre-filled draft)
 ```
@@ -317,10 +317,7 @@ confirmation email to `users.email` (from Google OAuth).
 
 ## 9. Background Jobs
 
-- **Draft cleanup**: orders idle in `draft`/`phone_captured` for 7+ days with
-  no `invoiced_at` → mark `expired`.
-- **Payment code expiry**: `payment_pending` orders past `payment_requests.expires_at`
-  with no receipt → mark `expired`.
+- **Registration expiry**: registration orders and payment requests do not expire.
 - **Email delivery worker**: consumes the queue from Section 8, calls Resend,
   writes the result to `email_log`, retries a bounded number of times on
   transient failure.

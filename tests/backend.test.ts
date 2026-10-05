@@ -654,7 +654,7 @@ describe('authorization and validation', () => {
     ).toBe(400);
     expect(h.files.size).toBe(1);
   });
-  it('keeps payment request idempotent and blocks expired code uploads', async () => {
+  it('keeps payment request idempotent and accepts payment uploads without expiry', async () => {
     const o = await h.invoice();
     const first = await h.call('POST', `/orders/${o.id}/payment-request`);
     const second = await h.call('POST', `/orders/${o.id}/payment-request`);
@@ -672,7 +672,7 @@ describe('authorization and validation', () => {
     const f = h.multipart('receipt');
     expect(
       (await h.call('POST', `/orders/${o.id}/receipt`, f.payload, 'user', f.headers)).statusCode,
-    ).toBe(409);
+    ).toBe(200);
   });
   it('issues the same payment code to the same account across separate single-sport registrations', async () => {
     const codes: string[] = [];
@@ -737,7 +737,7 @@ describe('authorization and validation', () => {
   });
 });
 describe('background jobs', () => {
-  it('expires idle drafts and unpaid codes, preserving invoices and submitted receipts', async () => {
+  it('does not expire registrations in the background', async () => {
     const o = await h.invoice();
     await h.call('POST', `/orders/${o.id}/payment-request`);
     await h.db.query(
@@ -747,12 +747,10 @@ describe('background jobs', () => {
     await h.db.query("INSERT INTO orders(user_id,updated_at) VALUES($1,now()-interval '8 days')", [
       h.stranger.id,
     ]);
-    expect(await expireOrders(h.db)).toBe(2);
-    expect((await one(h.db, 'SELECT * FROM orders WHERE id=$1', [o.id]))?.total_amount).toBe(
-      '1695.28',
+    expect(await expireOrders(h.db)).toBe(0);
+    expect((await one(h.db, 'SELECT * FROM orders WHERE id=$1', [o.id]))?.status).toBe(
+      'payment_pending',
     );
-    const revised = (await h.call('POST', `/orders/${o.id}/cancel-and-revise`)).json();
-    expect(revised.status).toBe('draft');
     const submitted = await h.submit();
     await h.db.query(
       "UPDATE payment_requests SET expires_at=now()-interval '1 day' WHERE order_id=$1",

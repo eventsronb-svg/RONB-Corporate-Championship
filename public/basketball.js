@@ -96,10 +96,10 @@ function render(data, live) {
   const done = matches.length > 0 && matches.every((m) => m.status === 'completed');
   const generated = data.bracket.length > 0;
   const groups = data.groups
-    .map(
-      (g) =>
-        `<section class="panel"><h2>Group ${g.code}</h2><div class="scroll"><table><thead><tr><th>Team</th><th>P</th><th>W</th><th>L</th><th>PF</th><th>PA</th><th>PD</th><th>Pts</th></tr></thead><tbody>${g.table.map((t) => `<tr><td><span class="standing-team"><b>${t.position}.</b>${team(t)}</span></td><td>${t.played}</td><td>${t.wins}</td><td>${t.losses}</td><td>${t.points_for}</td><td>${t.points_against}</td><td>${t.point_difference}</td><td><b>${t.points}</b></td></tr>`).join('')}</tbody></table></div><h3>Fixtures</h3>${g.matches.map((m) => fixture(m, by)).join('') || '<p>No fixtures yet.</p>'}</section>`,
-    )
+    .map((g) => {
+      const groupDone = g.matches.length > 0 && g.matches.every((m) => m.status === 'completed');
+      return `<section class="panel"><h2>Group ${g.code}</h2><div class="scroll"><table><thead><tr><th>Team</th><th>P</th><th>W</th><th>L</th><th>PF</th><th>PA</th><th>PD</th><th>Pts</th></tr></thead><tbody>${g.table.map((t) => `<tr class="${groupDone && t.position <= 2 ? 'qualified-team' : ''}"><td><span class="standing-team"><b>${t.position}.</b>${team(t)}</span></td><td>${t.played}</td><td>${t.wins}</td><td>${t.losses}</td><td>${t.points_for}</td><td>${t.points_against}</td><td>${t.point_difference}</td><td><b>${t.points}</b></td></tr>`).join('')}</tbody></table></div><h3>Fixtures</h3>${g.matches.map((m) => fixture(m, by)).join('') || '<p>No fixtures yet.</p>'}</section>`;
+    })
     .join('');
   const round = (stage, label, predicate, reverse = false) =>
     `<div class="bracket-round"><h3>${label}</h3><div class="bracket-matches">${

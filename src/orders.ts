@@ -56,7 +56,10 @@ export const profileInput = z
       .max(100)
       .optional(),
     jersey_style: z.enum(['full_sleeve', 'half_sleeve']).nullable().optional(),
-    jersey_styles: z.array(z.enum(['full_sleeve', 'half_sleeve']).nullable()).max(100).optional(),
+    jersey_styles: z
+      .array(z.enum(['full_sleeve', 'half_sleeve']).nullable())
+      .max(100)
+      .optional(),
     captain_position: z.number().int().min(0).max(99).nullable().optional(),
     player_photos: z.array(z.string().startsWith('player-photos/').nullable()).max(100).optional(),
   })
@@ -423,8 +426,8 @@ export class Orders {
       }
       const p = await one(
         tx,
-        `INSERT INTO payment_requests(order_id,unique_code,qr_payload,expires_at) VALUES($1,$2,$3,now()+($4*interval '1 minute')) RETURNING *`,
-        [id, code, PAYMENT_BANK_DETAILS, this.config.PAYMENT_EXPIRY_MINUTES],
+        `INSERT INTO payment_requests(order_id,unique_code,qr_payload,expires_at) VALUES($1,$2,$3,NULL) RETURNING *`,
+        [id, code, PAYMENT_BANK_DETAILS],
       );
       await transition(tx, o, 'payment_pending');
       return p!;
@@ -445,13 +448,6 @@ export class Orders {
       );
       const payment = await one(tx, 'SELECT * FROM payment_requests WHERE order_id=$1', [id]);
       assert(payment, 409, 'no_payment_request', 'Request payment instructions first');
-      if (o.status === 'payment_pending')
-        assert(
-          new Date(payment.expires_at).getTime() > Date.now(),
-          409,
-          'payment_expired',
-          'Payment code expired; cancel and revise this order',
-        );
       if (o.status === 'rejected') {
         await ensureCapacity(tx, id);
         assert(
@@ -584,7 +580,7 @@ export class Orders {
           item.jersey_style !== null,
           409,
           'jersey_styles_required',
-        'Choose full sleeve or half sleeve for the Cricksal team before completing the profile',
+          'Choose full sleeve or half sleeve for the Cricksal team before completing the profile',
         );
       assert(
         rosterRow!.missing_photos === 0,
@@ -658,7 +654,10 @@ export class Orders {
         captainPosition,
       ]);
       if (input.jersey_style !== undefined || input.jersey_styles !== undefined)
-        await tx.query('UPDATE order_items SET jersey_style=$2 WHERE id=$1', [itemId, teamJerseyStyle]);
+        await tx.query('UPDATE order_items SET jersey_style=$2 WHERE id=$1', [
+          itemId,
+          teamJerseyStyle,
+        ]);
       if (input.logo_url) {
         if (item.logo_url) {
           const prior = await priorCompany(tx, o);

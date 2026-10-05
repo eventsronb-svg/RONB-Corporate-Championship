@@ -1,23 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { type Database, one } from './db.js';
-import { transition } from './orders.js';
 import { type Mailer, type EmailPayload, DeliveryError } from './providers.js';
 export async function expireOrders(db: Database) {
   return db.transaction(async (tx) => {
-    const stale = (
-      await tx.query(
-        `SELECT o.* FROM orders o WHERE
-   (o.status IN ('draft','phone_captured') AND o.invoiced_at IS NULL AND o.updated_at<=now()-interval '7 days')
-   OR (o.status='invoiced' AND o.invoiced_at<=now()-interval '1 day')
-   OR (o.status='payment_pending' AND EXISTS(SELECT 1 FROM payment_requests p WHERE p.order_id=o.id AND p.expires_at<=now()) AND NOT EXISTS(SELECT 1 FROM receipts r WHERE r.order_id=o.id))
-   ORDER BY o.id FOR UPDATE OF o SKIP LOCKED LIMIT 100`,
-        [],
-      )
-    ).rows;
-    for (const order of stale) await transition(tx, order, 'expired', null, 'expired');
     await tx.query('DELETE FROM sessions WHERE expires_at<=now()');
     await tx.query('DELETE FROM oauth_states WHERE expires_at<=now()');
-    return stale.length;
+    return 0;
   });
 }
 export async function deliverOne(db: Database, mailer: Mailer) {

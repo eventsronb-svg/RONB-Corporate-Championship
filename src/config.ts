@@ -34,7 +34,6 @@ const envSchema = z.object({
   STORAGE_DIR: z.string().default(''),
   RESEND_API_KEY: z.string().default(''),
   EMAIL_FROM: z.string().default(''),
-  PAYMENT_EXPIRY_MINUTES: z.coerce.number().int().min(5).max(10080).default(1440),
 });
 export type Config = z.infer<typeof envSchema>;
 export function config(env: NodeJS.ProcessEnv = process.env): Config {

@@ -78,13 +78,37 @@ async function standings(tx: Queryable, group: string): Promise<Standing[]> {
   values.forEach((row) => {
     row.point_difference = row.points_for - row.points_against;
   });
-  values.sort(
-    (a, b) =>
-      b.points - a.points ||
-      b.point_difference - a.point_difference ||
-      b.points_for - a.points_for ||
-      a.team_name.localeCompare(b.team_name),
-  );
+  values.sort((a, b) => b.points - a.points);
+  for (let start = 0; start < values.length;) {
+    let end = start + 1;
+    while (end < values.length && values[end].points === values[start].points) end++;
+    const tied = values.slice(start, end);
+    const headToHead =
+      tied.length === 2
+        ? matches.find(
+            (m) =>
+              (m.home_team_id === tied[0].id && m.away_team_id === tied[1].id) ||
+              (m.home_team_id === tied[1].id && m.away_team_id === tied[0].id),
+          )
+        : undefined;
+    tied.sort((a, b) => {
+      if (headToHead) {
+        const winner =
+          headToHead.home_score > headToHead.away_score
+            ? headToHead.home_team_id
+            : headToHead.away_team_id;
+        if (a.id === winner) return -1;
+        if (b.id === winner) return 1;
+      }
+      return (
+        b.point_difference - a.point_difference ||
+        b.points_for - a.points_for ||
+        a.team_name.localeCompare(b.team_name)
+      );
+    });
+    values.splice(start, tied.length, ...tied);
+    start = end;
+  }
   values.forEach((row, i) => {
     row.position = i + 1;
   });

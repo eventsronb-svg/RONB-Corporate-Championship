@@ -110,7 +110,7 @@ Two limits are worth noting on the cPanel host. Decoding a large source needs me
 
 The merchant bank account block shown to captains on the payment step is hard-coded as `PAYMENT_BANK_DETAILS` in `src/config.ts` (bank name, branch, account name, account number and PAN), one field per line; the block is rendered as-is. Each captain has one stable remarks code for the account; the payment request stores it and an expiry alongside the bank details. The same code is reused for every registration from the same Google account.
 
-No QR is generated. The payment-step copy is hard-coded as `PAYMENT_INSTRUCTIONS` in `src/config.ts`; neither value is read from the environment. The captain must enter their account's payment code in transfer remarks and pay the exact invoice amount. The default code lifetime is 24 hours; adjust `PAYMENT_EXPIRY_MINUTES` as needed.
+No QR is generated. The payment-step copy is hard-coded as `PAYMENT_INSTRUCTIONS` in `src/config.ts`; neither value is read from the environment. The captain must enter their account's payment code in transfer remarks and pay the exact invoice amount. Registration payment requests do not expire.
 
 ### Resend
 
@@ -148,7 +148,7 @@ Expected failures return `{ "error": "code", "message": "..." }`; validation err
 - Organizer “invite” means adding an email to the allowlist. No invitation email is sent. The last active super admin cannot be demoted or deactivated, even through concurrent requests.
 - Mutating admin actions, including login/logout, are audited transactionally. Opening details is read-only; starting review is an explicit action.
 - The admin **Teams** page (`GET /admin/teams`) lists only `confirmed`, `contacted`, `completed` and `payment_pending` registrations: teams that are on the event or still waiting to be paid. Drafts, receipts under review, and cancelled/expired registrations are handled in the **Registrations** queue (`GET /admin/orders`), which still lists every status. Search and pagination apply within the filtered set, and `GET /admin/teams/:id` still opens any registration that has sports, so a roster can be corrected from a link even when it is not listed.
-- The worker checks expiry once a minute, in batches of 100. It leaves receipt-submitted/reviewed and already-invoiced amounts untouched. It expires uninvoiced drafts/phone-captured orders idle seven days, invoices without a payment request after one day, and unpaid expired payment requests.
+- The worker cleans up expired authentication sessions and OAuth states once a minute. Registration orders and payment requests are not expired by the worker.
 
 ## Production deployment
 

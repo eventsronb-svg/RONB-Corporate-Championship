@@ -86,6 +86,12 @@ a {
   background: var(--accent);
   color: var(--on-accent);
 }
+.masthead-brand {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: clamp(8px, 1vw, 14px);
+}
 .wordmark {
   display: flex;
   flex-shrink: 0;
@@ -96,6 +102,12 @@ a {
   font-size: clamp(20px, 2.5vw, 29.9px);
   font-weight: 600;
   letter-spacing: -1px;
+}
+.masthead-presents {
+  flex-shrink: 0;
+  font-size: clamp(14px, 1.4vw, 18px);
+  font-style: italic;
+  font-weight: 500;
 }
 /* Partner mark shown in the masthead slot the section nav used to occupy. Sized by
    height so its 1185x471 aspect ratio is preserved; max-width stops it from ever
@@ -1517,7 +1529,9 @@ h2 {
   cursor: pointer;
   z-index: 2;
 }
-.player-photo-pick span { display: none; }
+.player-photo-pick span {
+  display: none;
+}
 .player-photo-pick input {
   position: absolute;
   inset: 0;

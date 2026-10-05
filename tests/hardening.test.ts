@@ -98,15 +98,15 @@ it('reserves the final slot atomically and releases it after unpaid expiry', asy
     "UPDATE payment_requests SET expires_at=now()-interval '1 day' WHERE order_id=$1",
     [ids[winner]],
   );
-  expect(await expireOrders(h.db)).toBe(1);
+  expect(await expireOrders(h.db)).toBe(0);
   expect(
     (await h.call('POST', `/orders/${ids[loser]}/invoice`, undefined, actors[loser])).statusCode,
-  ).toBe(200);
+  ).toBe(409);
   await h.db.query(
     "INSERT INTO orders(user_id,status,total_amount,invoiced_at) VALUES($1,'invoiced',0,now()-interval '2 days')",
     [winner === 0 ? h.user.id : h.stranger.id],
   );
-  expect(await expireOrders(h.db)).toBe(1);
+  expect(await expireOrders(h.db)).toBe(0);
 });
 
 it('cannot lower capacity below reservations or bypass capacity by resubmitting a rejected receipt', async () => {

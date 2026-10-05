@@ -120,10 +120,11 @@ function render(data, live) {
     groupMatches.length > 0 && groupMatches.every((match) => match.status === 'completed');
   const bracketGenerated = data.bracket.length > 0;
   const groups = data.groups
-    .map(
-      (group) =>
-        `<section class="panel"><h2>Group ${esc(group.code)}</h2><div class="scroll"><table><thead><tr><th>Team</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GF</th><th>GA</th><th>GD</th><th>Pts</th></tr></thead><tbody>${group.table.map((value) => `<tr><td><span class="standing-team"><b>${value.position}.</b>${team(value)}</span></td><td>${value.played}</td><td>${value.wins}</td><td>${value.draws}</td><td>${value.losses}</td><td>${value.goals_for}</td><td>${value.goals_against}</td><td>${value.goal_difference}</td><td><b>${value.points}</b></td></tr>`).join('')}</tbody></table></div><h3>Fixtures</h3>${group.matches.map((match) => fixture(match, by)).join('') || '<p>No fixtures yet.</p>'}</section>`,
-    )
+    .map((group) => {
+      const groupDone =
+        group.matches.length > 0 && group.matches.every((match) => match.status === 'completed');
+      return `<section class="panel"><h2>Group ${esc(group.code)}</h2><div class="scroll"><table><thead><tr><th>Team</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GF</th><th>GA</th><th>GD</th><th>Pts</th></tr></thead><tbody>${group.table.map((value) => `<tr class="${groupDone && value.position <= 2 ? 'qualified-team' : ''}"><td><span class="standing-team"><b>${value.position}.</b>${team(value)}</span></td><td>${value.played}</td><td>${value.wins}</td><td>${value.draws}</td><td>${value.losses}</td><td>${value.goals_for}</td><td>${value.goals_against}</td><td>${value.goal_difference}</td><td><b>${value.points}</b></td></tr>`).join('')}</tbody></table></div><h3>Fixtures</h3>${group.matches.map((match) => fixture(match, by)).join('') || '<p>No fixtures yet.</p>'}</section>`;
+    })
     .join('');
   const rounds = (stage, label, predicate, reverse = false) => {
     const matches = data.bracket.filter((match) => match.stage === stage && predicate(match));

@@ -69,7 +69,10 @@ async function load() {
     api('/sports'),
   ]);
   if (!eventResponse.ok) throw new Error('Event information is unavailable.');
-  const [event, sportsPayload] = await Promise.all([eventResponse.json(), Promise.resolve(sportsResponse)]);
+  const [event, sportsPayload] = await Promise.all([
+    eventResponse.json(),
+    Promise.resolve(sportsResponse),
+  ]);
   const sports = sportsPayload.map((sport) => ({ ...sport, slug: slugify(sport.name) }));
   data = { ...event, sports, show_teams_section: true };
   void api('/site-settings')
@@ -237,12 +240,15 @@ function bindTeamTabs() {
     teamList(data.sports[0].name);
   };
   if ('IntersectionObserver' in window) {
-    const observer = new IntersectionObserver((entries) => {
-      if (entries.some((entry) => entry.isIntersecting)) {
-        observer.disconnect();
-        loadTeams();
-      }
-    }, { rootMargin: '500px' });
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          observer.disconnect();
+          loadTeams();
+        }
+      },
+      { rootMargin: '500px' },
+    );
     observer.observe(teamsSection);
   } else loadTeams();
 }
@@ -293,8 +299,6 @@ async function resume(order) {
   if (status === 'payment') return paymentStep(order);
   if (status === 'receipt') {
     if (order.status === 'rejected') return receiptStep(order);
-    if (new Date(order.payment_request?.expires_at).getTime() <= Date.now())
-      return expiredStep(order);
     return paymentStep(order);
   }
   if (status === 'awaiting_review') return waitingStep(order);
@@ -306,7 +310,7 @@ async function resume(order) {
 function expiredStep(order) {
   const target = document.querySelector('#registration-content');
   target.innerHTML =
-    '<h2>Payment code expired</h2><p>Start a revised registration to request payment instructions again. Your account keeps the same payment code. If you already transferred the payment, contact the organizer before continuing.</p><form id="revise-form"><button class="button primary">Revise registration</button><p class="error" hidden></p></form>';
+    '<h2>Registration requires attention</h2><p>Start a revised registration to request payment instructions again, or contact the organizer for help.</p><form id="revise-form"><button class="button primary">Revise registration</button><p class="error" hidden></p></form>';
   bindSubmission('#revise-form', async () =>
     resume(await post(`/orders/${order.id}/cancel-and-revise`)),
   );
@@ -323,7 +327,8 @@ function bindSubmission(selector, handler) {
     form.setAttribute('aria-busy', 'true');
     buttons.forEach((button) => {
       button.disabled = true;
-      if (button.type === 'submit' && button === event.submitter) button.textContent = 'Please wait…';
+      if (button.type === 'submit' && button === event.submitter)
+        button.textContent = 'Please wait…';
     });
     const error = form.querySelector('.error');
     error.hidden = true;
@@ -456,7 +461,7 @@ function phoneStep(order) {
 async function paymentStep(order) {
   const target = document.querySelector('#registration-content');
   const payment = await post(`/orders/${order.id}/payment-request`);
-  target.innerHTML = `<p class="eyebrow">Step 03 / Payment</p><h2>Transfer ${money(order.total_amount)}</h2><p>Use the bank details below. <span class="remarks-copy">Put the unique Remarks code in the transfer remarks exactly as shown.</span></p><div class="info-box"><strong>Amount: ${money(order.total_amount)} <span class="incl-vat">Incl. of VAT</span></strong><br><span class="remarks-label">Remarks code:</span> <code>${esc(payment.unique_code)}</code><br>Expires: ${new Date(payment.expires_at).toLocaleString()}</div><div class="bank-details">${esc(payment.bank_details)}</div><p>${esc(payment.instructions)}</p><div class="form-actions"><button class="button primary" id="receipt-next">I have paid, upload receipt</button></div>`;
+  target.innerHTML = `<p class="eyebrow">Step 03 / Payment</p><h2>Transfer ${money(order.total_amount)}</h2><p>Use the bank details below. <span class="remarks-copy">Put the unique Remarks code in the transfer remarks exactly as shown.</span></p><div class="info-box"><strong>Amount: ${money(order.total_amount)} <span class="incl-vat">Incl. of VAT</span></strong><br><span class="remarks-label">Remarks code:</span> <code>${esc(payment.unique_code)}</code></div><div class="bank-details">${esc(payment.bank_details)}</div><p>${esc(payment.instructions)}</p><div class="form-actions"><button class="button primary" id="receipt-next">I have paid, upload receipt</button></div>`;
   document
     .querySelector('#receipt-next')
     .addEventListener('click', () => receiptStep({ ...order, status: 'payment_pending' }));
@@ -560,10 +565,19 @@ function profileEditor(order, itemId) {
   const required = MIN_ROSTER[item.sport_name.toLowerCase()] ?? 1;
   const target = document.querySelector('#registration-content');
   target.innerHTML = `<button class="button" type="submit" form="profile-form" name="save" value="back">← Back to overview</button><p class="eyebrow">${esc(item.sport_name)} / Team profile</p><h2>${esc(item.team_name)}</h2><p>Your roster is saved as a draft when you return to the overview.</p>${!item.logo_url ? '<p class="info-box">Add your company logo on the overview before marking this profile done.</p>' : ''}<form id="profile-form" class="form-stack"><fieldset class="roster-fields"><legend>Players</legend><p class="form-note">Add at least ${required} player${required > 1 ? 's' : ''}, including your team captain. Choose a jersey size and add a photo (JPG, PNG or WebP) for every player. Photos up to 20 MB are sent as they are, and anything larger is compressed automatically, so any size works.</p><div id="player-fields" class="player-fields"></div><button class="button" id="add-player" type="button">Add player</button></fieldset><label class="input-group">Team captain<select name="captain_position" aria-describedby="captain-note"><option value="">Choose a player</option></select></label><p id="captain-note" class="form-note">Choose one of the players above. The captain counts as part of your roster.</p><p class="error" hidden></p><div class="form-actions"><button class="button" type="button" id="export-pdf">Export PDF</button><button class="button" name="save" value="save">Save draft</button><button class="button primary" name="complete" value="complete">Save and mark done</button></div></form>`;
-  target.querySelector('.roster-fields .form-note').insertAdjacentHTML('afterend', '<div class="jersey-sizing"><strong>Jersey sizing</strong><table><thead><tr><th>Size</th><th>Chest</th><th>Length</th></tr></thead><tbody><tr><td>S</td><td>38</td><td>26</td></tr><tr><td>M</td><td>40</td><td>27</td></tr><tr><td>L</td><td>42</td><td>28</td></tr><tr><td>XL</td><td>44</td><td>29</td></tr><tr><td>2XL</td><td>46</td><td>30</td></tr></tbody></table></div>');
+  target
+    .querySelector('.roster-fields .form-note')
+    .insertAdjacentHTML(
+      'afterend',
+      '<div class="jersey-sizing"><strong>Jersey sizing</strong><table><thead><tr><th>Size</th><th>Chest</th><th>Length</th></tr></thead><tbody><tr><td>S</td><td>38</td><td>26</td></tr><tr><td>M</td><td>40</td><td>27</td></tr><tr><td>L</td><td>42</td><td>28</td></tr><tr><td>XL</td><td>44</td><td>29</td></tr><tr><td>2XL</td><td>46</td><td>30</td></tr></tbody></table></div>',
+    );
   const fields = target.querySelector('#player-fields');
   const cricket = item.sport_name.toLowerCase() === 'cricksal';
-  if (cricket) fields.insertAdjacentHTML('beforebegin', `<fieldset class="jersey-selector team-sleeve-selector"><legend>Team sleeve style</legend><div class="jersey-options"><label><input type="radio" name="jersey-style" value="full_sleeve" ${item.jersey_style === 'full_sleeve' ? 'checked' : ''}><span>Full sleeve</span></label><label><input type="radio" name="jersey-style" value="half_sleeve" ${item.jersey_style === 'half_sleeve' ? 'checked' : ''}><span>Half sleeve</span></label></div></fieldset>`);
+  if (cricket)
+    fields.insertAdjacentHTML(
+      'beforebegin',
+      `<fieldset class="jersey-selector team-sleeve-selector"><legend>Team sleeve style</legend><div class="jersey-options"><label><input type="radio" name="jersey-style" value="full_sleeve" ${item.jersey_style === 'full_sleeve' ? 'checked' : ''}><span>Full sleeve</span></label><label><input type="radio" name="jersey-style" value="half_sleeve" ${item.jersey_style === 'half_sleeve' ? 'checked' : ''}><span>Half sleeve</span></label></div></fieldset>`,
+    );
   const captain = target.querySelector('[name="captain_position"]');
   const addButton = target.querySelector('#add-player');
   const photoSelections = new Map();
@@ -626,12 +640,28 @@ function profileEditor(order, itemId) {
       `<div class="player-row"><div class="player-photo">${preview}<button type="button" class="player-photo-clear" data-photo="${index}" aria-label="Remove photo for player ${index + 1}" ${photoKey ? '' : 'hidden'}>×</button><label class="player-photo-pick"><input name="photo-${index}" type="file" accept="image/png,image/jpeg,image/webp" aria-label="Photo for player ${index + 1}"><span>Photo</span></label></div><label class="input-group">Player ${index + 1}<input name="player" type="text" value="${esc(name)}" maxlength="120" autocomplete="off" placeholder="Full name"></label><fieldset class="jersey-selector"><legend>Jersey size <span class="sr-only">for player ${index + 1}</span></legend><div class="jersey-options">${['S', 'M', 'L', 'XL', '2XL'].map((option) => `<label><input type="radio" name="jersey-${index}" value="${option}" ${size === option ? 'checked' : ''}><span>${option}</span></label>`).join('')}</div></fieldset></div>`,
     );
     if (false) {
-      fields.lastElementChild.insertAdjacentHTML('beforeend', `<fieldset class="jersey-selector"><legend>Sleeve style</legend><div class="jersey-options">${[['full_sleeve', 'Full sleeve'], ['half_sleeve', 'Half sleeve']].map(([value, label]) => `<label><input type="radio" name="jersey-style-${index}" value="${value}" ${style === value ? 'checked' : ''}><span>${label}</span></label>`).join('')}</div></fieldset>`);
+      fields.lastElementChild.insertAdjacentHTML(
+        'beforeend',
+        `<fieldset class="jersey-selector"><legend>Sleeve style</legend><div class="jersey-options">${[
+          ['full_sleeve', 'Full sleeve'],
+          ['half_sleeve', 'Half sleeve'],
+        ]
+          .map(
+            ([value, label]) =>
+              `<label><input type="radio" name="jersey-style-${index}" value="${value}" ${style === value ? 'checked' : ''}><span>${label}</span></label>`,
+          )
+          .join('')}</div></fieldset>`,
+      );
     }
     addButton.disabled = fields.children.length >= 100;
   };
   for (let index = 0; index < Math.max(required, item.players.length); index++)
-    addPlayer(item.players[index] || '', item.jersey_sizes?.[index], item.photo_urls?.[index], item.jersey_styles?.[index]);
+    addPlayer(
+      item.players[index] || '',
+      item.jersey_sizes?.[index],
+      item.photo_urls?.[index],
+      item.jersey_styles?.[index],
+    );
   fields.addEventListener('input', () => {
     syncCaptain();
     clearPhotoErrors();
@@ -819,7 +849,10 @@ function profileEditor(order, itemId) {
     update.append('players', JSON.stringify(players));
     update.append('player_photos', JSON.stringify(playerPhotos));
     buttons.forEach((button) => (button.disabled = false));
-    const saved = await api(`/orders/${order.id}/items/${item.id}/profile`, { method: 'PATCH', body: update });
+    const saved = await api(`/orders/${order.id}/items/${item.id}/profile`, {
+      method: 'PATCH',
+      body: update,
+    });
     if (action === 'complete') {
       const complete = await post(`/orders/${order.id}/items/${item.id}/profile/complete`);
       history.replaceState({}, '', location.pathname + location.search);
@@ -888,10 +921,18 @@ async function doneStep(order) {
     )}</div><div class="form-actions"><a class="button primary" href="/">Return to championship</a><a class="button" href="/#teams">See team listing</a></div></div>`;
   target.querySelectorAll('.registration-summary').forEach((summary) => {
     const teamName = summary.querySelector('.team-name')?.textContent;
-    const registration = registrations.find((other) => other.items.some((item) => item.team_name === teamName));
+    const registration = registrations.find((other) =>
+      other.items.some((item) => item.team_name === teamName),
+    );
     const item = registration?.items[0];
     if (item?.sport_name?.toLowerCase() !== 'cricksal') return;
-    if (item.jersey_style) summary.querySelector('.team-name')?.insertAdjacentHTML('afterend', `<p class="team-sleeve">Team sleeve: ${item.jersey_style === 'full_sleeve' ? 'Full sleeve' : 'Half sleeve'}</p>`);
+    if (item.jersey_style)
+      summary
+        .querySelector('.team-name')
+        ?.insertAdjacentHTML(
+          'afterend',
+          `<p class="team-sleeve">Team sleeve: ${item.jersey_style === 'full_sleeve' ? 'Full sleeve' : 'Half sleeve'}</p>`,
+        );
     summary.querySelectorAll('.jersey-badge').forEach((badge, index) => {
       const style = index === 0 ? item.jersey_style : null;
     });
