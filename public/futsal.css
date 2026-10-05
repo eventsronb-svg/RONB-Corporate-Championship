@@ -819,6 +819,33 @@ td:first-child {
 .bracket-round:last-child .bracket-match:after {
   display: none;
 }
+/* The tie currently being played pulses red so the bracket can be read at a glance
+   from the stands. These pages re-render every few seconds, so the cycle is a whole
+   number of seconds and its first and last frame share a colour: the restart that
+   comes with each re-render lands on the same frame and stays invisible. */
+@keyframes bracket-live-pulse {
+  0%,
+  100% {
+    border-color: var(--accent-soft);
+    box-shadow: 0 5px 14px rgb(0 0 0 / 0.05);
+  }
+  50% {
+    border-color: var(--accent);
+    box-shadow:
+      0 0 0 3px var(--accent-wash),
+      0 8px 22px rgb(0 0 0 / 0.1);
+  }
+}
+.bracket-match-live {
+  border-color: var(--accent-soft);
+  animation: bracket-live-pulse 2s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bracket-match-live {
+    border-color: var(--accent);
+    animation: none;
+  }
+}
 .bracket-team {
   display: flex;
   align-items: center;

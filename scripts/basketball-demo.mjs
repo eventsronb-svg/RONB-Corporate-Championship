@@ -82,37 +82,7 @@ const entries = await db.query(
   "INSERT INTO basketball_teams(order_item_id,team_name,logo_url) SELECT i.id,i.team_name,i.logo_url FROM order_items i JOIN orders o ON o.id=i.order_id WHERE i.sport_id=$1 AND o.status='confirmed' RETURNING id",
   [sport.id],
 );
-for (let i = 0; i < entries.rows.length; i++)
-  await db.query('UPDATE basketball_teams SET group_code=$1 WHERE id=$2', [
-    'ABCD'[i % 4],
-    entries.rows[i].id,
-  ]);
-for (const group of 'ABCD') {
-  const teams = (
-    await db.query('SELECT id FROM basketball_teams WHERE group_code=$1 ORDER BY team_name', [
-      group,
-    ])
-  ).rows;
-  for (let a = 0; a < 4; a++)
-    for (let b = a + 1; b < 4; b++)
-      await db.query(
-        "INSERT INTO basketball_matches(stage,group_code,home_team_id,away_team_id) VALUES('group',$1,$2,$3)",
-        [group, teams[a].id, teams[b].id],
-      );
-}
-const fixtures = (
-  await db.query(
-    "SELECT id FROM basketball_matches WHERE stage='group' ORDER BY group_code,created_at,id",
-  )
-).rows;
-for (let index = 0; index < fixtures.length - 1; index++) {
-  const home = (index * 3 + 12) % 80;
-  const away = (index * 5 + 7) % 70;
-  await db.query(
-    "UPDATE basketball_matches SET home_score=$2::int,away_score=$3::int,status='completed',winner_team_id=(CASE WHEN $2::int > $3::int THEN home_team_id ELSE away_team_id END),completed_at=now(),version=2 WHERE id=$1",
-    [fixtures[index].id, home + 1, away],
-  );
-}
+console.log(`Seeded ${entries.rows.length} Basketball teams for manual group assignment.`);
 await app.listen({ host: '127.0.0.1', port });
 console.log(`Basketball demo: ${appOrigin}/basketball`);
 console.log(`Organizer:       ${appOrigin}/admin#basketball`);

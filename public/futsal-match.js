@@ -1,8 +1,6 @@
 const root = document.querySelector('#match'),
   state = document.querySelector('#state');
 let currentMatch = null;
-let showingSponsor = false;
-let rotationTimer = null;
 let renderedView = '';
 const esc = (v) =>
   String(v ?? '').replace(
@@ -11,6 +9,8 @@ const esc = (v) =>
   );
 const card = (t) =>
   `<div class="live-team">${t?.logo_url ? `<img src="${esc(t.logo_url)}" alt="${esc(t.team_name)} logo">` : '<img alt="" src="/assets/images/logo.webp">'}${esc(t?.team_name || 'Team to be confirmed')}</div>`;
+// Shown whenever no match is running: the sponsor rotation the organizers
+// project between matches.
 const idle =
   '<section class="no-match-brand"><img class="xtreme-logo" src="/assets/images/XTREME.png" alt="Xtreme"><span>Presents</span><img class="ronb-logo" src="/assets/images/logo.png" alt="RONB Events"></section>';
 function show(content, label = '', hidden = false) {
@@ -20,47 +20,32 @@ function show(content, label = '', hidden = false) {
   root.classList.add('match-transition');
   state.hidden = hidden;
   state.textContent = label;
-}
-function scheduleRotation() {
-  if (rotationTimer || !currentMatch || currentMatch.status !== 'scheduled') return;
-  rotationTimer = setTimeout(
-    () => {
-      rotationTimer = null;
-      showingSponsor = !showingSponsor;
-      renderCurrent();
-      scheduleRotation();
-    },
-    showingSponsor ? 5000 : 8000,
-  );
+  // The label is the only child of the eyebrow line, so hide the line too and
+  // keep the sponsor screen centred without a gap above it.
+  state.parentElement.hidden = hidden;
 }
 function renderCurrent() {
-  const m = currentMatch;
-  const matchKey = m ? `${m.id}:${m.status}:${m.version}:${m.home_score}:${m.away_score}` : 'none';
-  const viewKey = `${matchKey}:${showingSponsor}`;
+  // Only a live match reaches this page, so anything else means the sponsor screen.
+  const m = currentMatch?.status === 'live' ? currentMatch : null;
+  const viewKey = m ? `${m.id}:${m.version}:${m.home_score}:${m.away_score}` : 'sponsor';
   if (viewKey === renderedView) return;
   renderedView = viewKey;
-  if (!m || showingSponsor) {
+  if (!m) {
     show(idle, '', true);
     return;
   }
+  const stage = m.stage === 'group' ? `Group ${esc(m.group_code)}` : esc(m.stage);
   show(
-    `<section class="live-card"><div class="sport">Futsal</div><div class="group">${m.stage === 'group' ? `Group ${m.group_code}` : m.stage}</div><div class="live-teams">${card(m.home_team)}<div class="score">${m.status === 'scheduled' ? '—' : `${m.home_score} – ${m.away_score}`}</div>${card(m.away_team)}</div></section>`,
-    m.status === 'live' ? 'Live' : 'Upcoming match',
+    `<section class="live-card"><div class="sport">Futsal</div><div class="group">${stage}</div><div class="live-teams">${card(m.home_team)}<div class="score">${m.home_score} – ${m.away_score}</div>${card(m.away_team)}</div></section>`,
+    'Live',
   );
 }
 async function load() {
   try {
     const r = await fetch('/futsal/live');
     if (!r.ok) throw Error('Could not load match.');
-    const m = await r.json();
-    currentMatch = m;
-    if (!m || m.status !== 'scheduled') {
-      showingSponsor = false;
-      if (rotationTimer) clearTimeout(rotationTimer);
-      rotationTimer = null;
-    }
+    currentMatch = await r.json();
     renderCurrent();
-    if (!rotationTimer) scheduleRotation();
   } catch (e) {
     root.textContent = e.message;
   }

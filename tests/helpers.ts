@@ -159,27 +159,34 @@ export async function setup() {
       headers: { 'content-type': `multipart/form-data; boundary=${boundary}` },
     };
   }
-  async function invoice(count = 1) {
-    const draft = await call('POST', '/orders/draft');
+  // A captain keeps a single open registration, so a second one has to belong to a
+  // different actor.
+  async function invoice(count = 1, actor = 'user') {
+    const draft = await call('POST', '/orders/draft', undefined, actor);
     const id = draft.json().id;
-    const selection = await call('PATCH', `/orders/${id}/sports`, {
-      company_name: 'Valley Strikers',
-      sports: sports.slice(0, count).map((s) => ({
-        sport_id: s.id,
-      })),
-    });
+    const selection = await call(
+      'PATCH',
+      `/orders/${id}/sports`,
+      {
+        company_name: 'Valley Strikers',
+        sports: sports.slice(0, count).map((s) => ({
+          sport_id: s.id,
+        })),
+      },
+      actor,
+    );
     if (selection.statusCode !== 200) throw new Error(selection.body);
-    await call('POST', `/orders/${id}/phone`, { phone_number: '+977 9800000000' });
-    const r = await call('POST', `/orders/${id}/invoice`);
+    await call('POST', `/orders/${id}/phone`, { phone_number: '+977 9800000000' }, actor);
+    const r = await call('POST', `/orders/${id}/invoice`, undefined, actor);
     if (r.statusCode !== 200) throw new Error(r.body);
     return r.json();
   }
-  async function submit(count = 1) {
-    const o = await invoice(count);
-    const p = await call('POST', `/orders/${o.id}/payment-request`);
+  async function submit(count = 1, actor = 'user') {
+    const o = await invoice(count, actor);
+    const p = await call('POST', `/orders/${o.id}/payment-request`, undefined, actor);
     if (p.statusCode !== 200) throw new Error(p.body);
     const f = multipart('receipt');
-    const r = await call('POST', `/orders/${o.id}/receipt`, f.payload, 'user', f.headers);
+    const r = await call('POST', `/orders/${o.id}/receipt`, f.payload, actor, f.headers);
     if (r.statusCode !== 200) throw new Error(r.body);
     return r.json();
   }
@@ -223,18 +230,18 @@ export async function setup() {
       f.headers,
     );
     if (r.statusCode !== 200) throw new Error(r.body);
-    const playerPhotos = await uploadPlayerPhotos(order, index, r.json().players.length);
-    const sized = await call(
-      'PATCH',
-      `/orders/${order.id}/items/${order.items[index].id}/profile`,
-      {
-        players: r.json().players,
-        jersey_sizes: ['S', 'M', 'XL'],
-        player_photos: playerPhotos,
-      },
-    );
+    // The endpoint answers with the whole order; this helper hands back just the
+    // profiled item, which is what the assertions in the tests read.
+    const itemId = order.items[index].id;
+    const saved = r.json().items.find((i: any) => i.id === itemId);
+    const playerPhotos = await uploadPlayerPhotos(order, index, saved.players.length);
+    const sized = await call('PATCH', `/orders/${order.id}/items/${itemId}/profile`, {
+      players: saved.players,
+      jersey_sizes: ['S', 'M', 'XL'],
+      player_photos: playerPhotos,
+    });
     if (sized.statusCode !== 200) throw new Error(sized.body);
-    return sized.json();
+    return sized.json().items.find((i: any) => i.id === itemId);
   }
   return {
     db,

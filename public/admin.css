@@ -234,6 +234,9 @@ main {
   max-width: 1600px;
   margin: auto;
 }
+[hidden] {
+  display: none !important;
+}
 .heading {
   display: flex;
   justify-content: space-between;
@@ -315,6 +318,93 @@ input:disabled {
 }
 .table-scroll {
   overflow-x: auto;
+}
+.draw-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 0 24px 24px;
+}
+.draw-team-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 150px auto;
+  gap: 10px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-input);
+}
+.draw-team-row strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.draw-team-row button {
+  min-height: 43px;
+  white-space: nowrap;
+}
+.draw-switch {
+  display: flex;
+  gap: 16px;
+  align-items: end;
+  flex-wrap: wrap;
+  padding: 0 0 4px;
+  margin-bottom: 20px;
+}
+.draw-switch label {
+  width: auto;
+  min-width: 200px;
+}
+.draw-switch .form-note {
+  padding-bottom: 12px;
+  max-width: none;
+}
+.draw-blocks {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  padding: 0 24px 24px;
+}
+.draw-block {
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-input);
+}
+.draw-block h3 {
+  margin: 0 0 4px;
+  font-size: 14px;
+}
+.draw-members {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.draw-matches {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.draw-matches li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-input);
+  font-size: 13px;
+}
+.draw-matches b {
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+.draw-matches em {
+  font-style: normal;
+  font-weight: 650;
+  white-space: nowrap;
 }
 table {
   width: 100%;
@@ -726,6 +816,28 @@ tbody tr.futsal-match-completed .status {
   }
 }
 @media (max-width: 700px) {
+  .draw-grid {
+    grid-template-columns: 1fr;
+    padding: 0 16px 16px;
+  }
+  .draw-team-row {
+    grid-template-columns: minmax(0, 1fr) 130px auto;
+    gap: 8px;
+    padding: 10px;
+  }
+  .draw-switch label {
+    width: 100%;
+  }
+  .draw-blocks {
+    grid-template-columns: 1fr;
+    padding: 0 16px 16px;
+  }
+  .draw-matches li {
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  }
+  .draw-matches em {
+    grid-column: 1 / -1;
+  }
   .shell {
     display: block;
   }

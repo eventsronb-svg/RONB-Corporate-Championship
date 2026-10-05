@@ -19,7 +19,7 @@ const bracketMatch = (m, by) => {
         : ' bracket-loser';
   const logo = (id) =>
     `<span class="${result(id)}"><span class="bracket-logo"><img class="logo" src="${esc(by.get(id)?.logo_url || '/assets/images/logo.webp')}" alt=""></span></span>`;
-  return `<article class="bracket-match"><div class="bracket-pair">${logo(m.home_team_id)}<b>${m.status === 'scheduled' ? '—' : `${m.home_score} – ${m.away_score}`}</b>${logo(m.away_team_id)}</div></article>`;
+  return `<article class="bracket-match${m.status === 'live' ? ' bracket-match-live' : ''}"><div class="bracket-pair">${logo(m.home_team_id)}<b>${m.status === 'scheduled' ? '—' : `${m.home_score} – ${m.away_score}`}</b>${logo(m.away_team_id)}</div></article>`;
 };
 function drawBracketConnections() {
   const bracket = document.querySelector('.bracket');
@@ -91,6 +91,7 @@ function drawBracketConnections() {
   }
 }
 function render(data, live) {
+  const groupStageOpen = app.querySelector('.group-stage')?.open ?? false;
   const by = new Map(data.teams.map((t) => [t.id, t]));
   const matches = data.groups.flatMap((g) => g.matches);
   const done = matches.length > 0 && matches.every((m) => m.status === 'completed');
@@ -118,7 +119,7 @@ function render(data, live) {
     done && generated
       ? `<section class="stage bracket-stage"><h2>Match bracket</h2><div class="bracket basketball-bracket"><svg class="bracket-connections" aria-hidden="true"></svg>${round('quarter', 'Quarterfinals', (m) => m.bracket_position <= 2)}${round('semi', 'Semifinals', (m) => m.bracket_position === 1)}${round('final', 'Final', () => true)}${round('semi', 'Semifinals', (m) => m.bracket_position === 2)}${round('quarter', 'Quarterfinals', (m) => m.bracket_position > 2, true)}</div></section>`
       : '';
-  app.innerHTML = `${live?.status === 'live' ? `<section class="ongoing-match"><p>Live now</p><div class="ongoing-scoreboard"><strong>${esc(live.home_team?.team_name)}</strong><b>${live.home_score} – ${live.away_score}</b><strong>${esc(live.away_team?.team_name)}</strong></div></section>` : ''}${bracket}${done ? `<details class="group-stage"><summary>Group stage complete · 4 tables · 24 matches</summary><div class="groups">${groups}</div></details>` : `<div class="groups">${groups}</div>`}`;
+  app.innerHTML = `${live?.status === 'live' ? `<section class="ongoing-match"><p>Live now</p><div class="ongoing-scoreboard"><strong>${esc(live.home_team?.team_name)}</strong><b>${live.home_score} – ${live.away_score}</b><strong>${esc(live.away_team?.team_name)}</strong></div></section>` : ''}${bracket}${done ? `<details class="group-stage" ${groupStageOpen ? 'open' : ''}><summary>Group stage complete · 4 tables · 24 matches</summary><div class="groups">${groups}</div></details>` : `<div class="groups">${groups}</div>`}`;
   drawBracketConnections();
 }
 async function load() {

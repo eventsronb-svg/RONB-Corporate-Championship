@@ -617,20 +617,138 @@ async function adminsView() {
     },
   };
 }
+const drawGroupView = {};
+const GROUP_SIZE = 4;
+// Fixtures follow the order teams were placed in their group, so a1 is the first
+// team an organizer saved into it. Teams placed before that column existed sort
+// behind the placed ones and fall back to their alphabetical order.
+const placedFirst = (a, b) => {
+  if (a.group_assigned_at === b.group_assigned_at) return 0;
+  if (!a.group_assigned_at) return 1;
+  if (!b.group_assigned_at) return -1;
+  return a.group_assigned_at > b.group_assigned_at ? 1 : -1;
+};
+function drawGroups(data, groups, prefix) {
+  const unassigned = data.teams.filter((team) => !team.group_code);
+  const allAssigned = data.teams.length > 0 && !unassigned.length;
+  // A stray code keeps its teams visible instead of hiding them behind a missing option.
+  const codes = [
+    ...groups,
+    ...data.teams.map((team) => team.group_code).filter((code) => code && !groups.includes(code)),
+  ];
+  const teamsFor = (code) =>
+    data.teams.filter((team) => (code ? team.group_code === code : !team.group_code));
+  const nameOf = (id) => data.teams.find((team) => team.id === id)?.team_name || 'Team pending';
+  // Once every team is grouped the dropdown is gone: each group gets its own heading
+  // and its own fixtures, so the whole draw reads top to bottom in one screen.
+  const listing = (code) => {
+    const members = teamsFor(code).slice().sort(placedFirst);
+    const fixtures = (data.groups.find((group) => group.code === code)?.matches ?? []).filter(
+      (match) => match.home_team_id && match.away_team_id,
+    );
+    const games = fixtures
+      .map((match) => {
+        const result =
+          match.status === 'scheduled' ? 'Scheduled' : `${match.home_score} – ${match.away_score}`;
+        return `<li><span>${e(nameOf(match.home_team_id))}</span><b>vs</b><span>${e(nameOf(match.away_team_id))}</span><em>${e(result)}</em></li>`;
+      })
+      .join('');
+    return `<section class="draw-block"><h3>Group ${e(code)}</h3><p class="draw-members">${
+      members.map((team) => e(team.team_name)).join(' · ') || 'No teams assigned yet.'
+    }</p>${games ? `<ol class="draw-matches">${games}</ol>` : '<p class="form-note">Generate group fixtures to list this group’s matches.</p>'}</section>`;
+  };
+  if (allAssigned)
+    return `<section class="surface panel section-gap"><h2>Draw groups</h2><p class="form-note">Every team is in a group from the public draw.</p><div class="draw-blocks">${codes.map(listing).join('')}</div></section>`;
+  const size = (count) => `${count} ${count === 1 ? 'team' : 'teams'}`;
+  const choices = [
+    ...(unassigned.length ? [['', `Unassigned · ${size(unassigned.length)}`]] : []),
+    ...codes.map((code) => {
+      const count = teamsFor(code).length;
+      return [code, `Group ${code} · ${count}/${GROUP_SIZE} teams`];
+    }),
+  ];
+  const active = choices.some(([code]) => code === drawGroupView[prefix])
+    ? drawGroupView[prefix]
+    : unassigned.length
+      ? ''
+      : (codes.find((code) => teamsFor(code).length) ?? codes[0]);
+  const picker = `<div class="draw-switch"><label>Group<select data-${prefix}-group-view>${choices
+    .map(
+      ([code, label]) =>
+        `<option value="${e(code)}" ${code === active ? 'selected' : ''}>${e(label)}</option>`,
+    )
+    .join(
+      '',
+    )}</select></label><p class="form-note">Pick a group to place or correct its teams.</p></div>`;
+  const panel = (code) => {
+    const teams = teamsFor(code);
+    // A group that already holds four teams is not offered to anyone else, but
+    // stays listed for the teams inside it so a correct assignment is never lost.
+    const optionsFor = (team) =>
+      groups
+        .filter((group) => teamsFor(group).length < GROUP_SIZE || group === team.group_code)
+        .map(
+          (group) =>
+            `<option value="${group}" ${team.group_code === group ? 'selected' : ''}>Group ${group}</option>`,
+        )
+        .join('');
+    return `<div data-${prefix}-group-panel="${e(code)}" ${code === active ? '' : 'hidden'}><div class="draw-grid">${
+      teams
+        .map(
+          (team) =>
+            `<div class="draw-team-row"><strong>${e(team.team_name)}</strong><select data-${prefix}-group-select="${e(team.id)}"><option value="">Unassigned</option>${optionsFor(team)}</select><button data-${prefix}-group-save="${e(team.id)}">Save group</button></div>`,
+        )
+        .join('') || '<p class="form-note">No teams assigned yet.</p>'
+    }</div></div>`;
+  };
+  return `<section class="surface panel section-gap"><h2>Draw groups</h2><p class="form-note">Assign each confirmed team to the group drawn publicly. You can save and correct assignments until fixtures are generated.</p>${picker}${(unassigned.length ? ['', ...codes] : codes).map(panel).join('')}</section>`;
+}
+function bindDrawGroups(prefix) {
+  const camel = prefix.replace(/-(\w)/g, (_, c) => c.toUpperCase());
+  const endpoint = prefix === 'futsal' ? '/admin/futsal' : '/admin/basketball';
+  document.querySelectorAll(`[data-${prefix}-group-save]`).forEach((button) =>
+    button.addEventListener('click', async () => {
+      const id = button.dataset[`${camel}GroupSave`];
+      try {
+        await api(`${endpoint}/teams/${id}/group`, {
+          method: 'PATCH',
+          body: JSON.stringify({
+            group_code:
+              document.querySelector(`[data-${prefix}-group-select="${id}"]`).value || null,
+          }),
+        });
+        await render();
+        message('Group assignment saved.');
+      } catch (err) {
+        message(err.message, true);
+      }
+    }),
+  );
+  const view = document.querySelector(`[data-${prefix}-group-view]`);
+  view?.addEventListener('change', () => {
+    drawGroupView[prefix] = view.value;
+    document.querySelectorAll(`[data-${prefix}-group-panel]`).forEach((panel) => {
+      panel.hidden = panel.dataset[`${camel}GroupPanel`] !== view.value;
+    });
+  });
+}
 async function futsalView() {
   const data = await api('/admin/futsal');
   const byId = new Map(data.teams.map((team) => [team.id, team]));
+  const groups = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+  const groupDraw = me.role === 'super_admin' ? drawGroups(data, groups, 'futsal') : '';
   const teamName = (id) => byId.get(id)?.team_name || 'Team pending';
   const matchRow = (match) =>
     `<tr class="futsal-match-${e(match.status)}" data-match="${e(match.id)}"><td>${e(match.stage === 'group' ? `Group ${match.group_code}` : match.stage)}</td><td>${e(teamName(match.home_team_id))}</td><td><input class="score-input" name="home_score" type="number" min="0" value="${match.home_score}" ${match.status === 'live' ? '' : 'disabled'}></td><td>–</td><td><input class="score-input" name="away_score" type="number" min="0" value="${match.away_score}" ${match.status === 'live' ? '' : 'disabled'}></td><td>${e(teamName(match.away_team_id))}</td><td>${match.status === 'scheduled' && match.home_team_id && match.away_team_id ? '<button data-start>Start</button>' : ''}${match.status === 'live' ? '<button data-save>Save</button> <button class="primary" data-end>End match</button>' : ''}</td></tr>`;
   const matches = [...data.groups.flatMap((group) => group.matches), ...data.bracket];
   const controls =
     me.role === 'super_admin'
-      ? `<div class="actions"><button data-futsal="import">Import confirmed teams</button><button data-futsal="groups">Generate groups</button><button data-futsal="fixtures">Generate group fixtures</button><button data-futsal="bracket">Generate 16-team bracket</button></div>`
+      ? `<div class="actions"><button data-futsal="import">Import confirmed teams</button><button data-futsal="fixtures">Generate group fixtures</button><button data-futsal="bracket">Generate 16-team bracket</button></div>`
       : '';
   return {
-    html: `${header('Futsal championship', 'Start live matches, save scores and complete matches to update the public tables.', 'EVENT OPERATIONS', `${data.teams.length} TEAMS`)}<section class="surface panel">${controls}<p class="form-note">Group matches use 3 points for a win, 1 for a draw. Tied knockout matches require the penalty winner when ended.</p></section><section class="surface panel section-gap"><div class="table-scroll"><table><thead><tr><th>Stage</th><th>Home</th><th>Score</th><th></th><th>Score</th><th>Away</th><th>Action</th></tr></thead><tbody>${matches.map(matchRow).join('') || '<tr><td colspan="7">Import teams, then generate groups and fixtures.</td></tr>'}</tbody></table></div></section>`,
+    html: `${header('Futsal championship', 'Start live matches, save scores and complete matches to update the public tables.', 'EVENT OPERATIONS', `${data.teams.length} TEAMS`)}<section class="surface panel">${controls}<p class="form-note">Group matches use 3 points for a win, 1 for a draw. Tied knockout matches require the penalty winner when ended.</p></section>${groupDraw}<section class="surface panel section-gap"><div class="table-scroll"><table><thead><tr><th>Stage</th><th>Home</th><th>Score</th><th></th><th>Score</th><th>Away</th><th>Action</th></tr></thead><tbody>${matches.map(matchRow).join('') || '<tr><td colspan="7">Import teams, then assign groups and generate fixtures.</td></tr>'}</tbody></table></div></section>`,
     bind() {
+      bindDrawGroups('futsal');
       document.querySelectorAll('[data-futsal]').forEach((button) =>
         button.addEventListener('click', async () => {
           const actions = {
@@ -723,17 +841,20 @@ async function futsalView() {
 async function basketballView() {
   const data = await api('/admin/basketball');
   const byId = new Map(data.teams.map((team) => [team.id, team]));
+  const groups = ['A', 'B', 'C', 'D'];
+  const groupDraw = me.role === 'super_admin' ? drawGroups(data, groups, 'basket') : '';
   const teamName = (id) => byId.get(id)?.team_name || 'Team pending';
   const matches = [...data.groups.flatMap((group) => group.matches), ...data.bracket];
   const matchRow = (match) =>
     `<tr class="basketball-match-${e(match.status)}" data-match="${e(match.id)}"><td>${e(match.stage === 'group' ? `Group ${match.group_code}` : match.stage)}</td><td>${e(teamName(match.home_team_id))}</td><td><input class="score-input" name="home_score" type="number" min="0" value="${match.home_score}" ${match.status === 'live' ? '' : 'disabled'}></td><td>–</td><td><input class="score-input" name="away_score" type="number" min="0" value="${match.away_score}" ${match.status === 'live' ? '' : 'disabled'}></td><td>${e(teamName(match.away_team_id))}</td><td>${match.status === 'scheduled' && match.home_team_id && match.away_team_id ? '<button data-basket-start>Start</button>' : ''}${match.status === 'live' ? '<button data-basket-save>Save</button> <button class="primary" data-basket-end>End match</button>' : ''}</td></tr>`;
   const controls =
     me.role === 'super_admin'
-      ? `<div class="actions"><button data-basketball="import">Import confirmed teams</button><button data-basketball="groups">Generate groups</button><button data-basketball="fixtures">Generate group fixtures</button></div><p class="form-note">When all 24 group matches are complete, the top two teams from each group automatically enter the 8-team knockout bracket.</p>`
+      ? `<div class="actions"><button data-basketball="import">Import confirmed teams</button><button data-basketball="fixtures">Generate group fixtures</button></div><p class="form-note">When all 24 group matches are complete, the top two teams from each group automatically enter the 8-team knockout bracket.</p>`
       : '';
   return {
-    html: `${header('Basketball championship', 'Run group matches, award two points for each win, and select the eight knockout teams.', 'EVENT OPERATIONS', `${data.teams.length} TEAMS`)}<section class="surface panel">${controls}</section><section class="surface panel section-gap"><div class="table-scroll"><table><thead><tr><th>Stage</th><th>Home</th><th>Score</th><th></th><th>Score</th><th>Away</th><th>Action</th></tr></thead><tbody>${matches.map(matchRow).join('') || '<tr><td colspan="7">Import teams, then generate groups and fixtures.</td></tr>'}</tbody></table></div></section>`,
+    html: `${header('Basketball championship', 'Run group matches, award two points for each win, and select the eight knockout teams.', 'EVENT OPERATIONS', `${data.teams.length} TEAMS`)}<section class="surface panel">${controls}</section>${groupDraw}<section class="surface panel section-gap"><div class="table-scroll"><table><thead><tr><th>Stage</th><th>Home</th><th>Score</th><th></th><th>Score</th><th>Away</th><th>Action</th></tr></thead><tbody>${matches.map(matchRow).join('') || '<tr><td colspan="7">Import teams, then assign groups and generate fixtures.</td></tr>'}</tbody></table></div></section>`,
     bind() {
+      bindDrawGroups('basket');
       document.querySelectorAll('[data-basketball]').forEach((button) =>
         button.addEventListener('click', async () => {
           const actions = {

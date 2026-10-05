@@ -33,7 +33,9 @@ describe('registration and publication', () => {
       player_photos,
     });
     expect(saved.statusCode).toBe(200);
-    expect(saved.json().jersey_sizes).toEqual(jersey_sizes);
+    // The profile endpoints answer with the whole order so the client can redraw the
+    // step without another round trip; the roster itself lives on the first item.
+    expect(saved.json().items[0].jersey_sizes).toEqual(jersey_sizes);
     expect((await h.call('GET', path)).json().jersey_sizes).toEqual(jersey_sizes);
     expect((await h.call('GET', path, undefined, 'stranger')).statusCode).toBe(404);
     expect((await h.call('POST', `${path}/complete`)).statusCode).toBe(200);
@@ -64,12 +66,12 @@ describe('registration and publication', () => {
       ]),
     ).rejects.toThrow();
     const draft = await h.call('PATCH', path, { players, jersey_sizes: ['S', null, 'L', 'XL'] });
-    expect(draft.json().profile_completed_at).toBeNull();
+    expect(draft.json().items[0].profile_completed_at).toBeNull();
     expect((await h.call('POST', `${path}/complete`)).json().error).toBe('jersey_sizes_required');
     expect((await h.call('GET', '/teams')).json()).toEqual([]);
-    expect((await h.call('PATCH', path, { players: ['Replacement'] })).json().jersey_sizes).toEqual(
-      [null],
-    );
+    expect(
+      (await h.call('PATCH', path, { players: ['Replacement'] })).json().items[0].jersey_sizes,
+    ).toEqual([null]);
   });
   it('migrates existing rosters without inventing sizes or changing completion status', async () => {
     const order = await h.confirm(1);
@@ -191,10 +193,10 @@ describe('registration and publication', () => {
       'staff',
     );
     expect(edited.statusCode).toBe(200);
-    expect(edited.json().players).toEqual(['Ramesh Gurung', 'Nisha Thapa']);
-    expect(edited.json().captain_position).toBe(1);
-    expect(edited.json().photo_urls).toEqual([photo.json().photo_url, null]);
-    expect(edited.json().profile_completed_at).toBeTruthy();
+    expect(edited.json().items[0].players).toEqual(['Ramesh Gurung', 'Nisha Thapa']);
+    expect(edited.json().items[0].captain_position).toBe(1);
+    expect(edited.json().items[0].photo_urls).toEqual([photo.json().photo_url, null]);
+    expect(edited.json().items[0].profile_completed_at).toBeTruthy();
 
     const teams = (await h.call('GET', '/teams')).json();
     expect(teams[0].players).toEqual(['Ramesh Gurung', 'Nisha Thapa']);
@@ -273,7 +275,7 @@ describe('registration and publication', () => {
       player_photos,
     });
     expect(saved.statusCode).toBe(200);
-    expect(saved.json().logo_url).toBe(original[0].logo_url);
+    expect(saved.json().items[0].logo_url).toBe(original[0].logo_url);
     expect((await h.call('POST', `${path}/complete`)).statusCode).toBe(200);
     expect((await h.call('GET', '/teams')).json()).toHaveLength(2);
   });
@@ -304,7 +306,7 @@ describe('registration and publication', () => {
       player_photos: [null, uploaded.json().photo_url, null],
     });
     expect(saved.statusCode).toBe(200);
-    expect(saved.json().photo_urls).toEqual([null, uploaded.json().photo_url, null]);
+    expect(saved.json().items[0].photo_urls).toEqual([null, uploaded.json().photo_url, null]);
     const status = (await h.call('GET', `/orders/${order.id}/status`)).json();
     expect(status.items[0].photo_urls[1]).toBe(uploaded.json().photo_url);
     expect(status.items[0].players[1]).toBe('Pratik Gurung');
@@ -385,13 +387,13 @@ describe('registration and publication', () => {
     const path = `/orders/${order.id}/items/${order.items[0].id}/profile`;
     const saved = await h.call('PATCH', path, { captain_position: 1 });
     expect(saved.statusCode).toBe(200);
-    expect(saved.json().captain_position).toBe(1);
-    expect(saved.json().players).toHaveLength(3);
+    expect(saved.json().items[0].captain_position).toBe(1);
+    expect(saved.json().items[0].players).toHaveLength(3);
     expect((await h.call('PATCH', path, { captain_position: 3 })).statusCode).toBe(400);
     expect((await h.call('PATCH', path, { captain_position: -1 })).statusCode).toBe(400);
     expect((await h.call('GET', path)).json().captain_position).toBe(1);
     const changed = await h.call('PATCH', path, { players: ['New player'] });
-    expect(changed.json().captain_position).toBeNull();
+    expect(changed.json().items[0].captain_position).toBeNull();
   });
   it('serializes double draft creation and prevents duplicate open orders in the database', async () => {
     const results = await Promise.all(
@@ -744,14 +746,21 @@ describe('background jobs', () => {
       "UPDATE payment_requests SET expires_at=now()-interval '1 day' WHERE order_id=$1",
       [o.id],
     );
+    // An abandoned draft is the shape the old expiry job used to collect, and it
+    // still has to survive untouched.
+    const abandoned = await h.db.query(
+      "INSERT INTO users(google_id,email,name) VALUES('u3','gone@example.com','Binod Thapa') RETURNING id",
+    );
     await h.db.query("INSERT INTO orders(user_id,updated_at) VALUES($1,now()-interval '8 days')", [
-      h.stranger.id,
+      abandoned.rows[0].id,
     ]);
     expect(await expireOrders(h.db)).toBe(0);
     expect((await one(h.db, 'SELECT * FROM orders WHERE id=$1', [o.id]))?.status).toBe(
       'payment_pending',
     );
-    const submitted = await h.submit();
+    // The captain above still owns an open registration, so this one belongs to the
+    // other signed-in captain.
+    const submitted = await h.submit(1, 'stranger');
     await h.db.query(
       "UPDATE payment_requests SET expires_at=now()-interval '1 day' WHERE order_id=$1",
       [submitted.id],

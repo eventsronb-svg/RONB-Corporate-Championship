@@ -8,6 +8,16 @@ import { assert } from './errors.js';
 import { audit, uuid } from './orders.js';
 
 const groups = ['A', 'B', 'C', 'D'] as const;
+// Group fixtures for four teams in placement order, so the first pairing round is
+// a1–a2 with a3–a4, the second a1–a3 with a2–a4, and the third a1–a4 with a2–a3.
+const groupRoundRobin = [
+  [0, 1],
+  [2, 3],
+  [0, 2],
+  [1, 3],
+  [0, 3],
+  [1, 2],
+] as const;
 const scoreBody = z
   .object({
     home_score: z.number().int().min(0).max(999),
@@ -15,6 +25,7 @@ const scoreBody = z
     version: z.number().int().positive(),
   })
   .strict();
+const groupBody = z.object({ group_code: z.enum(groups).nullable() }).strict();
 const params = z.object({ id: uuid });
 type Standing = Row & {
   played: number;
@@ -29,7 +40,9 @@ type Standing = Row & {
 async function standings(tx: Queryable, group: string): Promise<Standing[]> {
   const teams = (
     await tx.query<Row>(
-      'SELECT * FROM basketball_teams WHERE group_code=$1 ORDER BY team_name,id',
+      `SELECT t.id,t.order_item_id,i.team_name,i.logo_url,t.group_code,t.selected,t.group_assigned_at,t.created_at
+       FROM basketball_teams t JOIN order_items i ON i.id=t.order_item_id
+       WHERE t.group_code=$1 ORDER BY i.team_name,t.id`,
       [group],
     )
   ).rows;
@@ -118,7 +131,8 @@ async function publicMatch(tx: Queryable, match: Row | undefined) {
   if (!match) return null;
   const teams = (
     await tx.query<Row>(
-      'SELECT id,team_name,logo_url FROM basketball_teams WHERE id=ANY($1::uuid[])',
+      `SELECT t.id,i.team_name,i.logo_url FROM basketball_teams t
+       JOIN order_items i ON i.id=t.order_item_id WHERE t.id=ANY($1::uuid[])`,
       [[match.home_team_id, match.away_team_id].filter(Boolean)],
     )
   ).rows;
@@ -187,7 +201,7 @@ export async function registerBasketball(app: FastifyInstance, db: Database, c: 
         table: await standings(db, code),
         matches: (
           await db.query<Row>(
-            "SELECT * FROM basketball_matches WHERE stage='group' AND group_code=$1 ORDER BY created_at,id",
+            "SELECT * FROM basketball_matches WHERE stage='group' AND group_code=$1 ORDER BY group_position,created_at,id",
             [code],
           )
         ).rows,
@@ -206,22 +220,22 @@ export async function registerBasketball(app: FastifyInstance, db: Database, c: 
     ];
     const teams = (
       await db.query<Row>(
-        'SELECT id,team_name,logo_url,group_code,selected FROM basketball_teams ORDER BY team_name,id',
+        `SELECT t.id,i.team_name,i.logo_url,t.group_code,t.group_assigned_at,t.selected
+         FROM basketball_teams t JOIN order_items i ON i.id=t.order_item_id
+         ORDER BY i.team_name,t.id`,
       )
     ).rows;
     return { groups: groupData, bracket, teams };
   });
+  // Only a running match is published, so the big-screen page shows the sponsor
+  // rotation until an organizer starts one and switches back when it ends.
   app.get('/basketball/live', async () =>
     publicMatch(
       db,
-      (await one(
+      await one(
         db,
         "SELECT * FROM basketball_matches WHERE status='live' ORDER BY created_at LIMIT 1",
-      )) ??
-        (await one(
-          db,
-          "SELECT * FROM basketball_matches WHERE status='scheduled' AND home_team_id IS NOT NULL AND away_team_id IS NOT NULL ORDER BY CASE stage WHEN 'group' THEN 1 ELSE 2 END,group_code,bracket_position LIMIT 1",
-        )),
+      ),
     ),
   );
   app.get('/admin/basketball', { preHandler: guard.admin }, async () =>
@@ -244,6 +258,51 @@ export async function registerBasketball(app: FastifyInstance, db: Database, c: 
       };
     }),
   );
+  app.patch('/admin/basketball/teams/:id/group', { preHandler: guard.superAdmin }, async (req) =>
+    db.transaction(async (tx) => {
+      assert(
+        !(await one(tx, 'SELECT id FROM basketball_matches LIMIT 1')),
+        409,
+        'fixtures_exist',
+        'Groups cannot change after fixtures are created',
+      );
+      const team = await one(tx, 'SELECT * FROM basketball_teams WHERE id=$1 FOR UPDATE', [
+        params.parse(req.params).id,
+      ]);
+      assert(team, 404, 'not_found', 'Team not found');
+      const body = groupBody.parse(req.body);
+      if (body.group_code) {
+        const count = await one(
+          tx,
+          'SELECT count(*)::int AS count FROM basketball_teams WHERE group_code=$1 AND id<>$2',
+          [body.group_code, team.id],
+        );
+        assert(
+          (count?.count ?? 0) < 4,
+          409,
+          'group_full',
+          `Group ${body.group_code} already has four teams`,
+        );
+      }
+      // Re-saving the same group keeps this team's place in the draw; clearing the
+      // group drops the stamp so a later assignment draws a fresh order.
+      const stamped =
+        body.group_code === team.group_code
+          ? team.group_assigned_at
+          : body.group_code
+            ? new Date()
+            : null;
+      await tx.query('UPDATE basketball_teams SET group_code=$1,group_assigned_at=$2 WHERE id=$3', [
+        body.group_code,
+        stamped,
+        team.id,
+      ]);
+      await audit(tx, req.actor!.id, 'basketball.team.group_assign', 'basketball', team.id, {
+        group_code: body.group_code,
+      });
+      return one(tx, 'SELECT * FROM basketball_teams WHERE id=$1', [team.id]);
+    }),
+  );
   app.post('/admin/basketball/generate-groups', { preHandler: guard.superAdmin }, async (req) =>
     db.transaction(async (tx) => {
       assert(
@@ -261,15 +320,7 @@ export async function registerBasketball(app: FastifyInstance, db: Database, c: 
         'team_count',
         'Basketball requires exactly 16 imported confirmed teams',
       );
-      for (let i = 0; i < teams.length; i++)
-        await tx.query('UPDATE basketball_teams SET group_code=$1 WHERE id=$2', [
-          groups[i % 4],
-          teams[i].id,
-        ]);
-      await audit(tx, req.actor!.id, 'basketball.groups.generate', 'basketball', teams[0].id, {
-        teams: 16,
-      });
-      return { groups: 4 };
+      return { groups: 4, assigned: teams.filter((team) => team.group_code).length };
     }),
   );
   app.post('/admin/basketball/generate-fixtures', { preHandler: guard.superAdmin }, async (req) =>
@@ -281,19 +332,20 @@ export async function registerBasketball(app: FastifyInstance, db: Database, c: 
         'Fixtures already exist',
       );
       for (const group of groups) {
+        // a1 is the first team placed in the group, a4 the last, so the round
+        // robin pairs a1–a2 with a3–a4, then a1–a3 with a2–a4, then a1–a4 with a2–a3.
         const teams = (
           await tx.query<Row>(
-            'SELECT id FROM basketball_teams WHERE group_code=$1 ORDER BY team_name,id',
+            'SELECT id FROM basketball_teams WHERE group_code=$1 ORDER BY group_assigned_at,id',
             [group],
           )
         ).rows;
         assert(teams.length === 4, 409, 'groups_incomplete', `Group ${group} needs four teams`);
-        for (let a = 0; a < 4; a++)
-          for (let b = a + 1; b < 4; b++)
-            await tx.query(
-              "INSERT INTO basketball_matches(stage,group_code,home_team_id,away_team_id) VALUES('group',$1,$2,$3)",
-              [group, teams[a].id, teams[b].id],
-            );
+        for (const [position, [home, away]] of groupRoundRobin.entries())
+          await tx.query(
+            "INSERT INTO basketball_matches(stage,group_code,group_position,home_team_id,away_team_id) VALUES('group',$1,$2,$3,$4)",
+            [group, position + 1, teams[home].id, teams[away].id],
+          );
       }
       await audit(
         tx,

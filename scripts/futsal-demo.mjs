@@ -84,37 +84,7 @@ const entries = await db.query(
   "INSERT INTO futsal_teams(order_item_id,team_name,logo_url) SELECT i.id,i.team_name,i.logo_url FROM order_items i JOIN orders o ON o.id=i.order_id WHERE i.sport_id=$1 AND o.status='confirmed' RETURNING id",
   [sport.id],
 );
-for (let i = 0; i < entries.rows.length; i++)
-  await db.query('UPDATE futsal_teams SET group_code=$1 WHERE id=$2', [
-    'ABCDEFGH'[i % 8],
-    entries.rows[i].id,
-  ]);
-for (const group of 'ABCDEFGH') {
-  const teams = (
-    await db.query('SELECT id FROM futsal_teams WHERE group_code=$1 ORDER BY team_name', [group])
-  ).rows;
-  for (let a = 0; a < 4; a++)
-    for (let b = a + 1; b < 4; b++)
-      await db.query(
-        "INSERT INTO futsal_matches(stage,group_code,home_team_id,away_team_id) VALUES('group',$1,$2,$3)",
-        [group, teams[a].id, teams[b].id],
-      );
-}
-// Fill the group stage with deterministic results, leaving the final fixture
-// scheduled so the bracket remains hidden until it is completed.
-const fixtures = (
-  await db.query(
-    "SELECT id FROM futsal_matches WHERE stage='group' ORDER BY group_code,created_at,id",
-  )
-).rows;
-for (let index = 0; index < fixtures.length - 1; index++) {
-  const home = (index * 3 + 1) % 7;
-  const away = (index * 5 + 2) % 6;
-  await db.query(
-    "UPDATE futsal_matches SET home_score=$2,away_score=$3,status='completed',completed_at=now(),version=2 WHERE id=$1",
-    [fixtures[index].id, home, away],
-  );
-}
+console.log(`Seeded ${entries.rows.length} Futsal teams for manual group assignment.`);
 await app.listen({ host: '127.0.0.1', port });
 console.log(`Futsal demo: ${appOrigin}/futsal`);
 console.log(`Organizer:   ${appOrigin}/admin#futsal`);

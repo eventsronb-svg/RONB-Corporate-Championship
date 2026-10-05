@@ -102,11 +102,13 @@ it('reserves the final slot atomically and releases it after unpaid expiry', asy
   expect(
     (await h.call('POST', `/orders/${ids[loser]}/invoice`, undefined, actors[loser])).statusCode,
   ).toBe(409);
-  await h.db.query(
-    "INSERT INTO orders(user_id,status,total_amount,invoiced_at) VALUES($1,'invoiced',0,now()-interval '2 days')",
-    [winner === 0 ? h.user.id : h.stranger.id],
-  );
-  expect(await expireOrders(h.db)).toBe(0);
+  // Registrations never expire, so the sweep leaves the unpaid order open and the
+  // last slot still reserved for the captain holding it.
+  const kept = await h.db.query('SELECT status FROM orders WHERE id=$1', [ids[winner]]);
+  expect(kept.rows[0].status).toBe('payment_pending');
+  expect(
+    (await h.call('GET', '/sports')).json().find((s: any) => s.id === h.sports[0].id).filled_slots,
+  ).toBe(1);
 });
 
 it('cannot lower capacity below reservations or bypass capacity by resubmitting a rejected receipt', async () => {
