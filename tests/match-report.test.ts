@@ -57,13 +57,13 @@ async function addPlayer(table: 'futsal_teams' | 'basketball_teams', teamId: str
 describe('match reports', () => {
   it('exports the futsal group stage and knockout rounds with every scorer credit', async () => {
     await h.db.query("UPDATE sports SET name='Futsal' WHERE id=$1", [h.sports[0].id]);
-    await seedTeams(32, h.sports[0].id, 'Futsal Team');
-    expect((await h.call('POST', '/admin/futsal/import', {}, 'admin')).json().total).toBe(32);
+    await seedTeams(24, h.sports[0].id, 'Futsal Team');
+    expect((await h.call('POST', '/admin/futsal/import', {}, 'admin')).json().total).toBe(24);
     const teams = (await h.call('GET', '/admin/futsal', undefined, 'admin')).json().teams;
-    await assignGroups('/admin/futsal', 'ABCDEFGH', teams);
+    await assignGroups('/admin/futsal', 'ABCDEF', teams);
     expect(
       (await h.call('POST', '/admin/futsal/generate-fixtures', {}, 'admin')).json().matches,
-    ).toBe(48);
+    ).toBe(36);
     const view = (await h.call('GET', '/admin/futsal', undefined, 'admin')).json();
     const names = new Map<string, string>(view.teams.map((team: any) => [team.id, team.team_name]));
     const first = view.groups[0].matches[0];
@@ -103,7 +103,7 @@ describe('match reports', () => {
 
     // The rest of the group stage completes in bulk, the way the demo seeds it.
     await h.db.query(
-      "UPDATE futsal_matches SET status='completed',home_score=1,away_score=0,completed_at=now() WHERE stage='group' AND status <> 'completed'",
+      "UPDATE futsal_matches SET status='completed',home_score=ascii(group_code)-64,away_score=0,completed_at=now() WHERE stage='group' AND status <> 'completed'",
     );
     const group = await h.call('GET', '/admin/futsal/report?stage=group', undefined, 'admin');
     expect(group.statusCode).toBe(200);
@@ -118,8 +118,6 @@ describe('match reports', () => {
       'Group D',
       'Group E',
       'Group F',
-      'Group G',
-      'Group H',
     ]);
     expect(report.sections[0].matches).toHaveLength(6);
     const opening = report.sections[0].matches[0];

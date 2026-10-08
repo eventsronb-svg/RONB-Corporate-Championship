@@ -658,8 +658,7 @@ const placedFirst = (a, b) => {
   if (!b.group_assigned_at) return -1;
   return a.group_assigned_at > b.group_assigned_at ? 1 : -1;
 };
-// Every group holds four teams in futsal and basketball, five in cricket, so the
-// draw takes its quota from the caller.
+// Every championship group holds four teams.
 function drawGroups(data, groups, prefix, quota = GROUP_SIZE) {
   const unassigned = data.teams.filter((team) => !team.group_code);
   const allAssigned = data.teams.length > 0 && !unassigned.length;
@@ -939,7 +938,7 @@ function bindReport(sport) {
 async function futsalView() {
   const data = await api('/admin/futsal');
   const byId = new Map(data.teams.map((team) => [team.id, team]));
-  const groups = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+  const groups = ['A', 'B', 'C', 'D', 'E', 'F'];
   const groupDraw = me.role === 'super_admin' ? drawGroups(data, groups, 'futsal') : '';
   const teamName = (id) => byId.get(id)?.team_name || 'Team pending';
   const matchRow = (match) =>
@@ -948,13 +947,43 @@ async function futsalView() {
   const fixturesDrawn = data.groups.some((group) => group.matches.length);
   const controls =
     me.role === 'super_admin'
-      ? `<div class="actions"><button data-futsal="import">Import confirmed teams</button>${fixturesDrawn ? '' : '<button data-futsal="fixtures">Generate group fixtures</button>'}<button data-futsal="bracket">Generate 16-team bracket</button></div><p class="form-note">When all 48 group matches are complete, the top two teams from each group automatically enter the 16-team knockout bracket. The bracket button is only needed if a bracket is missing.</p>`
+      ? `<div class="actions"><button data-futsal="import">Import confirmed teams</button>${fixturesDrawn ? '' : '<button data-futsal="fixtures">Generate group fixtures</button>'}<button data-futsal="bracket">Generate 16-team bracket</button></div><p class="form-note">24 teams play in six groups of four (36 matches). The top two per group and the four best third-place teams qualify. The bracket is created after the final result, or after a required manual draw. Round of 16 opponents come from different groups.</p>`
       : '';
+  const thirds = data.third_place;
+  const pendingTeams = thirds?.table.filter((team) => team.draw_pending) ?? [];
+  const ranking = thirds?.table.length
+    ? `<section class="surface panel section-gap"><h2>Third-place qualification</h2><p class="form-note">${thirds.complete ? 'Final standings' : 'Provisional standings, qualification is confirmed after all 36 matches'}. Ranked by points, goal difference, then goals scored. The best four qualify.</p><div class="table-scroll"><table><thead><tr><th>Rank</th><th>Team</th><th>Group</th><th>Pts</th><th>GD</th><th>GF</th><th>Status</th></tr></thead><tbody>${thirds.table.map((team) => `<tr><td>${team.draw_pending ? 'Tied' : team.position}</td><td>${e(team.team_name)}</td><td>${e(team.group_code)}</td><td>${team.points}</td><td>${team.goal_difference}</td><td>${team.goals_for}</td><td>${team.qualified ? 'Qualified' : team.draw_pending ? 'Manual draw pending' : thirds.complete ? 'Eliminated' : 'Provisional'}</td></tr>`).join('')}</tbody></table></div>${thirds.draw_required && me.role === 'super_admin' ? `<form data-third-place-draw><h3>Record the manual draw</h3><p class="form-note">Conduct the draw for the tied teams, then enter their order below. Saving creates the knockout bracket.</p>${thirds.table.map((team) => (team.draw_pending ? `<label>Rank ${team.position}<select data-draw-team required>${pendingTeams.map((candidate) => `<option value="${e(candidate.id)}" ${candidate.id === team.id ? 'selected' : ''}>${e(candidate.team_name)} (Group ${e(candidate.group_code)})</option>`).join('')}</select></label>` : `<input type="hidden" data-draw-team value="${e(team.id)}">`)).join('')}<button class="primary" type="submit">Save draw and generate bracket</button></form>` : ''}</section>`
+    : '';
   return {
-    html: `${header('Futsal championship', 'Start live matches, save scores and complete matches to update the public tables.', 'EVENT OPERATIONS', `${data.teams.length} TEAMS`)}<section class="surface panel">${controls}${reportButtons(data)}<p class="form-note">Group matches use 3 points for a win, 1 for a draw. Tied knockout matches require the penalty winner when ended.</p></section>${groupDraw}<section class="surface panel section-gap"><div class="table-scroll"><table><thead><tr><th>Stage</th><th>Home</th><th>Score</th><th></th><th>Score</th><th>Away</th><th>Action</th></tr></thead><tbody>${matches.map(matchRow).join('') || '<tr><td colspan="7">Import teams, then assign groups.</td></tr>'}</tbody></table></div></section>`,
+    html: `${header('Futsal championship', 'Start live matches, save scores and complete matches to update the public tables.', 'EVENT OPERATIONS', `${data.teams.length} TEAMS`)}<section class="surface panel">${controls}${reportButtons(data)}<p class="form-note">Group matches use 3 points for a win, 1 for a draw. Tied knockout matches require the penalty winner when ended.</p></section>${groupDraw}${ranking}<section class="surface panel section-gap"><div class="table-scroll"><table><thead><tr><th>Stage</th><th>Home</th><th>Score</th><th></th><th>Score</th><th>Away</th><th>Action</th></tr></thead><tbody>${matches.map(matchRow).join('') || '<tr><td colspan="7">Import teams, then assign groups.</td></tr>'}</tbody></table></div></section>`,
     bind() {
       bindDrawGroups('futsal');
       bindReport('futsal');
+      document
+        .querySelector('[data-third-place-draw]')
+        ?.addEventListener('submit', async (event) => {
+          event.preventDefault();
+          const form = event.currentTarget;
+          const button = form.querySelector('button');
+          const teamIds = [...form.querySelectorAll('[data-draw-team]')].map(
+            (input) => input.value,
+          );
+          if (new Set(teamIds).size !== 6)
+            return message('Select each tied team exactly once.', true);
+          button.disabled = true;
+          try {
+            await post('/admin/futsal/third-place-draw', {
+              team_ids: teamIds,
+              signature: thirds.signature,
+            });
+            await render();
+            message('Manual draw recorded. The 16-team bracket is ready.');
+          } catch (err) {
+            message(err.message, true);
+          } finally {
+            button.disabled = false;
+          }
+        });
       document.querySelectorAll('[data-futsal]').forEach((button) =>
         button.addEventListener('click', async () => {
           const actions = {
@@ -1157,7 +1186,7 @@ async function cricketView() {
   const data = await api('/admin/cricket');
   const byId = new Map(data.teams.map((team) => [team.id, team]));
   const groups = ['A', 'B', 'C', 'D'];
-  const groupDraw = me.role === 'super_admin' ? drawGroups(data, groups, 'cricket', 5) : '';
+  const groupDraw = me.role === 'super_admin' ? drawGroups(data, groups, 'cricket') : '';
   const teamName = (id) => byId.get(id)?.team_name || 'Team pending';
   // A cricket line reads runs and wickets, then the overs faced — 145/6 (9.4).
   const input = (match, field, attrs = '') =>
@@ -1194,7 +1223,7 @@ async function cricketView() {
   const fixturesDrawn = data.groups.some((group) => group.matches.length);
   const controls =
     me.role === 'super_admin'
-      ? `<div class="actions"><button data-cricket="import">Import confirmed teams</button>${fixturesDrawn ? '' : '<button data-cricket="fixtures">Generate group fixtures</button>'}</div><p class="form-note">When all 40 group matches are complete, the top two teams from each group automatically enter the 8-team knockout bracket.</p>`
+      ? `<div class="actions"><button data-cricket="import">Import confirmed teams</button>${fixturesDrawn ? '' : '<button data-cricket="fixtures">Generate group fixtures</button>'}</div><p class="form-note">When all 24 group matches are complete, the top two teams from each group automatically enter the 8-team knockout bracket.</p>`
       : '';
   return {
     html: `${header('Cricksal championship', 'Run group matches, award two points for each win, and settle level scores with the super over.', 'EVENT OPERATIONS', `${data.teams.length} TEAMS`)}<section class="surface panel">${controls}${reportButtons(data)}<p class="form-note">Group matches use 2 points for a win. A level score needs the super over winner when the match is ended. Cricksal is ten overs and seven wickets a side, and the side in to bat is set when the match starts and swapped at the innings break. Enter overs the cricket way — 9.4 means nine overs and four balls.</p></section>${groupDraw}<section class="surface panel section-gap"><div class="table-scroll"><table><thead><tr><th>Stage</th><th>Home</th><th>Runs</th><th>Wkts</th><th>Ov</th><th></th><th>Runs</th><th>Wkts</th><th>Ov</th><th>Away</th><th>Action</th></tr></thead><tbody>${matches.map(matchRow).join('') || '<tr><td colspan="11">Import teams, then assign groups.</td></tr>'}</tbody></table></div></section>`,

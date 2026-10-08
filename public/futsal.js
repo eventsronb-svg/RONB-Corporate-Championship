@@ -117,12 +117,15 @@ function render(data, live) {
   const groupMatches = data.groups.flatMap((group) => group.matches);
   const groupsDone =
     groupMatches.length > 0 && groupMatches.every((match) => match.status === 'completed');
+  const qualifiedThirds = new Set(
+    (data.third_place?.table ?? []).filter((row) => row.qualified).map((row) => row.id),
+  );
   const bracketGenerated = data.bracket.length > 0;
   const groups = data.groups
     .map((group) => {
       const groupDone =
         group.matches.length > 0 && group.matches.every((match) => match.status === 'completed');
-      return `<section class="panel"><h2>Group ${esc(group.code)}</h2><div class="scroll"><table><thead><tr><th>Team</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GF</th><th>GA</th><th>GD</th><th>Pts</th></tr></thead><tbody>${group.table.map((value) => `<tr class="${groupDone && value.position <= 2 ? 'qualified-team' : ''}"><td><span class="standing-team"><b>${value.position}.</b>${team(value)}</span></td><td>${value.played}</td><td>${value.wins}</td><td>${value.draws}</td><td>${value.losses}</td><td>${value.goals_for}</td><td>${value.goals_against}</td><td>${value.goal_difference}</td><td><b>${value.points}</b></td></tr>`).join('')}</tbody></table></div><h3>Fixtures</h3>${group.matches.map((match) => fixture(match, by)).join('') || '<p>No fixtures yet.</p>'}</section>`;
+      return `<section class="panel"><h2>Group ${esc(group.code)}</h2><div class="scroll"><table><thead><tr><th>Team</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GF</th><th>GA</th><th>GD</th><th>Pts</th></tr></thead><tbody>${group.table.map((value) => `<tr class="${groupDone && (value.position <= 2 || qualifiedThirds.has(value.id)) ? 'qualified-team' : ''}"><td><span class="standing-team"><b>${value.position}.</b>${team(value)}</span></td><td>${value.played}</td><td>${value.wins}</td><td>${value.draws}</td><td>${value.losses}</td><td>${value.goals_for}</td><td>${value.goals_against}</td><td>${value.goal_difference}</td><td><b>${value.points}</b></td></tr>`).join('')}</tbody></table></div><h3>Fixtures</h3>${group.matches.map((match) => fixture(match, by)).join('') || '<p>No fixtures yet.</p>'}</section>`;
     })
     .join('');
   const rounds = (stage, label, predicate, reverse = false) => {
@@ -134,13 +137,13 @@ function render(data, live) {
     }</div></div>`;
   };
   const bracket = [
-    rounds('prequarter', 'Pre-quarterfinals', (match) => match.bracket_position <= 4),
+    rounds('prequarter', 'Round of 16', (match) => match.bracket_position <= 4),
     rounds('quarter', 'Quarterfinals', (match) => match.bracket_position <= 2),
     rounds('semi', 'Semifinals', (match) => match.bracket_position === 1),
     rounds('final', 'Final', () => true),
     rounds('semi', 'Semifinals', (match) => match.bracket_position === 2),
     rounds('quarter', 'Quarterfinals', (match) => match.bracket_position > 2, true),
-    rounds('prequarter', 'Pre-quarterfinals', (match) => match.bracket_position > 4, true),
+    rounds('prequarter', 'Round of 16', (match) => match.bracket_position > 4, true),
   ].join('');
   const groupsView = groupsDone
     ? `<details class="group-stage" ${groupStageOpen ? 'open' : ''}><summary><span>Group stage complete</span><span>${data.groups.length} tables · ${groupMatches.length} matches</span></summary><div class="groups">${groups}</div></details>`
@@ -149,7 +152,11 @@ function render(data, live) {
     groupsDone && bracketGenerated
       ? `<section class="stage bracket-stage"><h2>Match bracket</h2><div class="bracket"><svg class="bracket-connections" aria-hidden="true"></svg>${bracket}</div></section>`
       : '';
-  app.innerHTML = `${ongoing(live)}${bracketView}${groupsView}`;
+  const thirds = data.third_place;
+  const thirdPlaceView = thirds?.table.length
+    ? `<section class="panel stage"><h2>Third-place qualification</h2><p>${thirds.complete ? 'Final standings' : 'Provisional standings'}. The best four qualify, ranked by points, goal difference, then goals scored.${thirds.draw_required ? ' A manual draw will decide the remaining qualifying spots.' : ''}${thirds.draw_applied ? ' Tied teams were ordered by a recorded manual draw.' : ''}</p><div class="scroll"><table><thead><tr><th>Rank</th><th>Team</th><th>Group</th><th>P</th><th>Pts</th><th>GD</th><th>GF</th><th>Status</th></tr></thead><tbody>${thirds.table.map((row) => `<tr class="${row.qualified ? 'qualified-team' : ''}"><td>${row.draw_pending ? 'Tied' : row.position}</td><td>${team(row)}</td><td>${esc(row.group_code)}</td><td>${row.played}</td><td><b>${row.points}</b></td><td>${row.goal_difference}</td><td>${row.goals_for}</td><td>${row.qualified ? 'Qualified' : row.draw_pending ? 'Draw pending' : thirds.complete ? 'Eliminated' : 'Provisional'}</td></tr>`).join('')}</tbody></table></div></section>`
+    : '';
+  app.innerHTML = `${ongoing(live)}${bracketView}${thirdPlaceView}${groupsView}`;
   drawBracketConnections();
 }
 

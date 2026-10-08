@@ -12,7 +12,7 @@ afterEach(async () => {
 describe('futsal championship', () => {
   it('imports confirmed teams, generates group fixtures, and publishes a saved live score', async () => {
     await h.db.query("UPDATE sports SET name='Futsal' WHERE id=$1", [h.sports[0].id]);
-    for (let index = 0; index < 32; index++) {
+    for (let index = 0; index < 24; index++) {
       const order = (
         await h.db.query("INSERT INTO orders(user_id,status) VALUES($1,'confirmed') RETURNING id", [
           h.user.id,
@@ -28,23 +28,23 @@ describe('futsal championship', () => {
         ],
       );
     }
-    expect((await h.call('POST', '/admin/futsal/import', {}, 'admin')).json().total).toBe(32);
+    expect((await h.call('POST', '/admin/futsal/import', {}, 'admin')).json().total).toBe(24);
     // Groups are placed by hand, four teams at a time, and that placement order is
     // what the draw numbers a1 to a4.
     const placed = (await h.call('GET', '/admin/futsal', undefined, 'admin')).json().teams;
-    expect(placed).toHaveLength(32);
+    expect(placed).toHaveLength(24);
     for (const [index, team] of placed.entries()) {
       const saved = await h.call(
         'PATCH',
         `/admin/futsal/teams/${team.id}/group`,
-        { group_code: 'ABCDEFGH'[Math.floor(index / 4)] },
+        { group_code: 'ABCDEF'[Math.floor(index / 4)] },
         'admin',
       );
       expect(saved.statusCode).toBe(200);
     }
     expect(
       (await h.call('POST', '/admin/futsal/generate-fixtures', {}, 'admin')).json().matches,
-    ).toBe(48);
+    ).toBe(36);
     const payload = (await h.call('GET', '/admin/futsal', undefined, 'staff')).json();
     const names = new Map<string, number>(
       payload.teams.slice(0, 4).map((team: any, index: number) => [team.id, index]),
@@ -93,7 +93,7 @@ describe('futsal championship', () => {
     // Fill the remaining group stage quickly, then ensure a pre-quarter winner
     // is placed into its quarterfinal automatically.
     await h.db.query(
-      "UPDATE futsal_matches SET status='completed',home_score=1,away_score=0,completed_at=now() WHERE stage='group' AND status <> 'completed'",
+      "UPDATE futsal_matches SET status='completed',home_score=ascii(group_code)-64,away_score=0,completed_at=now() WHERE stage='group' AND status <> 'completed'",
     );
     expect((await h.call('POST', '/admin/futsal/generate-knockout', {}, 'admin')).statusCode).toBe(
       200,

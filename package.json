@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "tsx watch --env-file-if-exists=.env src/server.ts",
     "local": "tsx scripts/local-server.ts",
+    "local:groups": "tsx scripts/local-server.ts --groups",
     "build": "tsc -p tsconfig.json",
     "start": "node --env-file-if-exists=.env dist/server.js",
     "worker": "tsx --env-file-if-exists=.env src/worker-main.ts",
@@ -20,7 +21,8 @@
     "check": "npm run typecheck && npm test && npm run build",
     "test:postgres": "tsx scripts/test-postgres.ts",
     "test:browser": "playwright test",
-    "check:all": "npm run check && npm run test:postgres && npm run test:browser",
+    "test:tournament": "playwright test --config=playwright.tournament.config.ts",
+    "check:all": "npm run check && npm run test:postgres && npm run test:browser && npm run test:tournament",
     "format": "prettier --write src tests scripts public *.json *.ts *.md .github/workflows/test.yml compose.yaml",
     "format:check": "prettier --check src tests scripts public *.json *.ts *.md .github/workflows/test.yml compose.yaml"
   },

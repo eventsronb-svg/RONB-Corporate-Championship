@@ -7,7 +7,7 @@
 // straight to our own callback, and email is printed instead of posted. Nothing in here can
 // reach the Neon database, the object storage buckets or Resend.
 import { randomUUID } from 'node:crypto';
-import { createReadStream, existsSync, statSync } from 'node:fs';
+import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs';
 import { extname, relative, resolve, sep } from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
 import type { FastifyReply, FastifyRequest } from 'fastify';
@@ -20,6 +20,7 @@ import { seedChampionships } from './seed-tournament.js';
 
 const port = Number(process.env.PORT ?? 4000);
 const origin = `http://localhost:${port}`;
+const startAtGroups = process.argv.includes('--groups');
 
 // Embedded Postgres: no server to install, no Docker, wiped when this process exits.
 const client = new PGlite();
@@ -158,7 +159,10 @@ await db.query(
 
 // Full championships for every sport: the field is registered, drawn and played out
 // except for the last group fixture, the one that draws the knockout bracket.
-await seedChampionships(db, files);
+await seedChampionships(db, files, {
+  startAtGroups,
+  image: startAtGroups ? readFileSync(resolve('logo.png')) : undefined,
+});
 
 setInterval(() => {
   void (async () => {
@@ -179,16 +183,30 @@ async function shutdown() {
 }
 
 await app.listen({ port, host: '127.0.0.1' });
-console.log(`
+console.log(
+  startAtGroups
+    ? `
+  RONB group-assignment rehearsal — isolated in-memory database.
+
+  Organizer desk ${origin}/admin#futsal
+  Login: localadmin / local-demo-admin-2026
+
+  Futsal: 24 teams. Cricksal: 16 teams. Basketball: 16 teams.
+  All teams registered and imported; no groups, fixtures or results yet.
+  Every team logo and player photo uses logo.png.
+  .env is ignored. No production database or external services are used.
+  Restart with npm run local:groups to reset all practice data.
+`
+    : `
   RONB local demo — everything in memory, nothing outside this machine.
 
   Captain flow   ${origin}/register
   Organizer desk ${origin}/admin   (localadmin / local-demo-admin-2026)
 
   - "Sign in with Google" bounces straight back; no Google account is involved.
-  - Futsal (32), Cricksal (20) and Basketball (16) are fully drawn with every
+  - Futsal (24), Cricksal (16) and Basketball (16) are fully drawn with every
     group fixture except the last one played. The Cricksal decider boots already
-    live — the away side done at 110/8, the home side chasing at 87/3 — and the
+    live — the away side done at 110/7, the home side chasing at 87/3 — and the
     futsal and basketball last fixtures sit scheduled. End a last fixture on the
     desk and that sport's knockout bracket draws itself.
   - Two pending payments per sport sit in the review queue for desk practice.
@@ -197,4 +215,5 @@ console.log(`
   - .env is ignored, so no Neon, no buckets and no Resend are ever touched.
 
   Press Ctrl+C to stop.
-`);
+`,
+);

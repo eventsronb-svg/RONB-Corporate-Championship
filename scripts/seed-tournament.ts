@@ -106,8 +106,8 @@ const tournaments: Tournament[] = [
     code: 'FUT',
     table: 'futsal_teams',
     matches: 'futsal_matches',
-    teams: 32,
-    groups: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'],
+    teams: 24,
+    groups: ['A', 'B', 'C', 'D', 'E', 'F'],
     perGroup: 4,
     roster: 12,
     roundRobin: [
@@ -126,21 +126,17 @@ const tournaments: Tournament[] = [
     code: 'CRK',
     table: 'cricket_teams',
     matches: 'cricket_matches',
-    teams: 20,
+    teams: 16,
     groups: ['A', 'B', 'C', 'D'],
-    perGroup: 5,
+    perGroup: 4,
     roster: 11,
     roundRobin: [
       [0, 1],
       [2, 3],
       [0, 2],
-      [1, 4],
-      [0, 4],
       [1, 3],
       [0, 3],
-      [2, 4],
       [1, 2],
-      [3, 4],
     ],
     cricket: true,
   },
@@ -169,7 +165,14 @@ const tournaments: Tournament[] = [
 export async function seedChampionships(
   db: Database,
   files: Map<string, { body: Buffer; mime: string }>,
+  options: { startAtGroups?: boolean; image?: Buffer } = {},
 ) {
+  const imageKey = 'team-logos/local-logo.png';
+  const photoKey = 'player-photos/local-logo.png';
+  if (options.image) {
+    files.set(imageKey, { body: options.image, mime: 'image/png' });
+    files.set(photoKey, { body: options.image, mime: 'image/png' });
+  }
   await db.transaction(async (tx) => {
     for (const [sportIndex, tournament] of tournaments.entries()) {
       const sport = await one(tx, 'SELECT id,price FROM sports WHERE name=$1', [
@@ -177,6 +180,8 @@ export async function seedChampionships(
       ]);
       if (!sport) throw new Error(`Sport ${tournament.sportName} is not seeded`);
       const sportId: string = sport.id;
+      if (options.startAtGroups)
+        await tx.query('UPDATE sports SET max_teams=$2 WHERE id=$1', [sportId, tournament.teams]);
       const price = Number(sport.price);
       const priceLocked = Math.round(price * 1.13 * 100) / 100;
       const style = tournament.cricket ? 'full_sleeve' : null;
@@ -211,6 +216,11 @@ export async function seedChampionships(
             [orderId, sportId, price, teamName, style],
           )
         ).rows[0].id;
+        if (options.image)
+          await tx.query('UPDATE order_items SET logo_url=$2 WHERE id=$1', [
+            itemId,
+            `/local-files/${imageKey}`,
+          ]);
         // A full roster the scorer screens can credit, in one statement per team.
         const nameStart = (index * 7) % playerNames.length;
         const playerParams: unknown[] = [];
@@ -237,6 +247,11 @@ export async function seedChampionships(
            VALUES ${rowPlaceholders}`,
           playerParams,
         );
+        if (options.image)
+          await tx.query('UPDATE team_players SET photo_url=$2 WHERE order_item_id=$1', [
+            itemId,
+            photoKey,
+          ]);
         const teamId = (
           await tx.query(
             `INSERT INTO ${tournament.table}(order_item_id,team_name) VALUES($1,$2) RETURNING id`,
@@ -244,6 +259,11 @@ export async function seedChampionships(
           )
         ).rows[0].id;
         teamIds.push(teamId);
+        if (options.image)
+          await tx.query(`UPDATE ${tournament.table} SET logo_url=$2 WHERE id=$1`, [
+            teamId,
+            `/local-files/${imageKey}`,
+          ]);
         // The timeline the admin order page renders.
         for (const [from, to] of [
           ['draft', 'receipt_submitted'],
@@ -259,6 +279,9 @@ export async function seedChampionships(
           [orderId, priceLocked],
         );
       }
+
+      // Manual rehearsal begins here: all imported teams are still unassigned.
+      if (options.startAtGroups) continue;
 
       // Group assignment in the order the teams were created; the stamp is what the
       // fixture draw sorts by, exactly as the draw endpoint records it.
@@ -329,8 +352,8 @@ export async function seedChampionships(
               away,
               2 + (index % 6),
               3 + (index % 5),
-              10 - ((index % 6) * 0.5),
-              10 - (((index + 2) % 6) * 0.5),
+              10 - (index % 6) * 0.5,
+              10 - ((index + 2) % 6) * 0.5,
               home > away ? fixture.home_team_id : fixture.away_team_id,
             ],
           );
@@ -349,13 +372,11 @@ export async function seedChampionships(
       // Batters on both sides and each team's bowlers are credited within their own
       // tallies, and finishing the match through the desk draws the knockout bracket.
       if (tournament.cricket) {
-        const playing = (
-          await one(
-            tx,
-            `SELECT id,home_team_id,away_team_id FROM ${tournament.matches} WHERE id=$1`,
-            [last],
-          )
-        )!;
+        const playing = (await one(
+          tx,
+          `SELECT id,home_team_id,away_team_id FROM ${tournament.matches} WHERE id=$1`,
+          [last],
+        ))!;
         await tx.query(
           `UPDATE ${tournament.matches}
            SET status='live',version=1,batting_side='home',home_score=87,away_score=110,

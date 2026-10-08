@@ -165,12 +165,12 @@ const COMPANIES = [
   'Rasuwa Cider',
   'Jumla Wool',
 ];
-const FUTSAL_TEAMS = 32;
+const FUTSAL_TEAMS = 24;
 const BASKETBALL_TEAMS = 16;
-const CRICKSAL_TEAMS = 20;
-// Cricksal fills its twenty slots with twelve companies that also entered a team sport
+const CRICKSAL_TEAMS = 16;
+// Cricksal fills its sixteen slots with eight companies that also entered a team sport
 // and eight cricket-only registrations, so the queue shows single and multi-sport orders.
-const CRICKSAL_SHARED = [0, 11];
+const CRICKSAL_SHARED = [0, 7];
 const CRICKSAL_ONLY_FROM = 32;
 const ROSTER = { futsal: 5, basketball: 5, cricksal: 11 };
 const STATUS_PATH = [
@@ -198,9 +198,9 @@ const event = (
 ).rows[0];
 const sports = await db.query(
   `INSERT INTO sports(name,price,max_teams,description) VALUES
-     ('Futsal',50000,32,'Five-a-side corporate futsal. Eight groups of four, top two into the knockout bracket.'),
+     ('Futsal',50000,24,'Five-a-side corporate futsal. Six groups of four; top two plus four best third-place teams qualify.'),
      ('Basketball',30000,16,'Corporate five-on-five basketball. Four groups of four, top two into the bracket.'),
-     ('Cricksal',70000,20,'Corporate box cricket in full-sleeve kits with a seven-player minimum squad.')
+     ('Cricksal',70000,16,'Corporate box cricket in full-sleeve kits with a seven-player minimum squad.')
    RETURNING id,name,price`,
 );
 const sport = new Map(sports.rows.map((row) => [row.name.toLowerCase(), row]));
@@ -223,12 +223,13 @@ let orders = 0;
 let items = 0;
 for (let index = 0; index < COMPANIES.length; index++) {
   const company = COMPANIES[index];
-  // Every sport sells out: 32 futsal, 16 basketball and 20 cricksal entries.
+  // Every sport sells out: 24 futsal, 16 basketball and 16 cricksal entries.
   const picks = [];
   if (index < FUTSAL_TEAMS) picks.push('futsal');
   if (index < BASKETBALL_TEAMS) picks.push('basketball');
   if (index >= CRICKSAL_SHARED[0] && index <= CRICKSAL_SHARED[1]) picks.push('cricksal');
   if (index >= CRICKSAL_ONLY_FROM) picks.push('cricksal');
+  if (!picks.length) continue;
   const sleeve = index % 2 ? 'full_sleeve' : 'half_sleeve';
   const captain = `${FIRST[index % FIRST.length]} ${LAST[(index * 3) % LAST.length]}`;
   const user = (
@@ -338,7 +339,7 @@ cookie = login.cookies.find((entry) => entry.name === 'admin_session')?.value ??
 console.log('Organizer session ready.');
 
 // -------------------------------------------------------------------- cricksal
-// Cricksal's registrations: twenty complete entries, twelve from companies that
+// Cricksal's registrations: sixteen complete entries, eight from companies that
 // also field a team sport and eight that entered cricket only, every squad with
 // a sleeve style and photos — the field the championship draw below draws from.
 const cricksalId = sport.get('cricksal').id;
@@ -370,22 +371,22 @@ const queue = await call('GET', `/admin/orders?sport_id=${cricksalId}&status=all
 const wants = (ok, what, detail) => {
   if (!ok) throw new Error(`Cricksal demo is incomplete: ${what} (${detail})`);
 };
-wants(cricksal.entries === 20, 'twenty registered teams', cricksal.entries);
+wants(cricksal.entries === CRICKSAL_TEAMS, 'sixteen registered teams', cricksal.entries);
 wants(
-  cricksal.complete_rosters === 20,
+  cricksal.complete_rosters === CRICKSAL_TEAMS,
   'every squad has at least the seven-player minimum',
   cricksal.complete_rosters,
 );
-wants(cricksal.shared === 12, 'twelve companies that also play a team sport', cricksal.shared);
+wants(cricksal.shared === 8, 'eight companies that also play a team sport', cricksal.shared);
 wants(cricksal.cricket_only === 8, 'eight cricket-only companies', cricksal.cricket_only);
 wants(
-  cricksal.full_sleeve + cricksal.half_sleeve === 20,
+  cricksal.full_sleeve + cricksal.half_sleeve === CRICKSAL_TEAMS,
   'a sleeve style on every kit',
   `${cricksal.full_sleeve} full / ${cricksal.half_sleeve} half`,
 );
 wants(
-  queue.orders.length === 20,
-  'twenty registrations in the organizer queue',
+  queue.orders.length === CRICKSAL_TEAMS,
+  'sixteen registrations in the organizer queue',
   queue.orders.length,
 );
 console.log(
@@ -435,7 +436,7 @@ async function play(sportName, match, home, away, penaltyWinner) {
   };
   if (sportName === 'cricket') {
     // A cricket line needs all three numbers: the wickets follow the runs, and
-    // the side with fewer runs is the one that used its full twenty overs.
+    // the side with fewer runs is the one that used its full ten overs.
     patch.home_wickets = Math.min(7, Math.floor(home / 25));
     patch.away_wickets = Math.min(7, Math.floor(away / 25));
     patch.home_overs = home >= away ? 9.4 : 10.0;
@@ -473,7 +474,7 @@ async function playRound(sportName, stage, score) {
 }
 
 if (PLAY || GROUPS_ONLY) {
-  await drawGroupsAndFixtures('futsal', ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']);
+  await drawGroupsAndFixtures('futsal', ['A', 'B', 'C', 'D', 'E', 'F']);
 }
 let futsal = await call('GET', '/admin/futsal');
 const futsalGroups = PLAY || GROUPS_ONLY ? groupFixtures(futsal) : [];
@@ -491,6 +492,14 @@ const futsalKnockout = (index) => {
   return [home, index % 5 === 3 ? home : home + 1 + (index % 2)];
 };
 if (PLAY) {
+  futsal = await call('GET', '/admin/futsal');
+  if (futsal.third_place.draw_required) {
+    // The disposable demo records its draw in current display order.
+    await call('POST', '/admin/futsal/third-place-draw', {
+      team_ids: futsal.third_place.table.map((team) => team.id),
+      signature: futsal.third_place.signature,
+    });
+  }
   const futsalPrequarters = await playRound('futsal', 'prequarter', futsalKnockout);
   const futsalQuarters = await playRound('futsal', 'quarter', futsalKnockout);
   const futsalSemis = await playRound('futsal', 'semi', () => [5, 3]);
@@ -532,7 +541,7 @@ if (PLAY) {
     `Basketball: all ${basketballGroups.length} group matches played, bracket created automatically, ${basketballQuarters.length} quarter-finals and one semi-final played, one semi-final live.`,
   );
 
-  await drawGroupsAndFixtures('cricket', ['A', 'B', 'C', 'D'], 5);
+  await drawGroupsAndFixtures('cricket', ['A', 'B', 'C', 'D']);
   let cricket = await call('GET', '/admin/cricket');
   const cricketGroups = groupFixtures(cricket);
   // Every sixth fixture ends level, so the super-over winner path is exercised
@@ -542,7 +551,7 @@ if (PLAY) {
     const away = index % 6 === 0 ? home : 110 + ((index * 11) % 50);
     await play('cricket', match, home, away, home === away ? match.home_team_id : undefined);
   }
-  // The cricket bracket is created automatically once all 40 group matches end.
+  // The cricket bracket is created automatically once all 24 group matches end.
   const cricketQuarters = await playRound('cricket', 'quarter', (index) => [
     145 + (index % 4) * 5,
     138 + (index % 5) * 4,

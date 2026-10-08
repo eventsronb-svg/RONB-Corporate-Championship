@@ -8,20 +8,15 @@ import { assert } from './errors.js';
 import { audit, uuid } from './orders.js';
 
 const groups = ['A', 'B', 'C', 'D'] as const;
-// Group fixtures for five teams in placement order: the first round pairs a1–a2
-// with a3–a4 while a5 rests, and the remaining eight of the ten fixtures follow
-// the order the organizer placed the teams in.
+// Six group fixtures in placement order: a1–a2 with a3–a4,
+// then a1–a3 with a2–a4, then a1–a4 with a2–a3.
 const groupRoundRobin = [
   [0, 1],
   [2, 3],
   [0, 2],
-  [1, 4],
-  [0, 4],
   [1, 3],
   [0, 3],
-  [2, 4],
   [1, 2],
-  [3, 4],
 ] as const;
 // Overs are written the cricket way: 9.4 is nine overs and four balls, so the
 // fraction never passes five. Cricksal is a ten-over game, so an innings can
@@ -225,10 +220,10 @@ async function createBracket(tx: Queryable) {
     "SELECT count(*)::int AS total,count(*) FILTER (WHERE status='completed')::int AS completed FROM cricket_matches WHERE stage='group'",
   );
   assert(
-    groupMatches?.total === 40 && groupMatches.completed === 40,
+    groupMatches?.total === 24 && groupMatches.completed === 24,
     409,
     'groups_incomplete',
-    'Complete all 40 group matches before creating the bracket',
+    'Complete all 24 group matches before creating the bracket',
   );
   assert(
     !(await one(tx, "SELECT id FROM cricket_matches WHERE stage='quarter' LIMIT 1")),
@@ -520,10 +515,10 @@ export async function registerCricket(app: FastifyInstance, db: Database, c: Con
           [body.group_code, team.id],
         );
         assert(
-          (count?.count ?? 0) < 5,
+          (count?.count ?? 0) < 4,
           409,
           'group_full',
-          `Group ${body.group_code} already has five teams`,
+          `Group ${body.group_code} already has four teams`,
         );
       }
       // Re-saving the same group keeps this team's place in the draw; clearing the
@@ -553,17 +548,22 @@ export async function registerCricket(app: FastifyInstance, db: Database, c: Con
         'fixtures_exist',
         'Fixtures already exist',
       );
+      const count = await one(tx, 'SELECT count(*)::int AS total FROM cricket_teams');
+      assert(
+        count?.total === 16,
+        409,
+        'team_count',
+        'Cricksal requires exactly 16 imported confirmed teams',
+      );
       for (const group of groups) {
-        // a1 is the first team placed in the group, a5 the last, so the round robin
-        // opens with a1–a2 and a3–a4 (a5 resting) and finishes every pair of the ten
-        // in placement order.
+        // Placement order fixes the six pairings for each group of four.
         const teams = (
           await tx.query<Row>(
             'SELECT id FROM cricket_teams WHERE group_code=$1 ORDER BY group_assigned_at,id',
             [group],
           )
         ).rows;
-        assert(teams.length === 5, 409, 'groups_incomplete', `Group ${group} needs five teams`);
+        assert(teams.length === 4, 409, 'groups_incomplete', `Group ${group} needs four teams`);
         for (const [position, [home, away]] of groupRoundRobin.entries())
           await tx.query(
             "INSERT INTO cricket_matches(stage,group_code,group_position,home_team_id,away_team_id) VALUES('group',$1,$2,$3,$4)",
@@ -576,9 +576,9 @@ export async function registerCricket(app: FastifyInstance, db: Database, c: Con
         'cricket.fixtures.generate',
         'cricket',
         (await one(tx, 'SELECT id FROM cricket_teams LIMIT 1'))!.id,
-        { matches: 40 },
+        { matches: 24 },
       );
-      return { matches: 40 };
+      return { matches: 24 };
     }),
   );
   app.post('/admin/cricket/matches/:id/start', { preHandler: guard.admin }, async (req) =>
@@ -812,7 +812,7 @@ export async function registerCricket(app: FastifyInstance, db: Database, c: Con
           tx,
           "SELECT count(*)::int AS total,count(*) FILTER (WHERE status='completed')::int AS completed FROM cricket_matches WHERE stage='group'",
         );
-        if (complete?.total === 40 && complete.completed === 40) {
+        if (complete?.total === 24 && complete.completed === 24) {
           await createBracket(tx);
           await audit(tx, req.actor!.id, 'cricket.bracket.generate', 'cricket', m.id, {
             teams: 8,

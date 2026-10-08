@@ -38,7 +38,14 @@ h.app.post<{ Params: { sport: string; count: string } }>(
     const count = Number(req.params.count);
     if (!Number.isInteger(count) || count < 1 || count > 64)
       return reply.code(400).send({ error: 'bad_count' });
-    for (let index = 0; index < count; index++) {
+    // Other browser suites may already have confirmed one of the fixture teams.
+    // Fill the field to the requested total instead of adding a second full field.
+    const existing = (await h.db.query(
+      `SELECT count(*)::int AS count FROM order_items i JOIN orders o ON o.id=i.order_id
+       WHERE i.sport_id=$1 AND o.status IN ('confirmed','contacted','completed')`,
+      [sport.rows[0].id],
+    )).rows[0].count;
+    for (let index = existing; index < count; index++) {
       const team = `${req.params.sport} draw team ${index + 1}`;
       const token = randomUUID();
       const user = await h.db.query(

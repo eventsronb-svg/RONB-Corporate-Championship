@@ -10,7 +10,7 @@ afterEach(async () => {
 });
 
 // One confirmed order per team: the draw needs a full field of twenty before
-// four groups of five can be placed.
+// four groups of four can be placed.
 async function seedTeams(count: number, sportId: string, prefix: string) {
   for (let index = 0; index < count; index++) {
     const order = (
@@ -31,13 +31,13 @@ async function seedTeams(count: number, sportId: string, prefix: string) {
 }
 
 // Groups are placed by hand in assignment order: the first team into a group
-// becomes its A1 slot, the fifth its A5, and a sixth is refused.
+// becomes its A1 slot, the fourth its A4, and a fifth is refused.
 async function assignGroups(path: string, codes: string, teams: any[]) {
   for (const [index, team] of teams.entries()) {
     const saved = await h.call(
       'PATCH',
       `${path}/teams/${team.id}/group`,
-      { group_code: codes[Math.floor(index / 5)] },
+      { group_code: codes[Math.floor(index / 4)] },
       'admin',
     );
     expect(saved.statusCode).toBe(200);
@@ -56,23 +56,36 @@ async function addPlayer(table: 'cricket_teams', teamId: string, name: string) {
 }
 
 describe('cricket championship', () => {
-  it('draws four groups of five in placement order and refuses a sixth team', async () => {
-    // sports[0] arrives as Cricksal, the sport the cricksal entries register for.
+  it('rejects the former 20-team field before creating any fixtures', async () => {
     await seedTeams(20, h.sports[0].id, 'Cricket Team');
-    expect((await h.call('POST', '/admin/cricket/import', {}, 'admin')).json().total).toBe(20);
+    await h.call('POST', '/admin/cricket/import', {}, 'admin');
+    const result = await h.call('POST', '/admin/cricket/generate-fixtures', {}, 'admin');
+    expect(result.statusCode).toBe(409);
+    expect(result.json().error).toBe('team_count');
+    expect((await h.db.query('SELECT id FROM cricket_matches')).rows).toHaveLength(0);
+  });
+
+  it('draws four groups of four in placement order and refuses a fifth team', async () => {
+    // sports[0] arrives as Cricksal, the sport the cricksal entries register for.
+    await seedTeams(16, h.sports[0].id, 'Cricket Team');
+    expect((await h.call('POST', '/admin/cricket/import', {}, 'admin')).json().total).toBe(16);
     // A second import never duplicates a team that is already in the draw.
     expect((await h.call('POST', '/admin/cricket/import', {}, 'admin')).json()).toEqual({
       imported: 0,
-      total: 20,
+      total: 16,
     });
     const teams = (await h.call('GET', '/admin/cricket', undefined, 'admin')).json().teams;
-    expect(teams).toHaveLength(20);
+    expect(teams).toHaveLength(16);
 
+    expect(
+      (await h.call('POST', '/admin/cricket/generate-fixtures', {}, 'admin')).json().error,
+    ).toBe('groups_incomplete');
+    expect((await h.db.query('SELECT id FROM cricket_matches')).rows).toHaveLength(0);
     await assignGroups('/admin/cricket', 'ABCD', teams);
-    // A sixth team cannot join a group that already holds five.
+    // A fifth team cannot join a group that already holds four.
     const overflow = await h.call(
       'PATCH',
-      `/admin/cricket/teams/${teams[5].id}/group`,
+      `/admin/cricket/teams/${teams[4].id}/group`,
       { group_code: 'A' },
       'admin',
     );
@@ -89,25 +102,22 @@ describe('cricket championship', () => {
 
     expect(
       (await h.call('POST', '/admin/cricket/generate-fixtures', {}, 'admin')).json().matches,
-    ).toBe(40);
+    ).toBe(24);
     const view = (await h.call('GET', '/admin/cricket', undefined, 'admin')).json();
     expect(view.groups.map((group: any) => group.code)).toEqual(['A', 'B', 'C', 'D']);
     const groupA = view.groups[0].matches;
-    expect(groupA).toHaveLength(10);
-    expect(groupA.map((match: any) => match.group_position)).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
-    ]);
-    // The opening round pairs the first two placements with the next two while
-    // the fifth team rests, exactly in the order the organizer assigned them.
+    expect(groupA).toHaveLength(6);
+    expect(groupA.map((match: any) => match.group_position)).toEqual([1, 2, 3, 4, 5, 6]);
+    // The opening round pairs the first two placements with the next two.
     expect([groupA[0].home_team_id, groupA[0].away_team_id]).toEqual([teams[0].id, teams[1].id]);
     expect([groupA[1].home_team_id, groupA[1].away_team_id]).toEqual([teams[2].id, teams[3].id]);
-    // Every team in the group plays the other four exactly once.
-    for (const team of teams.slice(0, 5))
+    // Every team in the group plays the other three exactly once.
+    for (const team of teams.slice(0, 4))
       expect(
         groupA.filter(
           (match: any) => match.home_team_id === team.id || match.away_team_id === team.id,
         ),
-      ).toHaveLength(4);
+      ).toHaveLength(3);
 
     // Fixtures lock the groups and there is no manual knockout endpoint: the
     // bracket only ever appears when the last group match ends.
@@ -125,7 +135,7 @@ describe('cricket championship', () => {
   });
 
   it('scores runs, wickets and overs and draws the bracket when the last group match ends', async () => {
-    await seedTeams(20, h.sports[0].id, 'Cricket Team');
+    await seedTeams(16, h.sports[0].id, 'Cricket Team');
     await h.call('POST', '/admin/cricket/import', {}, 'admin');
     const teams = (await h.call('GET', '/admin/cricket', undefined, 'admin')).json().teams;
     await assignGroups('/admin/cricket', 'ABCD', teams);
@@ -239,7 +249,7 @@ describe('cricket championship', () => {
     expect(undecided.statusCode).toBe(400);
     expect(undecided.json().error).toBe('winner_required');
 
-    // The other 39 fixtures finish in bulk, then ending the last one through the
+    // The other 23 fixtures finish in bulk, then ending the last one through the
     // API draws the bracket the way the live flow does.
     await h.db.query(
       `UPDATE cricket_matches SET status='completed',home_score=120,away_score=115,
@@ -263,15 +273,14 @@ describe('cricket championship', () => {
     const byId = new Map<string, any>(final.teams.map((team: any) => [team.id, team]));
     const quarters = final.bracket.filter((match: any) => match.stage === 'quarter');
     expect(quarters).toHaveLength(4);
-    // Cross-group quarters: each group winner opens against the other group's
-    // runner-up, so no group meets itself before the final.
+    // Cross-group quarters preserve the existing winner and runner-up pairings.
     expect([quarters[0].home_team_id, quarters[0].away_team_id]).toEqual([
       teams[0].id,
-      teams[5].id,
+      teams[4].id,
     ]);
     expect([quarters[2].home_team_id, quarters[2].away_team_id]).toEqual([
       teams[1].id,
-      teams[6].id,
+      teams[5].id,
     ]);
     expect(
       quarters.every(
@@ -283,9 +292,9 @@ describe('cricket championship', () => {
 
     // The group table reads two points per win, settled by the super over.
     expect(final.groups[0].table.map((row: any) => row.team_name)).toEqual(
-      teams.slice(0, 5).map((team: any) => team.team_name),
+      teams.slice(0, 4).map((team: any) => team.team_name),
     );
-    expect(final.groups[0].table[0]).toMatchObject({ points: 8, run_difference: 15 });
+    expect(final.groups[0].table[0]).toMatchObject({ points: 6, run_difference: 10 });
 
     const group = await h.call('GET', '/admin/cricket/report?stage=group', undefined, 'admin');
     expect(group.statusCode).toBe(200);
@@ -299,7 +308,7 @@ describe('cricket championship', () => {
       'Group C',
       'Group D',
     ]);
-    expect(report.sections.map((section: any) => section.matches.length)).toEqual([10, 10, 10, 10]);
+    expect(report.sections.map((section: any) => section.matches.length)).toEqual([6, 6, 6, 6]);
     const opening = report.sections[0].matches[0];
     expect(opening.home_team).toBe(names.get(first.home_team_id));
     expect(opening.home_score).toBe(145);
@@ -351,7 +360,7 @@ describe('cricket championship', () => {
   });
 
   it('credits wickets to bowlers, trims the newest on a corrected tally and publishes them live', async () => {
-    await seedTeams(20, h.sports[0].id, 'Cricket Team');
+    await seedTeams(16, h.sports[0].id, 'Cricket Team');
     await h.call('POST', '/admin/cricket/import', {}, 'admin');
     const teams = (await h.call('GET', '/admin/cricket', undefined, 'admin')).json().teams;
     await assignGroups('/admin/cricket', 'ABCD', teams);

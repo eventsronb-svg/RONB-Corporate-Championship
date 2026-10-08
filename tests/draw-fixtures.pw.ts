@@ -51,3 +51,52 @@ test('saving the last group assignment draws the fixtures automatically', async 
   await expect(page.locator('[data-basketball="fixtures"]')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+test('saving the last cricket assignment draws 24 fixtures automatically', async ({
+  page,
+  context,
+  baseURL,
+}) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await context.addCookies([
+    { name: 'admin_session', value: 'admin', domain: 'localhost', path: '/' },
+  ]);
+  // Sixteen confirmed cricket registrations — the field four groups of four need.
+  const seeded = await context.request.post('/__test/championship/cricket/16', {
+    headers: { origin: baseURL! },
+  });
+  expect(seeded.ok()).toBe(true);
+  expect((await seeded.json()).teams).toBe(16);
+  await page.goto('/admin#cricket');
+  await page.locator('[data-cricket="import"]').click();
+  await expect(page.getByRole('status')).toHaveText('Cricksal championship updated.');
+  const teams = (await (await context.request.get('/admin/cricket')).json()).teams;
+  expect(teams).toHaveLength(16);
+  await expect(page.locator('[data-cricket-group-select]')).toHaveCount(16);
+  const groups = ['A', 'B', 'C', 'D'];
+  for (const [index, team] of teams.entries()) {
+    const remaining = 16 - index - 1;
+    await page
+      .locator(`[data-cricket-group-select="${team.id}"]`)
+      .selectOption(groups[Math.floor(index / 4)]);
+    await page.locator(`[data-cricket-group-save="${team.id}"]`).click();
+    if (remaining) {
+      // Every save re-renders the draw and moves its team out of the unassigned
+      // panel, so the shrinking panel is how the next row waits for the last one.
+      await expect(
+        page.locator('[data-cricket-group-panel=""] [data-cricket-group-select]'),
+      ).toHaveCount(remaining);
+      await expect(page.getByRole('status')).toHaveText('Group assignment saved.');
+    } else {
+      await expect(page.getByRole('status')).toHaveText(
+        'All groups assigned — 24 group fixtures drawn.',
+      );
+    }
+  }
+  // The finished draw lists all four groups' fixtures and offers no redraw button.
+  await expect(page.locator('.draw-matches')).toHaveCount(4);
+  await expect(page.locator('tr[data-match]')).toHaveCount(24);
+  await expect(page.locator('[data-cricket="fixtures"]')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});

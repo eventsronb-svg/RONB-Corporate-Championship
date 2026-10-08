@@ -7,7 +7,7 @@ import { one } from './db.js';
 import { assert } from './errors.js';
 import { audit, uuid } from './orders.js';
 
-const groupCodes = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'] as const;
+const groupCodes = ['A', 'B', 'C', 'D', 'E', 'F'] as const;
 // Group fixtures for four teams in placement order, so the first pairing round is
 // a1–a2 with a3–a4, the second a1–a3 with a2–a4, and the third a1–a4 with a2–a3.
 const groupRoundRobin = [
@@ -184,16 +184,71 @@ function nextSlot(stage: string, position: number) {
     : null;
 }
 
-async function createKnockout(tx: Queryable) {
-  const groupMatches = await one(
+// Cross-group comparisons deliberately do not use head-to-head or team names.
+function compareThirdPlace(a: Standing, b: Standing) {
+  return b.points - a.points || b.goal_difference - a.goal_difference || b.goals_for - a.goals_for;
+}
+
+async function thirdPlaceRanking(tx: Queryable, tables: Standing[][], complete: boolean) {
+  const table = tables
+    .flatMap((rows) => (rows[2] ? [rows[2]] : []))
+    .sort((a, b) => compareThirdPlace(a, b) || a.group_code.localeCompare(b.group_code));
+  // Bind a recorded draw to these exact teams and statistics, so stale decisions
+  // cannot settle a different qualification tie.
+  const signature = JSON.stringify(
+    table
+      .map((row) => [row.id, row.points, row.goal_difference, row.goals_for])
+      .sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
+  );
+  const draw = await one(tx, 'SELECT * FROM futsal_third_place_draw WHERE singleton=true');
+  const drawApplied = complete && draw?.signature === signature;
+  if (drawApplied) {
+    const order = new Map<string, number>(
+      draw.team_ids.map((id: string, index: number) => [id, index]),
+    );
+    table.sort((a, b) => compareThirdPlace(a, b) || order.get(a.id)! - order.get(b.id)!);
+  }
+  const cutoffTie = table.length === 6 && compareThirdPlace(table[3], table[4]) === 0;
+  const drawRequired = complete && cutoffTie && !drawApplied;
+  const cutoffTeams = drawRequired
+    ? table.filter((row) => compareThirdPlace(row, table[3]) === 0).map((row) => row.id)
+    : [];
+  return {
+    table: table.map((row, index) => ({
+      ...row,
+      id: row.id as string,
+      position: index + 1,
+      qualified: complete && (drawRequired ? compareThirdPlace(row, table[3]) < 0 : index < 4),
+      draw_pending: cutoffTeams.includes(row.id),
+    })),
+    complete,
+    draw_required: drawRequired,
+    draw_applied: drawApplied,
+    signature,
+  };
+}
+
+async function qualification(tx: Queryable) {
+  const tables: Standing[][] = [];
+  for (const code of groupCodes) tables.push(await standings(tx, code));
+  const counts = await one(
     tx,
     "SELECT count(*)::int AS total,count(*) FILTER (WHERE status='completed')::int AS completed FROM futsal_matches WHERE stage='group'",
   );
+  const complete =
+    counts?.total === 36 &&
+    counts.completed === 36 &&
+    tables.every((rows) => rows.length === 4 && rows.every((row) => row.played === 3));
+  return { tables, thirdPlace: await thirdPlaceRanking(tx, tables, complete) };
+}
+
+async function createKnockout(tx: Queryable) {
+  const { tables, thirdPlace } = await qualification(tx);
   assert(
-    groupMatches?.total === 48 && groupMatches.completed === 48,
+    thirdPlace.complete,
     409,
     'groups_incomplete',
-    'Complete all 48 group matches before generating the bracket',
+    'Complete all 36 group matches in six groups of four before generating the bracket',
   );
   assert(
     !(await one(tx, "SELECT id FROM futsal_matches WHERE stage='prequarter' LIMIT 1")),
@@ -201,23 +256,35 @@ async function createKnockout(tx: Queryable) {
     'bracket_exists',
     'The knockout bracket already exists',
   );
-  const qualifiers: Record<string, Standing[]> = {};
-  for (const group of groupCodes) qualifiers[group] = (await standings(tx, group)).slice(0, 2);
-  const pairings = [
-    ['A', 'B'],
-    ['C', 'D'],
-    ['E', 'F'],
-    ['G', 'H'],
-    ['B', 'A'],
-    ['D', 'C'],
-    ['F', 'E'],
-    ['H', 'G'],
-  ] as const;
-  for (let i = 0; i < pairings.length; i++) {
-    const [first, second] = pairings[i];
+  assert(
+    !thirdPlace.draw_required,
+    409,
+    'third_place_draw_required',
+    'Record a manual draw for the tied third-place teams before generating the bracket',
+  );
+  // Six group winners plus runners-up A and B form one side of the draw.
+  // Match the four best third-place teams and remaining runners-up to them,
+  // backtracking when needed to avoid every same-group Round of 16 matchup.
+  const seeds = [...tables.map((rows) => rows[0]), tables[0][1], tables[1][1]];
+  const opponents = [...thirdPlace.table.slice(0, 4), ...tables.slice(2).map((rows) => rows[1])];
+  function pair(index: number, remaining: Standing[]): Standing[] | null {
+    if (index === seeds.length) return [];
+    for (const opponent of remaining) {
+      if (opponent.group_code === seeds[index].group_code) continue;
+      const rest = pair(
+        index + 1,
+        remaining.filter((row) => row.id !== opponent.id),
+      );
+      if (rest) return [opponent, ...rest];
+    }
+    return null;
+  }
+  const paired = pair(0, opponents);
+  assert(paired, 409, 'draw_unavailable', 'Could not create a draw without same-group matchups');
+  for (let i = 0; i < seeds.length; i++) {
     await tx.query(
       `INSERT INTO futsal_matches(stage,bracket_position,home_team_id,away_team_id) VALUES('prequarter',$1,$2,$3)`,
-      [i + 1, qualifiers[first][0].id, qualifiers[second][1].id],
+      [i + 1, seeds[i].id, paired[i].id],
     );
   }
   for (let i = 1; i <= 4; i++)
@@ -234,13 +301,11 @@ async function createKnockout(tx: Queryable) {
 async function trimScorers(tx: Queryable, match: Row, side: 'home' | 'away', score: number) {
   const teamId = side === 'home' ? match.home_team_id : match.away_team_id;
   if (!teamId) return;
-  let assigned = (
-    await one(
-      tx,
-      'SELECT coalesce(sum(goals),0)::int AS total FROM futsal_scorers WHERE match_id=$1 AND team_id=$2',
-      [match.id, teamId],
-    )
-  )!.total;
+  let assigned = (await one(
+    tx,
+    'SELECT coalesce(sum(goals),0)::int AS total FROM futsal_scorers WHERE match_id=$1 AND team_id=$2',
+    [match.id, teamId],
+  ))!.total;
   while (assigned > score) {
     const latest = await one(
       tx,
@@ -296,7 +361,20 @@ export async function registerFutsal(app: FastifyInstance, db: Database, c: Conf
           ORDER BY i.team_name,t.id`,
       )
     ).rows;
-    return { groups, bracket, teams };
+    const complete =
+      groups.length === 6 &&
+      groups.every(
+        (group) =>
+          group.table.length === 4 &&
+          group.matches.length === 6 &&
+          group.matches.every((match) => match.status === 'completed'),
+      );
+    const thirdPlace = await thirdPlaceRanking(
+      db,
+      groups.map((group) => group.table),
+      complete,
+    );
+    return { groups, bracket, teams, third_place: thirdPlace };
   });
   // Only a running match is published, so the big-screen page shows the sponsor
   // rotation until an organizer starts one and switches back when it ends.
@@ -332,7 +410,10 @@ export async function registerFutsal(app: FastifyInstance, db: Database, c: Conf
     );
     for (const row of creditRows.rows) {
       const key = `${row.match_id}:${row.team_id}`;
-      credits.set(key, [...(credits.get(key) ?? []), { player_name: row.player_name, goals: row.goals }]);
+      credits.set(key, [
+        ...(credits.get(key) ?? []),
+        { player_name: row.player_name, goals: row.goals },
+      ]);
     }
     const matchView = (match: Row) => ({
       home_team: names.get(match.home_team_id) ?? 'Team to be confirmed',
@@ -340,8 +421,12 @@ export async function registerFutsal(app: FastifyInstance, db: Database, c: Conf
       home_score: match.home_score,
       away_score: match.away_score,
       status: match.status,
-      home_scorers: match.home_team_id ? (credits.get(`${match.id}:${match.home_team_id}`) ?? []) : [],
-      away_scorers: match.away_team_id ? (credits.get(`${match.id}:${match.away_team_id}`) ?? []) : [],
+      home_scorers: match.home_team_id
+        ? (credits.get(`${match.id}:${match.home_team_id}`) ?? [])
+        : [],
+      away_scorers: match.away_team_id
+        ? (credits.get(`${match.id}:${match.away_team_id}`) ?? [])
+        : [],
       // A tied knockout score only hides who went through on penalties.
       penalty_winner:
         match.stage !== 'group' && match.home_score === match.away_score && match.winner_team_id
@@ -365,7 +450,10 @@ export async function registerFutsal(app: FastifyInstance, db: Database, c: Conf
         byStage.set(match.stage, list);
       }
       for (const [stage, matches] of byStage)
-        sections.push({ label: knockoutStageLabels[stage] ?? stage, matches: matches.map(matchView) });
+        sections.push({
+          label: knockoutStageLabels[stage] ?? stage,
+          matches: matches.map(matchView),
+        });
     }
     const event = await one(db, 'SELECT title FROM events WHERE active');
     return {
@@ -452,12 +540,12 @@ export async function registerFutsal(app: FastifyInstance, db: Database, c: Conf
         await tx.query<Row>('SELECT * FROM futsal_teams ORDER BY team_name,id FOR UPDATE')
       ).rows;
       assert(
-        teams.length === 32,
+        teams.length === 24,
         409,
         'team_count',
-        'Futsal requires exactly 32 imported confirmed teams',
+        'Futsal requires exactly 24 imported confirmed teams',
       );
-      return { groups: 8, assigned: teams.filter((team) => team.group_code).length };
+      return { groups: 6, assigned: teams.filter((team) => team.group_code).length };
     }),
   );
   app.post('/admin/futsal/generate-fixtures', { preHandler: guard.superAdmin }, async (req) =>
@@ -467,6 +555,13 @@ export async function registerFutsal(app: FastifyInstance, db: Database, c: Conf
         409,
         'fixtures_exist',
         'Fixtures already exist',
+      );
+      const count = await one(tx, 'SELECT count(*)::int AS total FROM futsal_teams');
+      assert(
+        count?.total === 24,
+        409,
+        'team_count',
+        'Futsal requires exactly 24 imported confirmed teams',
       );
       for (const group of groupCodes) {
         // a1 is the first team placed in the group, a4 the last, so the round
@@ -490,9 +585,76 @@ export async function registerFutsal(app: FastifyInstance, db: Database, c: Conf
         'futsal.fixtures.generate',
         'futsal',
         (await one(tx, 'SELECT id FROM futsal_teams LIMIT 1'))!.id,
-        { matches: 48 },
+        { matches: 36 },
       );
-      return { matches: 48 };
+      return { matches: 36 };
+    }),
+  );
+  app.post('/admin/futsal/third-place-draw', { preHandler: guard.superAdmin }, async (req) =>
+    db.transaction(async (tx) => {
+      const body = z
+        .object({
+          team_ids: z.array(uuid).length(6),
+          signature: z.string(),
+        })
+        .strict()
+        .parse(req.body);
+      assert(
+        !(await one(tx, "SELECT id FROM futsal_matches WHERE stage <> 'group' LIMIT 1")),
+        409,
+        'bracket_exists',
+        'The knockout bracket already exists',
+      );
+      const { thirdPlace } = await qualification(tx);
+      assert(
+        thirdPlace.complete,
+        409,
+        'groups_incomplete',
+        'Complete all 36 group matches before recording the draw',
+      );
+      assert(
+        body.signature === thirdPlace.signature,
+        409,
+        'stale_draw',
+        'The standings changed. Refresh before recording the draw',
+      );
+      assert(
+        thirdPlace.draw_required,
+        409,
+        'draw_not_required',
+        'No qualification tie needs a manual draw',
+      );
+      const byId = new Map(thirdPlace.table.map((row) => [row.id, row]));
+      assert(
+        new Set(body.team_ids).size === 6 && body.team_ids.every((id) => byId.has(id)),
+        400,
+        'invalid_draw',
+        'Include each third-place team exactly once',
+      );
+      const ordered = body.team_ids.map((id) => byId.get(id)!);
+      assert(
+        ordered.every(
+          (row, index) => index === 0 || compareThirdPlace(ordered[index - 1], row) <= 0,
+        ),
+        400,
+        'invalid_draw',
+        'The draw may only reorder teams tied on points, goal difference and goals scored',
+      );
+      await tx.query(
+        `INSERT INTO futsal_third_place_draw(singleton,signature,team_ids,admin_id)
+         VALUES(true,$1,$2,$3) ON CONFLICT(singleton) DO UPDATE
+         SET signature=excluded.signature,team_ids=excluded.team_ids,admin_id=excluded.admin_id,created_at=now()`,
+        [thirdPlace.signature, body.team_ids, req.actor!.id],
+      );
+      await audit(tx, req.actor!.id, 'futsal.third_place.draw', 'futsal', body.team_ids[0], {
+        team_ids: body.team_ids,
+      });
+      await createKnockout(tx);
+      await audit(tx, req.actor!.id, 'futsal.bracket.generate', 'futsal', body.team_ids[0], {
+        teams: 16,
+        automatic: false,
+      });
+      return { created: true };
     }),
   );
   app.post('/admin/futsal/generate-knockout', { preHandler: guard.superAdmin }, async (req) =>
@@ -574,13 +736,11 @@ export async function registerFutsal(app: FastifyInstance, db: Database, c: Conf
       );
       assert(player, 404, 'player_not_found', 'That player is not on the team roster');
       const score = b.team_id === m.home_team_id ? m.home_score : m.away_score;
-      const assigned = (
-        await one(
-          tx,
-          'SELECT coalesce(sum(goals),0)::int AS total FROM futsal_scorers WHERE match_id=$1 AND team_id=$2',
-          [m.id, b.team_id],
-        )
-      )!.total;
+      const assigned = (await one(
+        tx,
+        'SELECT coalesce(sum(goals),0)::int AS total FROM futsal_scorers WHERE match_id=$1 AND team_id=$2',
+        [m.id, b.team_id],
+      ))!.total;
       assert(
         assigned + b.goals <= score,
         409,
@@ -639,12 +799,15 @@ export async function registerFutsal(app: FastifyInstance, db: Database, c: Conf
           tx,
           "SELECT count(*)::int AS total,count(*) FILTER (WHERE status='completed')::int AS completed FROM futsal_matches WHERE stage='group'",
         );
-        if (complete?.total === 48 && complete.completed === 48) {
-          await createKnockout(tx);
-          await audit(tx, req.actor!.id, 'futsal.bracket.generate', 'futsal', m.id, {
-            teams: 16,
-            automatic: true,
-          });
+        if (complete?.total === 36 && complete.completed === 36) {
+          const { thirdPlace } = await qualification(tx);
+          if (!thirdPlace.draw_required) {
+            await createKnockout(tx);
+            await audit(tx, req.actor!.id, 'futsal.bracket.generate', 'futsal', m.id, {
+              teams: 16,
+              automatic: true,
+            });
+          }
         }
       }
       if (winner) {

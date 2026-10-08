@@ -143,7 +143,7 @@ function render(data, live) {
     done && generated
       ? `<section class="stage bracket-stage"><h2>Match bracket</h2><div class="bracket basketball-bracket"><svg class="bracket-connections" aria-hidden="true"></svg>${round('quarter', 'Quarterfinals', (m) => m.bracket_position <= 2)}${round('semi', 'Semifinals', (m) => m.bracket_position === 1)}${round('final', 'Final', () => true)}${round('semi', 'Semifinals', (m) => m.bracket_position === 2)}${round('quarter', 'Quarterfinals', (m) => m.bracket_position > 2, true)}</div></section>`
       : '';
-  app.innerHTML = `${live?.status === 'live' ? `<section class="ongoing-match"><p>Live now</p><div class="ongoing-scoreboard cricket-line">${ongoingSide(live.home_team, roleTag(live, 'home'))}<b>${scoreLine(live)}</b>${ongoingSide(live.away_team, roleTag(live, 'away'))}</div></section>` : ''}${bracket}${done ? `<details class="group-stage" ${groupStageOpen ? 'open' : ''}><summary>Group stage complete · 4 tables · 40 matches</summary><div class="groups">${groups}</div></details>` : `<div class="groups">${groups}</div>`}`;
+  app.innerHTML = `${live?.status === 'live' ? `<section class="ongoing-match"><p>Live now</p><div class="ongoing-scoreboard cricket-line">${ongoingSide(live.home_team, roleTag(live, 'home'))}<b>${scoreLine(live)}</b>${ongoingSide(live.away_team, roleTag(live, 'away'))}</div></section>` : ''}${bracket}${done ? `<details class="group-stage" ${groupStageOpen ? 'open' : ''}><summary>Group stage complete · 4 tables · ${matches.length} matches</summary><div class="groups">${groups}</div></details>` : `<div class="groups">${groups}</div>`}`;
   drawBracketConnections();
 }
 async function load() {

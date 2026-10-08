@@ -4,7 +4,7 @@ import { setup } from '../tests/helpers.js';
 
 const h = await setup();
 await h.db.query("UPDATE sports SET name='Futsal' WHERE id=$1", [h.sports[0].id]);
-for (let index = 0; index < 32; index++) {
+for (let index = 0; index < 24; index++) {
   const order = (
     await h.db.query("INSERT INTO orders(user_id,status) VALUES($1,'confirmed') RETURNING id", [
       h.user.id,
@@ -28,7 +28,7 @@ for (const [index, team] of teams.entries())
   await h.call(
     'PATCH',
     `/admin/futsal/teams/${team.id}/group`,
-    { group_code: 'ABCDEFGH'[Math.floor(index / 4)] },
+    { group_code: 'ABCDEF'[Math.floor(index / 4)] },
     'admin',
   );
 await h.call('POST', '/admin/futsal/generate-fixtures', {}, 'admin');

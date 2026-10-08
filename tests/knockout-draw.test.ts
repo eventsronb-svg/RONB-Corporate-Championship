@@ -32,8 +32,8 @@ async function seedTeams(count: number, sportId: string) {
 describe('knockout draw', () => {
   it('creates the futsal 16-team bracket when the last group match ends', async () => {
     await h.db.query("UPDATE sports SET name='Futsal' WHERE id=$1", [h.sports[0].id]);
-    await seedTeams(32, h.sports[0].id);
-    expect((await h.call('POST', '/admin/futsal/import', {}, 'admin')).json().total).toBe(32);
+    await seedTeams(24, h.sports[0].id);
+    expect((await h.call('POST', '/admin/futsal/import', {}, 'admin')).json().total).toBe(24);
     const teams = (await h.call('GET', '/admin/futsal', undefined, 'admin')).json().teams;
     for (const [index, team] of teams.entries())
       expect(
@@ -41,19 +41,19 @@ describe('knockout draw', () => {
           await h.call(
             'PATCH',
             `/admin/futsal/teams/${team.id}/group`,
-            { group_code: 'ABCDEFGH'[Math.floor(index / 4)] },
+            { group_code: 'ABCDEF'[Math.floor(index / 4)] },
             'admin',
           )
         ).statusCode,
       ).toBe(200);
     await h.call('POST', '/admin/futsal/generate-fixtures', {}, 'admin');
     const view = (await h.call('GET', '/admin/futsal', undefined, 'admin')).json();
-    const last = view.groups[7].matches[5];
+    const last = view.groups[5].matches[5];
 
-    // Forty-seven fixtures finish outside the API, the way seeds do, and no
+    // Thirty-five fixtures finish outside the API, the way seeds do, and no
     // bracket appears yet.
     await h.db.query(
-      "UPDATE futsal_matches SET status='completed',home_score=1,away_score=0,completed_at=now() WHERE stage='group' AND id <> $1",
+      "UPDATE futsal_matches SET status='completed',home_score=ascii(group_code)-64,away_score=0,completed_at=now() WHERE stage='group' AND id <> $1",
       [last.id],
     );
     expect((await h.call('GET', '/admin/futsal', undefined, 'admin')).json().bracket).toHaveLength(
@@ -80,7 +80,7 @@ describe('knockout draw', () => {
     expect(bracket.filter((match: any) => match.stage === 'quarter')).toHaveLength(4);
     expect(bracket.filter((match: any) => match.stage === 'semi')).toHaveLength(2);
     expect(bracket.filter((match: any) => match.stage === 'final')).toHaveLength(1);
-    // The top two of every group fill the round of sixteen immediately.
+    // The top two of six groups and the four best third-place teams fill the Round of 16.
     expect(
       bracket
         .filter((match: any) => match.stage === 'prequarter')

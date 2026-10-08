@@ -53,14 +53,14 @@ const google = {
 };
 const app = await buildApp({ db, config: c, storage, google });
 const sport = (
-  await db.query("INSERT INTO sports(name,price,max_teams) VALUES('Futsal',0,32) RETURNING id")
+  await db.query("INSERT INTO sports(name,price,max_teams) VALUES('Futsal',0,24) RETURNING id")
 ).rows[0];
 const user = (
   await db.query(
     "INSERT INTO users(google_id,email,name) VALUES('demo-captain','demo@example.com','Demo captain') RETURNING id",
   )
 ).rows[0];
-for (let index = 0; index < 32; index++) {
+for (let index = 0; index < 24; index++) {
   const order = (
     await db.query("INSERT INTO orders(user_id,status) VALUES($1,'confirmed') RETURNING id", [
       user.id,
