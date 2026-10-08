@@ -35,6 +35,12 @@ async function field() {
         )
       ).statusCode,
     ).toBe(200);
+    // Keep score scenarios in a fixed placement order even when two fast API
+    // assignments receive the same millisecond timestamp on native PostgreSQL.
+    await h.db.query('UPDATE futsal_teams SET group_assigned_at=$2 WHERE id=$1', [
+      team.id,
+      new Date(Date.UTC(2026, 0, 1) + index),
+    ]);
   }
   return data;
 }

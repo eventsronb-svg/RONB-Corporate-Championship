@@ -941,9 +941,12 @@ async function futsalView() {
   const groups = ['A', 'B', 'C', 'D', 'E', 'F'];
   const groupDraw = me.role === 'super_admin' ? drawGroups(data, groups, 'futsal') : '';
   const teamName = (id) => byId.get(id)?.team_name || 'Team pending';
-  const matchRow = (match) =>
-    `<tr class="futsal-match-${e(match.status)}" data-match="${e(match.id)}"><td>${e(match.stage === 'group' ? `Group ${match.group_code}` : match.stage)}</td><td>${e(teamName(match.home_team_id))}</td><td><input class="score-input" name="home_score" type="number" min="0" value="${match.home_score}" ${match.status === 'live' ? '' : 'disabled'}></td><td>–</td><td><input class="score-input" name="away_score" type="number" min="0" value="${match.away_score}" ${match.status === 'live' ? '' : 'disabled'}></td><td>${e(teamName(match.away_team_id))}</td><td>${match.status === 'scheduled' && match.home_team_id && match.away_team_id ? '<button data-start>Start</button>' : ''}${match.status === 'live' ? '<button data-save>Save</button> <button class="primary" data-end>End match</button>' : ''}</td></tr>`;
   const matches = [...data.groups.flatMap((group) => group.matches), ...data.bracket];
+  const startDisabled = matches.some((match) => match.status === 'live')
+    ? 'disabled title="Finish the live match before starting another"'
+    : '';
+  const matchRow = (match) =>
+    `<tr class="futsal-match-${e(match.status)}" data-match="${e(match.id)}"><td>${e(match.stage === 'group' ? `Group ${match.group_code}` : match.stage)}</td><td>${e(teamName(match.home_team_id))}</td><td><input class="score-input" name="home_score" type="number" min="0" value="${match.home_score}" ${match.status === 'live' ? '' : 'disabled'}></td><td>–</td><td><input class="score-input" name="away_score" type="number" min="0" value="${match.away_score}" ${match.status === 'live' ? '' : 'disabled'}></td><td>${e(teamName(match.away_team_id))}</td><td>${match.status === 'scheduled' && match.home_team_id && match.away_team_id ? `<button data-start ${startDisabled}>Start</button>` : ''}${match.status === 'live' ? '<button data-save>Save</button> <button class="primary" data-end>End match</button>' : ''}</td></tr>`;
   const fixturesDrawn = data.groups.some((group) => group.matches.length);
   const controls =
     me.role === 'super_admin'
@@ -1010,11 +1013,13 @@ async function futsalView() {
       );
       document.querySelectorAll('[data-start]').forEach((button) =>
         button.addEventListener('click', async () => {
+          document.querySelectorAll('[data-start]').forEach((start) => (start.disabled = true));
           try {
             await post(`/admin/futsal/matches/${button.closest('tr').dataset.match}/start`);
             await render();
             message('Match is live on /futsal/match.');
           } catch (err) {
+            await render();
             message(err.message, true);
           }
         }),
@@ -1084,8 +1089,11 @@ async function basketballView() {
   const groupDraw = me.role === 'super_admin' ? drawGroups(data, groups, 'basket') : '';
   const teamName = (id) => byId.get(id)?.team_name || 'Team pending';
   const matches = [...data.groups.flatMap((group) => group.matches), ...data.bracket];
+  const startDisabled = matches.some((match) => match.status === 'live')
+    ? 'disabled title="Finish the live match before starting another"'
+    : '';
   const matchRow = (match) =>
-    `<tr class="basketball-match-${e(match.status)}" data-match="${e(match.id)}"><td>${e(match.stage === 'group' ? `Group ${match.group_code}` : match.stage)}</td><td>${e(teamName(match.home_team_id))}</td><td><input class="score-input" name="home_score" type="number" min="0" value="${match.home_score}" ${match.status === 'live' ? '' : 'disabled'}></td><td>–</td><td><input class="score-input" name="away_score" type="number" min="0" value="${match.away_score}" ${match.status === 'live' ? '' : 'disabled'}></td><td>${e(teamName(match.away_team_id))}</td><td>${match.status === 'scheduled' && match.home_team_id && match.away_team_id ? '<button data-basket-start>Start</button>' : ''}${match.status === 'live' ? '<button data-basket-save>Save</button> <button class="primary" data-basket-end>End match</button>' : ''}</td></tr>`;
+    `<tr class="basketball-match-${e(match.status)}" data-match="${e(match.id)}"><td>${e(match.stage === 'group' ? `Group ${match.group_code}` : match.stage)}</td><td>${e(teamName(match.home_team_id))}</td><td><input class="score-input" name="home_score" type="number" min="0" value="${match.home_score}" ${match.status === 'live' ? '' : 'disabled'}></td><td>–</td><td><input class="score-input" name="away_score" type="number" min="0" value="${match.away_score}" ${match.status === 'live' ? '' : 'disabled'}></td><td>${e(teamName(match.away_team_id))}</td><td>${match.status === 'scheduled' && match.home_team_id && match.away_team_id ? `<button data-basket-start ${startDisabled}>Start</button>` : ''}${match.status === 'live' ? '<button data-basket-save>Save</button> <button class="primary" data-basket-end>End match</button>' : ''}</td></tr>`;
   const fixturesDrawn = data.groups.some((group) => group.matches.length);
   const controls =
     me.role === 'super_admin'
@@ -1119,11 +1127,15 @@ async function basketballView() {
       );
       document.querySelectorAll('[data-basket-start]').forEach((button) =>
         button.addEventListener('click', async () => {
+          document
+            .querySelectorAll('[data-basket-start]')
+            .forEach((start) => (start.disabled = true));
           try {
             await post(`/admin/basketball/matches/${button.closest('tr').dataset.match}/start`);
             await render();
             message('Match is live on /basketball/match.');
           } catch (err) {
+            await render();
             message(err.message, true);
           }
         }),
@@ -1188,6 +1200,10 @@ async function cricketView() {
   const groups = ['A', 'B', 'C', 'D'];
   const groupDraw = me.role === 'super_admin' ? drawGroups(data, groups, 'cricket') : '';
   const teamName = (id) => byId.get(id)?.team_name || 'Team pending';
+  const matches = [...data.groups.flatMap((group) => group.matches), ...data.bracket];
+  const startDisabled = matches.some((match) => match.status === 'live')
+    ? 'disabled title="Finish the live match before starting another"'
+    : '';
   // A cricket line reads runs and wickets, then the overs faced — 145/6 (9.4).
   const input = (match, field, attrs = '') =>
     `<input class="score-input" name="${field}" type="number" ${attrs} value="${
@@ -1212,14 +1228,13 @@ async function cricketView() {
       'min="0" max="10" step="0.1"',
     )}</td><td>${e(teamName(match.away_team_id))}</td><td>${
       match.status === 'scheduled' && match.home_team_id && match.away_team_id
-        ? `<select class="batting-select" data-cricket-batting aria-label="Who bats first"><option value="home">${e(teamName(match.home_team_id))} bats</option><option value="away">${e(teamName(match.away_team_id))} bats</option></select> <button data-cricket-start>Start</button>`
+        ? `<select class="batting-select" data-cricket-batting aria-label="Who bats first"><option value="home">${e(teamName(match.home_team_id))} bats</option><option value="away">${e(teamName(match.away_team_id))} bats</option></select> <button data-cricket-start ${startDisabled}>Start</button>`
         : ''
     }${
       match.status === 'live'
         ? `<button data-cricket-swap title="Currently batting: ${e(teamName(match.batting_side === 'away' ? match.away_team_id : match.home_team_id))}">Swap batting</button> <button data-cricket-save>Save</button> <button class="primary" data-cricket-end>End match</button>`
         : ''
     }</td></tr>`;
-  const matches = [...data.groups.flatMap((group) => group.matches), ...data.bracket];
   const fixturesDrawn = data.groups.some((group) => group.matches.length);
   const controls =
     me.role === 'super_admin'
@@ -1252,6 +1267,9 @@ async function cricketView() {
       );
       document.querySelectorAll('[data-cricket-start]').forEach((button) =>
         button.addEventListener('click', async () => {
+          document
+            .querySelectorAll('[data-cricket-start]')
+            .forEach((start) => (start.disabled = true));
           try {
             const row = button.closest('tr');
             const batting_side = row.querySelector('[data-cricket-batting]')?.value || 'home';
@@ -1259,6 +1277,7 @@ async function cricketView() {
             await render();
             message('Match is live on /cricket/match. Swap batting at the innings break.');
           } catch (err) {
+            await render();
             message(err.message, true);
           }
         }),

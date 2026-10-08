@@ -583,6 +583,8 @@ export async function registerCricket(app: FastifyInstance, db: Database, c: Con
   );
   app.post('/admin/cricket/matches/:id/start', { preHandler: guard.admin }, async (req) =>
     db.transaction(async (tx) => {
+      // Serialize starts for this sport, including requests from other organizer tabs.
+      await tx.query('SELECT pg_advisory_xact_lock(427203)');
       const b = z
         .object({ batting_side: battingSide.default('home') })
         .strict()
@@ -593,6 +595,12 @@ export async function registerCricket(app: FastifyInstance, db: Database, c: Con
       assert(m, 404, 'not_found', 'Match not found');
       assert(m.status === 'scheduled', 409, 'invalid_state', 'Only scheduled matches can start');
       assert(m.home_team_id && m.away_team_id, 409, 'teams_pending', 'Both teams must be known');
+      assert(
+        !(await one(tx, "SELECT id FROM cricket_matches WHERE status='live' LIMIT 1")),
+        409,
+        'match_already_live',
+        'Finish the live cricket match before starting another',
+      );
       return one(
         tx,
         "UPDATE cricket_matches SET status='live',batting_side=$2,version=version+1 WHERE id=$1 RETURNING *",

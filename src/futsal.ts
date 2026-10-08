@@ -673,12 +673,20 @@ export async function registerFutsal(app: FastifyInstance, db: Database, c: Conf
   );
   app.post('/admin/futsal/matches/:id/start', { preHandler: guard.admin }, async (req) =>
     db.transaction(async (tx) => {
+      // Serialize starts for this sport, including requests from other organizer tabs.
+      await tx.query('SELECT pg_advisory_xact_lock(427201)');
       const m = await one(tx, 'SELECT * FROM futsal_matches WHERE id=$1 FOR UPDATE', [
         params.parse(req.params).id,
       ]);
       assert(m, 404, 'not_found', 'Match not found');
       assert(m.status === 'scheduled', 409, 'invalid_state', 'Only scheduled matches can start');
       assert(m.home_team_id && m.away_team_id, 409, 'teams_pending', 'Both teams must be known');
+      assert(
+        !(await one(tx, "SELECT id FROM futsal_matches WHERE status='live' LIMIT 1")),
+        409,
+        'match_already_live',
+        'Finish the live futsal match before starting another',
+      );
       return one(
         tx,
         "UPDATE futsal_matches SET status='live',version=version+1 WHERE id=$1 RETURNING *",

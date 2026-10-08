@@ -280,6 +280,11 @@ test('registration, full sports, group ties, third-place draw, and all knockout 
       if (slug === 'cricket') await row.locator('[data-cricket-batting]').selectOption('away');
       await row.getByRole('button', { name: 'Start', exact: true }).click();
       await expect(row.locator('[name="home_score"]')).toBeEnabled();
+      const starts = page.locator(
+        'button[data-start], button[data-basket-start], button[data-cricket-start]',
+      );
+      expect(await starts.count()).toBeGreaterThan(0);
+      await expect(starts.and(page.locator(':enabled'))).toHaveCount(0);
       if (slug === 'cricket') {
         await row.getByRole('button', { name: 'Swap batting' }).click();
         await expect(row.getByRole('button', { name: 'Swap batting' })).toHaveAttribute(
@@ -336,6 +341,8 @@ test('registration, full sports, group ties, third-place draw, and all knockout 
         page.once('dialog', (dialog) => dialog.accept(homeTeam.team_name));
       await row.getByRole('button', { name: 'End match' }).click();
       await expect(page.getByRole('status')).toHaveText('Match completed and standings updated.');
+      await expect(starts.and(page.locator(':disabled'))).toHaveCount(0);
+      expect(await starts.count()).toBeGreaterThan(0);
       const done = await json(await admin.request.get(`/admin/${slug}`));
       const completed = done.groups
         .flatMap((group: any) => group.matches)
