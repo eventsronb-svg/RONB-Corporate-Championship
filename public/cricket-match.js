@@ -52,12 +52,13 @@ function renderCurrent() {
   document.body.classList.add('match-is-live');
   // Each scorer keeps the runs they were credited with, so the big screen reads
   // name and contribution together under the team. The bowler line does the same
-  // for the wickets, marked with a crossed sticker to keep the two apart.
+  // for the wickets, marked broadcast style — a bold W with the count, as the
+  // TV score graphic prints a wicket — to keep the two numbers apart.
   // Each side also carries its own innings — runs, wickets and overs — beneath
   // its crest: one combined line is ~10.6em of display type, far too wide to sit
   // between the crests without pushing one of them off the frame.
   const team = (t, scorers, bowlers, innings) =>
-    `<div class="live-team"><img src="${esc(t?.logo_url || '/assets/images/logo.webp')}" alt="">${esc(t?.team_name || 'Team to be confirmed')}<div class="live-innings">${innings}</div>${scorers?.length ? `<div class="live-scorers">${scorers.map((s) => `<span class="live-scorer">${esc(s.player_name)}<b>${s.runs}</b></span>`).join('')}</div>` : ''}${bowlers?.length ? `<div class="live-bowlers">${bowlers.map((w) => `<span class="live-bowler">${esc(w.player_name)}<b>✕${w.wickets}</b></span>`).join('')}</div>` : ''}</div>`;
+    `<div class="live-team"><img src="${esc(t?.logo_url || '/assets/images/logo.webp')}" alt="">${esc(t?.team_name || 'Team to be confirmed')}<div class="live-innings">${innings}</div>${scorers?.length ? `<div class="live-scorers">${scorers.map((s) => `<span class="live-scorer">${esc(s.player_name)}<b>${s.runs}</b></span>`).join('')}</div>` : ''}${bowlers?.length ? `<div class="live-bowlers">${bowlers.map((w) => `<span class="live-bowler">${esc(w.player_name)}<b>W${w.wickets}</b></span>`).join('')}</div>` : ''}</div>`;
   const stage = m.stage === 'group' ? `Group ${esc(m.group_code)}` : esc(m.stage);
   // The full line reads both innings — runs, wickets and the overs faced — so
   // the projected card and the printed report never disagree; here each half
