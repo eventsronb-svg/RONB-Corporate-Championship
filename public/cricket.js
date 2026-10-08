@@ -146,15 +146,30 @@ function render(data, live) {
   app.innerHTML = `${live?.status === 'live' ? `<section class="ongoing-match"><p>Live now</p><div class="ongoing-scoreboard cricket-line">${ongoingSide(live.home_team, roleTag(live, 'home'))}<b>${scoreLine(live)}</b>${ongoingSide(live.away_team, roleTag(live, 'away'))}</div></section>` : ''}${bracket}${done ? `<details class="group-stage" ${groupStageOpen ? 'open' : ''}><summary>Group stage complete · 4 tables · ${matches.length} matches</summary><div class="groups">${groups}</div></details>` : `<div class="groups">${groups}</div>`}`;
   drawBracketConnections();
 }
+let poll = 4000;
+let lastSig = '';
 async function load() {
   try {
     const [d, l] = await Promise.all([fetch('/cricket/data'), fetch('/cricket/live')]);
     if (!d.ok || !l.ok) throw Error('Could not load cricket data.');
-    render(await d.json(), await l.json());
+    const data = await d.json();
+    const live = await l.json();
+    render(data, live);
+    const sig = live?.status === 'live'
+      ? `${live.id}:${live.version}:${live.home_score}:${live.away_score}:${live.home_wickets}:${live.away_wickets}:${live.home_overs}:${live.away_overs}:${live.batting_side}`
+      : (data?.groups ? `${data.groups.length}:${data.bracket.length}:${data.bracket.filter(m=>m.status==='live').length}` : '0');
+    if (sig !== lastSig) {
+      lastSig = sig;
+      poll = 4000;
+    } else {
+      poll = Math.min(poll * 1.5, 15000);
+    }
   } catch (e) {
+    poll = Math.min(poll * 1.5, 15000);
     app.textContent = e.message;
+  } finally {
+    setTimeout(load, poll);
   }
 }
 load();
-setInterval(load, 4000);
 window.addEventListener('resize', drawBracketConnections);

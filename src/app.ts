@@ -3,6 +3,7 @@ import cookie from '@fastify/cookie';
 import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
 import helmet from '@fastify/helmet';
+import compress from '@fastify/compress';
 import staticPlugin from '@fastify/static';
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
@@ -125,6 +126,11 @@ export async function buildApp(deps: {
     // Must stay above the largest single upload (one photo or receipt) so that multipart
     // framing and the accompanying JSON field still fit inside bodyLimit.
     limits: { fileSize: 20 * 1024 * 1024, files: 1, fields: 1, parts: 2, fieldSize: 20000 },
+  });
+  await app.register(compress, {
+    global: true,
+    encodings: ['br', 'gzip'],
+    threshold: 1024,
   });
   app.decorateRequest('actor', undefined);
   app.addHook('onRequest', async (req, reply) => {

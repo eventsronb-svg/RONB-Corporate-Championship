@@ -160,6 +160,8 @@ function render(data, live) {
   drawBracketConnections();
 }
 
+let poll = 4000;
+let lastSig = '';
 async function load() {
   try {
     const [dataResponse, liveResponse] = await Promise.all([
@@ -167,12 +169,25 @@ async function load() {
       fetch('/futsal/live'),
     ]);
     if (!dataResponse.ok || !liveResponse.ok) throw Error('Could not load the championship.');
-    render(await dataResponse.json(), await liveResponse.json());
+    const data = await dataResponse.json();
+    const live = await liveResponse.json();
+    render(data, live);
+    const sig = live?.status === 'live'
+      ? `${live.id}:${live.version}:${live.home_score}:${live.away_score}`
+      : (data ? `${data.groups.length}:${data.bracket.length}` : '0');
+    if (sig !== lastSig) {
+      lastSig = sig;
+      poll = 4000;
+    } else {
+      poll = Math.min(poll * 1.5, 15000);
+    }
   } catch (error) {
+    poll = Math.min(poll * 1.5, 15000);
     app.textContent = error.message;
+  } finally {
+    setTimeout(load, poll);
   }
 }
 
 load();
-setInterval(load, 4000);
 window.addEventListener('resize', drawBracketConnections);

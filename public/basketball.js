@@ -126,15 +126,30 @@ function render(data, live) {
   app.innerHTML = `${live?.status === 'live' ? `<section class="ongoing-match"><p>Live now</p><div class="ongoing-scoreboard">${ongoingSide(live.home_team)}<b>${live.home_score} – ${live.away_score}</b>${ongoingSide(live.away_team)}</div></section>` : ''}${bracket}${done ? `<details class="group-stage" ${groupStageOpen ? 'open' : ''}><summary>Group stage complete · 4 tables · 24 matches</summary><div class="groups">${groups}</div></details>` : `<div class="groups">${groups}</div>`}`;
   drawBracketConnections();
 }
+let poll = 4000;
+let lastSig = '';
 async function load() {
   try {
     const [d, l] = await Promise.all([fetch('/basketball/data'), fetch('/basketball/live')]);
     if (!d.ok || !l.ok) throw Error('Could not load basketball data.');
-    render(await d.json(), await l.json());
+    const data = await d.json();
+    const live = await l.json();
+    render(data, live);
+    const sig = live?.status === 'live'
+      ? `${live.id}:${live.version}:${live.home_score}:${live.away_score}`
+      : (data ? `${data.groups.length}:${data.bracket.length}` : '0');
+    if (sig !== lastSig) {
+      lastSig = sig;
+      poll = 4000;
+    } else {
+      poll = Math.min(poll * 1.5, 15000);
+    }
   } catch (e) {
+    poll = Math.min(poll * 1.5, 15000);
     app.textContent = e.message;
+  } finally {
+    setTimeout(load, poll);
   }
 }
 load();
-setInterval(load, 4000);
 window.addEventListener('resize', drawBracketConnections);

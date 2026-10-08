@@ -1,0 +1,70 @@
+import { isAbsolute } from 'node:path';
+import { z } from 'zod';
+// Merchant account captains transfer to. Hard-coded on purpose: never read from the environment.
+export const PAYMENT_BANK_DETAILS = `Bank Name: Nabil Bank
+Branch: Teendhara
+Account Name: Routine of Nepal Pvt. Ltd.
+Account Number: 01701017503541
+PAN Number: 6059939958`;
+export const PAYMENT_INSTRUCTIONS = 'Transfer the exact amount and enter the unique code in payment remarks.';
+const envSchema = z.object({
+    NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+    PORT: z.coerce.number().int().min(1).max(65535).default(3000),
+    APP_ORIGIN: z.string().url(),
+    DATABASE_URL: z.string().min(1),
+    COOKIE_SECRET: z.string().min(32),
+    GOOGLE_CLIENT_ID: z.string().default(''),
+    GOOGLE_CLIENT_SECRET: z.string().default(''),
+    ADMIN_LOGIN_USERNAME: z.string().default(''),
+    ADMIN_LOGIN_PASSWORD: z.string().default(''),
+    S3_ENDPOINT: z.string().default(''),
+    S3_REGION: z.string().default('auto'),
+    S3_ACCESS_KEY_ID: z.string().default(''),
+    S3_SECRET_ACCESS_KEY: z.string().default(''),
+    S3_RECEIPTS_BUCKET: z.string().default('booking-private'),
+    S3_LOGOS_BUCKET: z.string().default('booking-public'),
+    S3_LOGOS_PUBLIC_URL: z.string().default(''),
+    S3_PLAYERPHOTOS_BUCKET: z.string().default('player-photos'),
+    // When set, receipts and player photos are written to this absolute directory on the host
+    // instead of object storage. Keep it outside public_html and outside the deploy root.
+    STORAGE_DIR: z.string().default(''),
+    RESEND_API_KEY: z.string().default(''),
+    EMAIL_FROM: z.string().default(''),
+});
+export function config(env = process.env) {
+    const c = envSchema.parse(env);
+    if (Boolean(c.ADMIN_LOGIN_USERNAME) !== Boolean(c.ADMIN_LOGIN_PASSWORD))
+        throw new Error('Set both ADMIN_LOGIN_USERNAME and ADMIN_LOGIN_PASSWORD, or leave both empty');
+    if (c.ADMIN_LOGIN_PASSWORD && c.ADMIN_LOGIN_PASSWORD.length < 16)
+        throw new Error('ADMIN_LOGIN_PASSWORD must contain at least 16 characters');
+    if (new URL(c.APP_ORIGIN).origin !== c.APP_ORIGIN)
+        throw new Error('APP_ORIGIN must be an origin without a trailing slash');
+    if (c.STORAGE_DIR && !isAbsolute(c.STORAGE_DIR))
+        throw new Error('STORAGE_DIR must be an absolute path');
+    if (!c.S3_RECEIPTS_BUCKET ||
+        !c.S3_LOGOS_BUCKET ||
+        !c.S3_PLAYERPHOTOS_BUCKET ||
+        c.S3_RECEIPTS_BUCKET === c.S3_LOGOS_BUCKET ||
+        c.S3_RECEIPTS_BUCKET === c.S3_PLAYERPHOTOS_BUCKET ||
+        c.S3_LOGOS_BUCKET === c.S3_PLAYERPHOTOS_BUCKET)
+        throw new Error('Receipt, logo and player-photo storage require distinct buckets');
+    if (c.NODE_ENV === 'production') {
+        for (const key of [
+            'GOOGLE_CLIENT_ID',
+            'GOOGLE_CLIENT_SECRET',
+            'S3_ENDPOINT',
+            'S3_ACCESS_KEY_ID',
+            'S3_SECRET_ACCESS_KEY',
+            'S3_LOGOS_PUBLIC_URL',
+            'RESEND_API_KEY',
+            'EMAIL_FROM',
+        ]) {
+            if (!c[key])
+                throw new Error(`${key} is required in production`);
+        }
+        if (!c.APP_ORIGIN.startsWith('https://') || !c.S3_LOGOS_PUBLIC_URL.startsWith('https://'))
+            throw new Error('Production origins must use HTTPS');
+    }
+    return c;
+}
+//# sourceMappingURL=config.js.map

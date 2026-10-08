@@ -80,15 +80,29 @@ function renderCurrent() {
     'Live',
   );
 }
+let poll = 4000;
+let lastKey = '';
 async function load() {
   try {
     const r = await fetch('/cricket/live');
     if (!r.ok) throw Error('Could not load match.');
     currentMatch = await r.json();
     renderCurrent();
+    const m = currentMatch;
+    const key = m?.status === 'live'
+      ? `${m.id}:${m.version}:${m.home_score}:${m.away_score}:${m.home_wickets}:${m.away_wickets}:${m.home_overs}:${m.away_overs}:${m.batting_side}`
+      : 'sponsor';
+    if (key !== lastKey) {
+      lastKey = key;
+      poll = 4000;
+    } else {
+      poll = Math.min(poll * 1.5, 15000);
+    }
   } catch (e) {
+    poll = Math.min(poll * 1.5, 15000);
     root.textContent = e.message;
+  } finally {
+    setTimeout(load, poll);
   }
 }
 load();
-setInterval(load, 4000);

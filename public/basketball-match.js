@@ -53,15 +53,28 @@ function renderCurrent() {
     'Live',
   );
 }
+let poll = 4000;
+let lastKey = '';
 async function load() {
   try {
     const r = await fetch('/basketball/live');
     if (!r.ok) throw Error('Could not load match.');
     currentMatch = await r.json();
     renderCurrent();
+    const key = currentMatch?.status === 'live'
+      ? `${currentMatch.id}:${currentMatch.version}:${currentMatch.home_score}:${currentMatch.away_score}`
+      : 'sponsor';
+    if (key !== lastKey) {
+      lastKey = key;
+      poll = 4000;
+    } else {
+      poll = Math.min(poll * 1.5, 15000);
+    }
   } catch (e) {
+    poll = Math.min(poll * 1.5, 15000);
     root.textContent = e.message;
+  } finally {
+    setTimeout(load, poll);
   }
 }
 load();
-setInterval(load, 4000);
