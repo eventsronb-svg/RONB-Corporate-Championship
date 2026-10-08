@@ -399,11 +399,12 @@ body .panel > .fixture > b {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  gap: clamp(14px, 4vw, 50px);
+  gap: clamp(12px, 3vw, 50px);
 }
 .ongoing-side {
   display: grid;
   justify-items: center;
+  min-width: 0;
   gap: 8px;
   font-size: clamp(13px, 1.8vw, 20px);
 }
@@ -419,11 +420,32 @@ body .panel > .fixture > b {
   font-size: clamp(40px, 7vw, 82px);
   white-space: nowrap;
 }
+/* The strip sits in the hero's half-column, and the cricket line —
+   "87/3 (12.4) – 110/8 (20.0)" — is ~10.6em of display type, wider than that
+   column can spare beside two crest cards. The live cricket strip therefore
+   gives the line its own full-width row above the two sides, each side keeping
+   its crest and name two-up below, instead of the line spilling out past the
+   panel's right edge. */
+.ongoing-scoreboard.cricket-line {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 16px;
+}
+.ongoing-scoreboard.cricket-line > b {
+  grid-column: 1 / -1;
+  order: -1;
+  font-size: clamp(18px, 3vw, 42px);
+}
 @media (max-width: 440px) {
   .ongoing-scoreboard {
+    grid-template-columns: 1fr;
+    justify-items: center;
     gap: 10px;
   }
+  .ongoing-scoreboard > b {
+    order: -1;
+  }
   .ongoing-side {
+    gap: 6px;
     font-size: 12px;
   }
 }
@@ -1483,4 +1505,37 @@ body.futsal-live.match-is-live .live-card {
 }
 body.futsal-live.match-is-live .live-teams {
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+}
+/* One cricket innings is ~5.2em of display type and the combined
+   "87/3 (12.4) – 110/8 (20.0)" is ~10.6em: inside the centre auto track it
+   swallowed the card, collapsed both 1fr crest tracks to zero and pushed the
+   away side out past the frame — clipped, not scrollable, because this page
+   hides its overflow. Cricket therefore carries each side's innings under its
+   own crest — the broadcast layout — as two flex columns that wrap rather than
+   overflow, sized to stay inside the frame's width cap at every scale band.
+
+   These overrides must live in this stylesheet: the response ships
+   style-src 'self', so an inline <style> block in cricket-match.html is dropped
+   by the CSP and never applies. */
+body.cricket-live .live-teams {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: flex-start;
+  gap: clamp(18px, 4vw, 72px);
+}
+body.cricket-live .live-team {
+  /* Equal columns: each side takes half the card so its scorer and bowler rows
+     wrap inside that width instead of defining it, and the row only wraps when
+     the nowrap innings line itself cannot fit — at projector sizes both crests
+     sit side by side. */
+  flex: 1 1 0;
+  min-width: 0;
+}
+body.cricket-live .live-innings {
+  margin-top: clamp(6px, 1vw, 14px);
+  font-family: VarsityTeam, Ultimate, sans-serif;
+  font-size: clamp(50px, 5.5vw, 115px);
+  line-height: 1;
+  white-space: nowrap;
 }

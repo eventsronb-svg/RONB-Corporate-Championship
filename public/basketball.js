@@ -8,6 +8,10 @@ const team = (v) =>
   v
     ? `<span class="team">${v.logo_url ? `<img class="logo" src="${esc(v.logo_url)}" alt="">` : ''}${esc(v.team_name)}</span>`
     : '<span class="team team-pending">TBD</span>';
+// The live strip uses the same side card as futsal — crest plus name — with the
+// site crest standing in until a team uploads its logo.
+const ongoingSide = (value) =>
+  `<div class="ongoing-side"><img src="${esc(value?.logo_url || '/assets/images/logo.webp')}" alt="${esc(value?.team_name || 'Team')} logo"><strong>${esc(value?.team_name || 'Team')}</strong></div>`;
 const fixture = (m, by) =>
   `<div class="fixture"><span>${team(by.get(m.home_team_id))}</span><b>${m.status === 'scheduled' ? '—' : `${m.home_score} – ${m.away_score}`}</b><span>${team(by.get(m.away_team_id))}</span></div>`;
 const bracketMatch = (m, by) => {
@@ -119,7 +123,7 @@ function render(data, live) {
     done && generated
       ? `<section class="stage bracket-stage"><h2>Match bracket</h2><div class="bracket basketball-bracket"><svg class="bracket-connections" aria-hidden="true"></svg>${round('quarter', 'Quarterfinals', (m) => m.bracket_position <= 2)}${round('semi', 'Semifinals', (m) => m.bracket_position === 1)}${round('final', 'Final', () => true)}${round('semi', 'Semifinals', (m) => m.bracket_position === 2)}${round('quarter', 'Quarterfinals', (m) => m.bracket_position > 2, true)}</div></section>`
       : '';
-  app.innerHTML = `${live?.status === 'live' ? `<section class="ongoing-match"><p>Live now</p><div class="ongoing-scoreboard"><strong>${esc(live.home_team?.team_name)}</strong><b>${live.home_score} – ${live.away_score}</b><strong>${esc(live.away_team?.team_name)}</strong></div></section>` : ''}${bracket}${done ? `<details class="group-stage" ${groupStageOpen ? 'open' : ''}><summary>Group stage complete · 4 tables · 24 matches</summary><div class="groups">${groups}</div></details>` : `<div class="groups">${groups}</div>`}`;
+  app.innerHTML = `${live?.status === 'live' ? `<section class="ongoing-match"><p>Live now</p><div class="ongoing-scoreboard">${ongoingSide(live.home_team)}<b>${live.home_score} – ${live.away_score}</b>${ongoingSide(live.away_team)}</div></section>` : ''}${bracket}${done ? `<details class="group-stage" ${groupStageOpen ? 'open' : ''}><summary>Group stage complete · 4 tables · 24 matches</summary><div class="groups">${groups}</div></details>` : `<div class="groups">${groups}</div>`}`;
   drawBracketConnections();
 }
 async function load() {

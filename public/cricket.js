@@ -8,6 +8,11 @@ const team = (v) =>
   v
     ? `<span class="team">${v.logo_url ? `<img class="logo" src="${esc(v.logo_url)}" alt="">` : ''}${esc(v.team_name)}</span>`
     : '<span class="team team-pending">TBD</span>';
+// The live strip at the top reuses the same side card as futsal — crest plus
+// name — and falls back to the site crest when a team has not uploaded a logo,
+// so the panel reads the same whether the demo seeds crests or a real team does.
+const ongoingSide = (value) =>
+  `<div class="ongoing-side"><img src="${esc(value?.logo_url || '/assets/images/logo.webp')}" alt="${esc(value?.team_name || 'Team')} logo"><strong>${esc(value?.team_name || 'Team')}</strong></div>`;
 // A fixture line reads both innings the cricket way: 145/6 (20.0) – 139/8 (19.4).
 const scoreLine = (m) =>
   `${m.home_score}/${m.home_wickets} (${Number(m.home_overs).toFixed(1)}) – ${m.away_score}/${m.away_wickets} (${Number(m.away_overs).toFixed(1)})`;
@@ -127,7 +132,7 @@ function render(data, live) {
     done && generated
       ? `<section class="stage bracket-stage"><h2>Match bracket</h2><div class="bracket basketball-bracket"><svg class="bracket-connections" aria-hidden="true"></svg>${round('quarter', 'Quarterfinals', (m) => m.bracket_position <= 2)}${round('semi', 'Semifinals', (m) => m.bracket_position === 1)}${round('final', 'Final', () => true)}${round('semi', 'Semifinals', (m) => m.bracket_position === 2)}${round('quarter', 'Quarterfinals', (m) => m.bracket_position > 2, true)}</div></section>`
       : '';
-  app.innerHTML = `${live?.status === 'live' ? `<section class="ongoing-match"><p>Live now</p><div class="ongoing-scoreboard"><strong>${esc(live.home_team?.team_name)}</strong><b>${scoreLine(live)}</b><strong>${esc(live.away_team?.team_name)}</strong></div></section>` : ''}${bracket}${done ? `<details class="group-stage" ${groupStageOpen ? 'open' : ''}><summary>Group stage complete · 4 tables · 40 matches</summary><div class="groups">${groups}</div></details>` : `<div class="groups">${groups}</div>`}`;
+  app.innerHTML = `${live?.status === 'live' ? `<section class="ongoing-match"><p>Live now</p><div class="ongoing-scoreboard cricket-line">${ongoingSide(live.home_team)}<b>${scoreLine(live)}</b>${ongoingSide(live.away_team)}</div></section>` : ''}${bracket}${done ? `<details class="group-stage" ${groupStageOpen ? 'open' : ''}><summary>Group stage complete · 4 tables · 40 matches</summary><div class="groups">${groups}</div></details>` : `<div class="groups">${groups}</div>`}`;
   drawBracketConnections();
 }
 async function load() {

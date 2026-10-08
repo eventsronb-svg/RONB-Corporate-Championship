@@ -4,26 +4,11 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Cricksal Live Match · RONB Events</title>
-    <link rel="stylesheet" href="/assets/futsal.css?v=20261008-1" />
-    <script type="module" src="/assets/cricket-match.js?v=20261008-1"></script>
-    <style>
-      /* A cricket line carries both full innings — runs, wickets and overs — which
-         runs far wider than a plain score, so the card tightens its gaps, shrinks
-         the crests and steps the type down to keep "145/6 (20.0) – 139/8 (19.4)"
-         on one row, wrapping onto its own line only when the screen is narrow. */
-      body.cricket-live .live-teams {
-        flex-wrap: wrap;
-        gap: clamp(12px, 3vw, 56px);
-      }
-      body.cricket-live .live-team img {
-        width: clamp(72px, 12vw, 190px);
-        height: clamp(72px, 12vw, 190px);
-      }
-      body.cricket-live .score {
-        font-size: clamp(20px, 4.6vw, 78px);
-        line-height: 1;
-      }
-    </style>
+    <link rel="stylesheet" href="/assets/futsal.css?v=20261008-2" />
+    <script type="module" src="/assets/cricket-match.js?v=20261008-2"></script>
+    <!-- Cricket's sizing overrides live in futsal.css: the response ships
+         style-src 'self', so an inline <style> block here would be dropped by
+         the CSP and never apply. -->
   </head>
   <body class="futsal-live cricket-live">
     <main class="live-page">

@@ -53,14 +53,19 @@ function renderCurrent() {
   // Each scorer keeps the runs they were credited with, so the big screen reads
   // name and contribution together under the team. The bowler line does the same
   // for the wickets, marked with a crossed sticker to keep the two apart.
-  const team = (t, scorers, bowlers) =>
-    `<div class="live-team"><img src="${esc(t?.logo_url || '/assets/images/logo.webp')}" alt="">${esc(t?.team_name || 'Team to be confirmed')}${scorers?.length ? `<div class="live-scorers">${scorers.map((s) => `<span class="live-scorer">${esc(s.player_name)}<b>${s.runs}</b></span>`).join('')}</div>` : ''}${bowlers?.length ? `<div class="live-bowlers">${bowlers.map((w) => `<span class="live-bowler">${esc(w.player_name)}<b>✕${w.wickets}</b></span>`).join('')}</div>` : ''}</div>`;
+  // Each side also carries its own innings — runs, wickets and overs — beneath
+  // its crest: one combined line is ~10.6em of display type, far too wide to sit
+  // between the crests without pushing one of them off the frame.
+  const team = (t, scorers, bowlers, innings) =>
+    `<div class="live-team"><img src="${esc(t?.logo_url || '/assets/images/logo.webp')}" alt="">${esc(t?.team_name || 'Team to be confirmed')}<div class="live-innings">${innings}</div>${scorers?.length ? `<div class="live-scorers">${scorers.map((s) => `<span class="live-scorer">${esc(s.player_name)}<b>${s.runs}</b></span>`).join('')}</div>` : ''}${bowlers?.length ? `<div class="live-bowlers">${bowlers.map((w) => `<span class="live-bowler">${esc(w.player_name)}<b>✕${w.wickets}</b></span>`).join('')}</div>` : ''}</div>`;
   const stage = m.stage === 'group' ? `Group ${esc(m.group_code)}` : esc(m.stage);
   // The full line reads both innings — runs, wickets and the overs faced — so
-  // the projected card and the printed report never disagree.
-  const score = `${m.home_score}/${m.home_wickets} (${Number(m.home_overs).toFixed(1)}) – ${m.away_score}/${m.away_wickets} (${Number(m.away_overs).toFixed(1)})`;
+  // the projected card and the printed report never disagree; here each half
+  // lives with the team it belongs to.
+  const innings = (runs, wickets, overs) =>
+    `${runs}/${wickets} (${Number(overs).toFixed(1)})`;
   show(
-    `<section class="live-card"><div class="sport">Cricksal</div><div class="group">${stage}</div><div class="live-teams">${team(m.home_team, m.home_scorers, m.home_bowlers)}<div class="score">${score}</div>${team(m.away_team, m.away_scorers, m.away_bowlers)}</div></section>`,
+    `<section class="live-card"><div class="sport">Cricksal</div><div class="group">${stage}</div><div class="live-teams">${team(m.home_team, m.home_scorers, m.home_bowlers, innings(m.home_score, m.home_wickets, m.home_overs))}${team(m.away_team, m.away_scorers, m.away_bowlers, innings(m.away_score, m.away_wickets, m.away_overs))}</div></section>`,
     'Live',
   );
 }
