@@ -74,6 +74,20 @@ body.futsal-live .live-scorers {
 body.futsal-live .live-scorer b {
   color: #fff;
 }
+/* Bowler credit on the same dark card: without this the names kept the light
+   page's muted near-black and the wicket counts kept the accent red, so both
+   sank into the red background. White at a notch below the batter line keeps
+   the batters reading first while the bowlers stay legible from the back of
+   the room. */
+body.futsal-live .live-bowlers {
+  margin-top: 8px;
+  font-size: clamp(13px, 1.7vw, 22px);
+  font-weight: 600;
+  color: rgb(255 255 255 / 0.85);
+}
+body.futsal-live .live-bowler b {
+  color: #fff;
+}
 body .panel h2 {
   font-size: 1.7rem;
 }
