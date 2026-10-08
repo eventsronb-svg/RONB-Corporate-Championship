@@ -27,6 +27,10 @@ test('reviews an order, changes settings, and manages organizer access', async (
 }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
+  // Chromium only hands a multipart upload's body to Playwright while request interception
+  // is on, and this file asserts on the roster photo's body. Nothing is stubbed here: the
+  // pattern never matches the same-origin app, registering it is the whole point.
+  await page.route('https://never.example/**', (route) => route.abort());
   await context.addCookies([
     { name: 'admin_session', value: 'admin', domain: 'localhost', path: '/' },
   ]);
@@ -83,7 +87,7 @@ test('reviews an order, changes settings, and manages organizer access', async (
   await page.getByRole('link', { name: 'Sports & pricing' }).click();
   const cricket = page
     .locator('.sport-form')
-    .filter({ has: page.locator('input[value="Cricket"]') });
+    .filter({ has: page.locator('input[value="Cricksal"]') });
   await cricket.getByRole('spinbutton', { name: 'Registration price' }).fill('1800.50');
   await cricket.getByRole('spinbutton', { name: 'Team capacity (blank for unlimited)' }).fill('20');
   await cricket.getByRole('button', { name: 'Save changes' }).click();
@@ -91,13 +95,13 @@ test('reviews an order, changes settings, and manages organizer access', async (
   await expect(
     page
       .locator('.sport-form')
-      .filter({ has: page.locator('input[value="Cricket"]') })
+      .filter({ has: page.locator('input[value="Cricksal"]') })
       .getByRole('spinbutton', { name: 'Team capacity (blank for unlimited)' }),
   ).toHaveValue('20');
   await expect(
     page
       .locator('.sport-form')
-      .filter({ has: page.locator('input[value="Cricket"]') })
+      .filter({ has: page.locator('input[value="Cricksal"]') })
       .getByRole('spinbutton', { name: 'Registration price' }),
   ).toHaveValue('1800.50');
   await page.getByRole('link', { name: 'Event details' }).click();
@@ -121,7 +125,7 @@ test('reviews an order, changes settings, and manages organizer access', async (
     .getByText('Anish Shrestha', { exact: true })
     .click();
   await expect(page.getByRole('heading', { name: 'Valley Strikers', exact: true })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Cricket', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Cricksal', exact: true })).toBeVisible();
   await expect(page.getByText('No team members added yet.', { exact: false })).toHaveCount(1);
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Valley Strikers', exact: true })).toBeVisible();

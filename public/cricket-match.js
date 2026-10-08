@@ -29,10 +29,17 @@ function renderCurrent() {
   // score or the version, and the line below the team name still has to update.
   const credit = m
     ? [...(m.home_scorers ?? []), ...(m.away_scorers ?? [])]
-        .map((s) => `${s.player_id}:${s.points}`)
+        .map((s) => `${s.player_id}:${s.runs}`)
         .join('/')
     : '';
-  const viewKey = m ? `${m.id}:${m.version}:${m.home_score}:${m.away_score}:${credit}` : 'sponsor';
+  const wicketCredit = m
+    ? [...(m.home_bowlers ?? []), ...(m.away_bowlers ?? [])]
+        .map((w) => `${w.player_id}:${w.wickets}`)
+        .join('/')
+    : '';
+  const viewKey = m
+    ? `${m.id}:${m.version}:${m.home_score}:${m.away_score}:${m.home_wickets}:${m.away_wickets}:${m.home_overs}:${m.away_overs}:${credit}:${wicketCredit}`
+    : 'sponsor';
   if (viewKey === renderedView) return;
   renderedView = viewKey;
   if (!m) {
@@ -43,19 +50,23 @@ function renderCurrent() {
     return;
   }
   document.body.classList.add('match-is-live');
-  // Each scorer keeps the points they were credited with, so the big screen reads
-  // name and contribution together under the team.
-  const team = (t, scorers) =>
-    `<div class="live-team"><img src="${esc(t?.logo_url || '/assets/images/logo.webp')}" alt="">${esc(t?.team_name || 'Team to be confirmed')}${scorers?.length ? `<div class="live-scorers">${scorers.map((s) => `<span class="live-scorer">${esc(s.player_name)}<b>${s.points}</b></span>`).join('')}</div>` : ''}</div>`;
+  // Each scorer keeps the runs they were credited with, so the big screen reads
+  // name and contribution together under the team. The bowler line does the same
+  // for the wickets, marked with a crossed sticker to keep the two apart.
+  const team = (t, scorers, bowlers) =>
+    `<div class="live-team"><img src="${esc(t?.logo_url || '/assets/images/logo.webp')}" alt="">${esc(t?.team_name || 'Team to be confirmed')}${scorers?.length ? `<div class="live-scorers">${scorers.map((s) => `<span class="live-scorer">${esc(s.player_name)}<b>${s.runs}</b></span>`).join('')}</div>` : ''}${bowlers?.length ? `<div class="live-bowlers">${bowlers.map((w) => `<span class="live-bowler">${esc(w.player_name)}<b>✕${w.wickets}</b></span>`).join('')}</div>` : ''}</div>`;
   const stage = m.stage === 'group' ? `Group ${esc(m.group_code)}` : esc(m.stage);
+  // The full line reads both innings — runs, wickets and the overs faced — so
+  // the projected card and the printed report never disagree.
+  const score = `${m.home_score}/${m.home_wickets} (${Number(m.home_overs).toFixed(1)}) – ${m.away_score}/${m.away_wickets} (${Number(m.away_overs).toFixed(1)})`;
   show(
-    `<section class="live-card"><div class="sport">Basketball</div><div class="group">${stage}</div><div class="live-teams">${team(m.home_team, m.home_scorers)}<div class="score">${m.home_score} – ${m.away_score}</div>${team(m.away_team, m.away_scorers)}</div></section>`,
+    `<section class="live-card"><div class="sport">Cricksal</div><div class="group">${stage}</div><div class="live-teams">${team(m.home_team, m.home_scorers, m.home_bowlers)}<div class="score">${score}</div>${team(m.away_team, m.away_scorers, m.away_bowlers)}</div></section>`,
     'Live',
   );
 }
 async function load() {
   try {
-    const r = await fetch('/basketball/live');
+    const r = await fetch('/cricket/live');
     if (!r.ok) throw Error('Could not load match.');
     currentMatch = await r.json();
     renderCurrent();

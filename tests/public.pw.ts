@@ -8,7 +8,7 @@ test('renders the championship landing page with its event facts and public inte
   await page.goto('/');
 
   await expect(page.getByRole('heading', { name: 'Corporate Championship' })).toBeVisible();
-  await expect(page.getByText('October 1-4, 2026', { exact: true })).toBeVisible();
+  await expect(page.getByText('October 10-13, 2026', { exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Royal Sports Park' })).toBeVisible();
   await expect(page.getByRole('link', { name: /Open directions/ })).toHaveAttribute(
     'href',
@@ -62,9 +62,12 @@ test('supports keyboard tabs and reduced motion with a dark system preference', 
   const first = page.getByRole('tab', { name: 'Basketball' });
   await first.focus();
   await page.keyboard.press('ArrowRight');
-  await expect(page.getByRole('tab', { name: 'Cricket' })).toBeFocused();
-  await expect(page.getByRole('tab', { name: 'Cricket' })).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByRole('tabpanel')).toHaveAttribute('aria-labelledby', 'tab-cricket');
+  await expect(page.getByRole('tab', { name: 'Cricksal' })).toBeFocused();
+  await expect(page.getByRole('tab', { name: 'Cricksal' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await expect(page.getByRole('tabpanel')).toHaveAttribute('aria-labelledby', 'tab-cricksal');
   await page.keyboard.press('End');
   await expect(page.getByRole('tab', { name: 'Football' })).toBeFocused();
   await expect(page.getByRole('heading', { name: 'Meet the teams' })).toBeVisible();

@@ -109,13 +109,13 @@ export async function detail(tx: Queryable, id: string): Promise<Row & { items: 
     items,
     payment_request: payment ?? null,
     rejection: order.status === 'rejected' ? (rejection ?? null) : null,
-    resume_step: resume(order, items),
+    resume_step: resume(order, items, payment),
   };
 }
-function resume(order: Row, items: Row[]) {
+function resume(order: Row, items: Row[], payment?: Row | null) {
   if (paid.includes(order.status))
     return items.every((i) => i.profile_completed_at) ? 'registered' : 'team_profile';
-  return (
+  const step = (
     {
       draft: items.length ? 'contact' : 'sports',
       phone_captured: 'invoice',
@@ -128,6 +128,13 @@ function resume(order: Row, items: Row[]) {
       expired: 'expired',
     } as Record<string, string>
   )[order.status];
+  // A payment code that has passed its expiry can never be paid against, so the captain
+  // is sent to the revise flow instead of being offered a receipt upload for a dead code.
+  const codeExpired =
+    (step === 'payment' || step === 'receipt') &&
+    payment?.expires_at &&
+    new Date(payment.expires_at).getTime() <= Date.now();
+  return codeExpired ? 'expired' : step;
 }
 // The first registration on an account fixes the company identity: later registrations must
 // reuse the same company name and logo. Only orders created strictly before this one count.
@@ -404,14 +411,17 @@ export class Orders {
   }
   async payment(userId: string, id: string) {
     const result = await this.owned(userId, id, async (tx, o) => {
+      // The payment screen and the receipt screen are one step now, so a captain whose
+      // payment was rejected lands back here to re-read the very same instructions. An
+      // existing request is always returned untouched; only a new one needs a fresh invoice.
+      const existing = await one(tx, 'SELECT * FROM payment_requests WHERE order_id=$1', [id]);
+      if (existing) return existing;
       assert(
         ['invoiced', 'payment_pending'].includes(o.status),
         409,
         'invalid_state',
         'Payment requests require an invoiced order',
       );
-      const existing = await one(tx, 'SELECT * FROM payment_requests WHERE order_id=$1', [id]);
-      if (existing) return existing;
       // The remarks code is stable per account: every registration from the same
       // Google account reuses the same unique code.
       const user = (await one(tx, 'SELECT * FROM users WHERE id=$1 FOR UPDATE', [userId]))!;
@@ -564,10 +574,16 @@ export class Orders {
       );
       const rosterCount = rosterRow!.count;
       assert(
-        item.logo_url && rosterCount >= requiredPlayers,
+        item.logo_url,
+        409,
+        'logo_required',
+        `Add your company logo before completing the ${sportName} profile`,
+      );
+      assert(
+        rosterCount >= requiredPlayers,
         409,
         'profile_incomplete',
-        `Add a logo and at least ${requiredPlayers} player${requiredPlayers > 1 ? 's' : ''} before completing the ${sportName} profile`,
+        `Add at least ${requiredPlayers} player${requiredPlayers > 1 ? 's' : ''} before completing the ${sportName} profile`,
       );
       assert(
         rosterRow!.missing_sizes === 0,

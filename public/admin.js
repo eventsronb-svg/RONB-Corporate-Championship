@@ -1,5 +1,10 @@
-import { exportRosterPdf, exportSummary, rowsFromFields } from './pdf.js?v=20260930-2';
-import { prepareUploadForm } from './uploads.js?v=20261001-2';
+import {
+  exportRosterPdf,
+  exportMatchReportPdf,
+  exportSummary,
+  rowsFromFields,
+} from './pdf.js?v=20261007-3';
+import { prepareUploadForm } from './uploads.js?v=20261007-1';
 
 const main = document.querySelector('#content');
 const notice = document.querySelector('#notice');
@@ -108,7 +113,9 @@ function bindForm(selector, fn) {
       if (form.dataset.submitting) return;
       form.dataset.submitting = 'true';
       const buttons = [...form.querySelectorAll('button')];
+      const submitter = event.submitter || buttons[0];
       buttons.forEach((b) => (b.disabled = true));
+      submitter?.classList.add('is-busy');
       notice.hidden = true;
       try {
         await fn(formData(form), form, event.submitter);
@@ -116,7 +123,10 @@ function bindForm(selector, fn) {
         message(err.message, true);
       } finally {
         delete form.dataset.submitting;
-        buttons.forEach((b) => (b.disabled = false));
+        buttons.forEach((b) => {
+          b.disabled = false;
+          b.classList.remove('is-busy');
+        });
       }
     }),
   );
@@ -143,6 +153,7 @@ function navigation() {
     ['orders', 'Registrations'],
     ['teams', 'Teams'],
     ['futsal', 'Futsal'],
+    ['cricket', 'Cricksal'],
     ['basketball', 'Basketball'],
     ...(me.role === 'super_admin'
       ? [
@@ -283,7 +294,9 @@ async function sportsView() {
   };
 }
 async function eventView() {
-  const v = (await api('/admin/site-settings')) || {};
+  // The event row carries the public details; site settings carry the landing page toggle.
+  const [v, settings] = await Promise.all([api('/admin/event'), api('/admin/site-settings')]);
+  const event = v || {};
   const localDate = (s) =>
     s
       ? new Date(new Date(s).getTime() - new Date(s).getTimezoneOffset() * 60000)
@@ -291,14 +304,25 @@ async function eventView() {
           .slice(0, 16)
       : '';
   return {
-    html: `${header('Event details', 'Keep the public event information accurate and up to date.', 'EVENT SETTINGS')}<section class="surface panel"><form id="event-form"><div class="form-grid"><div class="full">${field('Event title', 'title', v.title, 'text', 'required maxlength="200"')}</div><label class="full">Description<textarea name="description" required maxlength="20000">${e(v.description)}</textarea></label>${field('Starts (your local time)', 'start_date', localDate(v.start_date), 'datetime-local', 'required')}${field('Ends (your local time)', 'end_date', localDate(v.end_date), 'datetime-local', 'required')}<div class="full">${field('Venue', 'venue', v.venue, 'text', 'required maxlength="500"')}</div></div><div class="form-footer"><button class="primary">Save event details</button><p class="form-note">Changes appear on the public event page immediately.</p></div></form></section>`,
+    html: `${header('Event details', 'Keep the public event information accurate and up to date.', 'EVENT SETTINGS')}<section class="surface panel"><form id="event-form"><div class="form-grid"><div class="full">${field('Event title', 'title', event.title, 'text', 'required maxlength="200"')}</div><label class="full">Description<textarea name="description" required maxlength="20000">${e(event.description)}</textarea></label>${field('Starts (your local time)', 'start_date', localDate(event.start_date), 'datetime-local', 'required')}${field('Ends (your local time)', 'end_date', localDate(event.end_date), 'datetime-local', 'required')}<div class="full">${field('Venue', 'venue', event.venue, 'text', 'required maxlength="500"')}</div></div><label class="check"><input name="show_teams" type="checkbox" ${settings.show_teams_section !== false ? 'checked' : ''}> Show “Meet the teams” section on landing page</label><div class="form-footer"><button class="primary">Save event details</button><p class="form-note">Changes appear on the public event page immediately.</p></div></form></section>`,
     bind() {
-      const eventForm = document.querySelector('#event-form');
-      eventForm.innerHTML = `<label class="check"><input name="show_teams" type="checkbox" ${v.show_teams !== false ? 'checked' : ''}> Show “Meet the teams” section on landing page</label><div class="form-footer"><button class="primary">Save setting</button><p class="form-note">Controls the public landing page.</p></div>`;
       bindForm('#event-form', async (b) => {
+        const showTeams = b.show_teams === 'on';
+        await api('/admin/event', {
+          method: 'PATCH',
+          body: JSON.stringify({
+            title: b.title.trim(),
+            description: b.description,
+            start_date: new Date(b.start_date).toISOString(),
+            end_date: new Date(b.end_date).toISOString(),
+            venue: b.venue.trim(),
+            show_teams: showTeams,
+          }),
+        });
+        // The landing page reads the toggle from site settings, so both stay in step.
         await api('/admin/site-settings', {
           method: 'PATCH',
-          body: JSON.stringify({ show_teams_section: b.show_teams === 'on' }),
+          body: JSON.stringify({ show_teams_section: showTeams }),
         });
         message('Event details saved.');
       });
@@ -483,7 +507,10 @@ function openRosterEditor(panel, orderId, item) {
     busy(true);
     const saveButton = form.querySelector('button[type="submit"]');
     const saveLabel = saveButton?.textContent;
-    if (saveButton) saveButton.textContent = 'Saving…';
+    if (saveButton) {
+      saveButton.textContent = 'Saving…';
+      saveButton.classList.add('is-busy');
+    }
     form.setAttribute('aria-busy', 'true');
     error.hidden = true;
     try {
@@ -514,7 +541,10 @@ function openRosterEditor(panel, orderId, item) {
       message('Team roster saved.');
     } catch (err) {
       busy(false);
-      if (saveButton) saveButton.textContent = saveLabel;
+      if (saveButton) {
+        saveButton.textContent = saveLabel;
+        saveButton.classList.remove('is-busy');
+      }
       form.removeAttribute('aria-busy');
       error.textContent = `Could not save the roster. ${err.message}`;
       error.hidden = false;
@@ -628,7 +658,9 @@ const placedFirst = (a, b) => {
   if (!b.group_assigned_at) return -1;
   return a.group_assigned_at > b.group_assigned_at ? 1 : -1;
 };
-function drawGroups(data, groups, prefix) {
+// Every group holds four teams in futsal and basketball, five in cricket, so the
+// draw takes its quota from the caller.
+function drawGroups(data, groups, prefix, quota = GROUP_SIZE) {
   const unassigned = data.teams.filter((team) => !team.group_code);
   const allAssigned = data.teams.length > 0 && !unassigned.length;
   // A stray code keeps its teams visible instead of hiding them behind a missing option.
@@ -664,7 +696,7 @@ function drawGroups(data, groups, prefix) {
     ...(unassigned.length ? [['', `Unassigned · ${size(unassigned.length)}`]] : []),
     ...codes.map((code) => {
       const count = teamsFor(code).length;
-      return [code, `Group ${code} · ${count}/${GROUP_SIZE} teams`];
+      return [code, `Group ${code} · ${count}/${quota} teams`];
     }),
   ];
   const active = choices.some(([code]) => code === drawGroupView[prefix])
@@ -682,11 +714,11 @@ function drawGroups(data, groups, prefix) {
     )}</select></label><p class="form-note">Pick a group to place or correct its teams.</p></div>`;
   const panel = (code) => {
     const teams = teamsFor(code);
-    // A group that already holds four teams is not offered to anyone else, but
-    // stays listed for the teams inside it so a correct assignment is never lost.
+    // A group at its full quota is not offered to anyone else, but stays listed
+    // for the teams inside it so a correct assignment is never lost.
     const optionsFor = (team) =>
       groups
-        .filter((group) => teamsFor(group).length < GROUP_SIZE || group === team.group_code)
+        .filter((group) => teamsFor(group).length < quota || group === team.group_code)
         .map(
           (group) =>
             `<option value="${group}" ${team.group_code === group ? 'selected' : ''}>Group ${group}</option>`,
@@ -701,11 +733,15 @@ function drawGroups(data, groups, prefix) {
         .join('') || '<p class="form-note">No teams assigned yet.</p>'
     }</div></div>`;
   };
-  return `<section class="surface panel section-gap"><h2>Draw groups</h2><p class="form-note">Assign each confirmed team to the group drawn publicly. You can save and correct assignments until fixtures are generated.</p>${picker}${(unassigned.length ? ['', ...codes] : codes).map(panel).join('')}</section>`;
+  return `<section class="surface panel section-gap"><h2>Draw groups</h2><p class="form-note">Assign each confirmed team to the group drawn publicly. You can save and correct assignments until every team has a group — the fixtures draw themselves at that moment.</p>${picker}${(unassigned.length ? ['', ...codes] : codes).map(panel).join('')}</section>`;
 }
 function bindDrawGroups(prefix) {
   const camel = prefix.replace(/-(\w)/g, (_, c) => c.toUpperCase());
-  const endpoint = prefix === 'futsal' ? '/admin/futsal' : '/admin/basketball';
+  const endpoint = {
+    futsal: '/admin/futsal',
+    basket: '/admin/basketball',
+    cricket: '/admin/cricket',
+  }[prefix];
   document.querySelectorAll(`[data-${prefix}-group-save]`).forEach((button) =>
     button.addEventListener('click', async () => {
       const id = button.dataset[`${camel}GroupSave`];
@@ -717,8 +753,24 @@ function bindDrawGroups(prefix) {
               document.querySelector(`[data-${prefix}-group-select="${id}"]`).value || null,
           }),
         });
+        // The save that places the last team finishes the draw, so the fixtures
+        // draw themselves here instead of waiting for a second button. A field
+        // whose groups are not all full cannot be drawn yet and says why, exactly
+        // as the button did.
+        const state = await api(endpoint);
+        let text = 'Group assignment saved.';
+        let failed = false;
+        if (state.teams.length && state.teams.every((team) => team.group_code)) {
+          try {
+            const drawn = await post(`${endpoint}/generate-fixtures`);
+            text = `All groups assigned — ${drawn.matches} group fixtures drawn.`;
+          } catch (err) {
+            text = err.message;
+            failed = true;
+          }
+        }
         await render();
-        message('Group assignment saved.');
+        message(text, failed);
       } catch (err) {
         message(err.message, true);
       }
@@ -732,6 +784,158 @@ function bindDrawGroups(prefix) {
     });
   });
 }
+// Saving a raised score asks who scored it. The roster comes from the same team
+// payload the draw screen uses, and the player is credited with the exact
+// difference that was just saved. The prompt resolves on a choice or on Skip, one
+// side at a time, so a save that raised both scores asks for both.
+function promptScorer({ sport, matchId, teamId, teamName, amount, unit, roster }) {
+  return new Promise((resolve) => {
+    if (!roster?.length) return resolve();
+    const plural = amount === 1 ? unit : `${unit}s`;
+    const creditField = { futsal: 'goals', basketball: 'points', cricket: 'runs' }[sport];
+    const overlay = document.createElement('div');
+    overlay.className = 'scorer-prompt';
+    overlay.innerHTML = `<div class="scorer-card" role="dialog" aria-modal="true" aria-labelledby="scorer-title"><h2 id="scorer-title">Who scored for ${e(teamName)}?</h2><p class="form-note">Choose who scored the ${amount} ${plural} you just saved.</p><div class="scorer-choices">${roster
+      .map(
+        (p) => `<button type="button" data-scorer-player="${e(p.id)}">${e(p.player_name)}</button>`,
+      )
+      .join('')}</div><button type="button" class="scorer-skip">Skip</button></div>`;
+    document.body.appendChild(overlay);
+    const close = () => {
+      overlay.remove();
+      resolve();
+    };
+    overlay.querySelector('.scorer-skip').addEventListener('click', close);
+    overlay.querySelectorAll('[data-scorer-player]').forEach((button) =>
+      button.addEventListener('click', async () => {
+        overlay.querySelectorAll('button').forEach((b) => (b.disabled = true));
+        try {
+          await post(`/admin/${sport}/matches/${matchId}/scorers`, {
+            team_id: teamId,
+            player_id: button.dataset.scorerPlayer,
+            ...{ [creditField]: amount },
+          });
+          message(`${amount} ${plural} credited to ${button.textContent}.`);
+        } catch (err) {
+          message(err.message, true);
+        }
+        close();
+      }),
+    );
+  });
+}
+// `match` is the row as it stood before the save, so the difference per side is
+// the assignment to prompt for.
+async function promptScored(sport, match, after, teams) {
+  const unit = { futsal: 'goal', basketball: 'point', cricket: 'run' }[sport];
+  for (const side of ['home', 'away']) {
+    const delta = after[`${side}_score`] - match[`${side}_score`];
+    const teamId = match[`${side}_team_id`];
+    if (delta <= 0 || !teamId) continue;
+    const team = teams.find((t) => t.id === teamId);
+    await promptScorer({
+      sport,
+      matchId: match.id,
+      teamId,
+      teamName: team?.team_name || 'the team',
+      amount: delta,
+      unit,
+      roster: team?.players,
+    });
+  }
+}
+// A raised wicket count asks who took each new wicket, one bowler per wicket, so
+// two wickets falling in the same saved interval can go to different bowlers.
+// Each prompt credits exactly one wicket, where the scorer prompt hands the whole
+// difference to a single batsman.
+function promptWickets({ sport, matchId, teamId, teamName, count, roster }) {
+  const ask = () =>
+    new Promise((resolve) => {
+      if (!roster?.length) return resolve();
+      const overlay = document.createElement('div');
+      overlay.className = 'scorer-prompt';
+      overlay.innerHTML = `<div class="scorer-card" role="dialog" aria-modal="true" aria-labelledby="wicket-title"><h2 id="wicket-title">Who took the wicket for ${e(teamName)}?</h2><p class="form-note">Choose the bowler for one of the wickets you just saved.</p><div class="scorer-choices">${roster
+        .map(
+          (p) =>
+            `<button type="button" data-wicket-player="${e(p.id)}">${e(p.player_name)}</button>`,
+        )
+        .join('')}</div><button type="button" class="scorer-skip">Skip</button></div>`;
+      document.body.appendChild(overlay);
+      const close = () => {
+        overlay.remove();
+        resolve();
+      };
+      overlay.querySelector('.scorer-skip').addEventListener('click', close);
+      overlay.querySelectorAll('[data-wicket-player]').forEach((button) =>
+        button.addEventListener('click', async () => {
+          overlay.querySelectorAll('button').forEach((b) => (b.disabled = true));
+          try {
+            await post(`/admin/${sport}/matches/${matchId}/wickets`, {
+              team_id: teamId,
+              player_id: button.dataset.wicketPlayer,
+              wickets: 1,
+            });
+            message(`Wicket credited to ${button.textContent}.`);
+          } catch (err) {
+            message(err.message, true);
+          }
+          close();
+        }),
+      );
+    });
+  return (async () => {
+    for (let index = 0; index < count && roster?.length; index++) await ask();
+  })();
+}
+// The wicket prompt mirrors promptScored: one side at a time, only for the
+// difference this save raised.
+async function promptWicketFall(sport, match, after, teams) {
+  for (const side of ['home', 'away']) {
+    const delta = after[`${side}_wickets`] - match[`${side}_wickets`];
+    const teamId = match[`${side}_team_id`];
+    if (delta <= 0 || !teamId) continue;
+    const team = teams.find((t) => t.id === teamId);
+    await promptWickets({
+      sport,
+      matchId: match.id,
+      teamId,
+      teamName: team?.team_name || 'the team',
+      count: delta,
+      roster: team?.players,
+    });
+  }
+}
+// The report buttons unlock when their stage is finished. Each downloads the
+// PDF built from the report endpoint: fixtures, final scores and the players
+// credited with them, grouped by group or by knockout round.
+function reportButtons(data) {
+  const ready = (list) =>
+    list.length > 0 &&
+    list.every((match) => match.status === 'completed' && match.home_team_id && match.away_team_id);
+  const groupsDone = ready(data.groups.flatMap((group) => group.matches));
+  const bracketDone = ready(data.bracket);
+  const pendingTitle = (done, text) => (done ? '' : ` title="${e(text)}"`);
+  return `<div class="actions">
+      <button data-report="group"${groupsDone ? '' : ' disabled'}${pendingTitle(groupsDone, 'Complete every group match first')}>Group stage report PDF</button>
+      <button data-report="knockout"${bracketDone ? '' : ' disabled'}${pendingTitle(bracketDone, 'Finish the knockout bracket first')}>Knockout report PDF</button>
+    </div>`;
+}
+function bindReport(sport) {
+  document.querySelectorAll('[data-report]').forEach((button) =>
+    button.addEventListener('click', async () => {
+      const stage = button.dataset.report;
+      try {
+        const report = await api(`/admin/${sport}/report?stage=${stage}`);
+        const result = await exportMatchReportPdf({ report, button });
+        if (result.failed) return message(result.error.message, true);
+        if (result.empty) return message('There are no matches to export yet.', true);
+        message(`${stage === 'group' ? 'Group stage' : 'Knockout'} report PDF downloaded.`);
+      } catch (err) {
+        message(err.message, true);
+      }
+    }),
+  );
+}
 async function futsalView() {
   const data = await api('/admin/futsal');
   const byId = new Map(data.teams.map((team) => [team.id, team]));
@@ -741,14 +945,16 @@ async function futsalView() {
   const matchRow = (match) =>
     `<tr class="futsal-match-${e(match.status)}" data-match="${e(match.id)}"><td>${e(match.stage === 'group' ? `Group ${match.group_code}` : match.stage)}</td><td>${e(teamName(match.home_team_id))}</td><td><input class="score-input" name="home_score" type="number" min="0" value="${match.home_score}" ${match.status === 'live' ? '' : 'disabled'}></td><td>–</td><td><input class="score-input" name="away_score" type="number" min="0" value="${match.away_score}" ${match.status === 'live' ? '' : 'disabled'}></td><td>${e(teamName(match.away_team_id))}</td><td>${match.status === 'scheduled' && match.home_team_id && match.away_team_id ? '<button data-start>Start</button>' : ''}${match.status === 'live' ? '<button data-save>Save</button> <button class="primary" data-end>End match</button>' : ''}</td></tr>`;
   const matches = [...data.groups.flatMap((group) => group.matches), ...data.bracket];
+  const fixturesDrawn = data.groups.some((group) => group.matches.length);
   const controls =
     me.role === 'super_admin'
-      ? `<div class="actions"><button data-futsal="import">Import confirmed teams</button><button data-futsal="fixtures">Generate group fixtures</button><button data-futsal="bracket">Generate 16-team bracket</button></div>`
+      ? `<div class="actions"><button data-futsal="import">Import confirmed teams</button>${fixturesDrawn ? '' : '<button data-futsal="fixtures">Generate group fixtures</button>'}<button data-futsal="bracket">Generate 16-team bracket</button></div><p class="form-note">When all 48 group matches are complete, the top two teams from each group automatically enter the 16-team knockout bracket. The bracket button is only needed if a bracket is missing.</p>`
       : '';
   return {
-    html: `${header('Futsal championship', 'Start live matches, save scores and complete matches to update the public tables.', 'EVENT OPERATIONS', `${data.teams.length} TEAMS`)}<section class="surface panel">${controls}<p class="form-note">Group matches use 3 points for a win, 1 for a draw. Tied knockout matches require the penalty winner when ended.</p></section>${groupDraw}<section class="surface panel section-gap"><div class="table-scroll"><table><thead><tr><th>Stage</th><th>Home</th><th>Score</th><th></th><th>Score</th><th>Away</th><th>Action</th></tr></thead><tbody>${matches.map(matchRow).join('') || '<tr><td colspan="7">Import teams, then assign groups and generate fixtures.</td></tr>'}</tbody></table></div></section>`,
+    html: `${header('Futsal championship', 'Start live matches, save scores and complete matches to update the public tables.', 'EVENT OPERATIONS', `${data.teams.length} TEAMS`)}<section class="surface panel">${controls}${reportButtons(data)}<p class="form-note">Group matches use 3 points for a win, 1 for a draw. Tied knockout matches require the penalty winner when ended.</p></section>${groupDraw}<section class="surface panel section-gap"><div class="table-scroll"><table><thead><tr><th>Stage</th><th>Home</th><th>Score</th><th></th><th>Score</th><th>Away</th><th>Action</th></tr></thead><tbody>${matches.map(matchRow).join('') || '<tr><td colspan="7">Import teams, then assign groups.</td></tr>'}</tbody></table></div></section>`,
     bind() {
       bindDrawGroups('futsal');
+      bindReport('futsal');
       document.querySelectorAll('[data-futsal]').forEach((button) =>
         button.addEventListener('click', async () => {
           const actions = {
@@ -794,13 +1000,16 @@ async function futsalView() {
       document.querySelectorAll('[data-save]').forEach((button) =>
         button.addEventListener('click', async () => {
           const row = button.closest('tr');
+          const match = matches.find((m) => m.id === row.dataset.match);
           try {
+            const after = await scores(row);
             await api(`/admin/futsal/matches/${row.dataset.match}`, {
               method: 'PATCH',
-              body: JSON.stringify(await scores(row)),
+              body: JSON.stringify(after),
             });
             await render();
             message('Live score saved.');
+            await promptScored('futsal', match, after, data.teams);
           } catch (err) {
             message(err.message, true);
           }
@@ -830,6 +1039,7 @@ async function futsalView() {
             await post(`/admin/futsal/matches/${row.dataset.match}/end`, body);
             await render();
             message('Match completed and standings updated.');
+            await promptScored('futsal', match, saved, data.teams);
           } catch (err) {
             message(err.message, true);
           }
@@ -847,14 +1057,16 @@ async function basketballView() {
   const matches = [...data.groups.flatMap((group) => group.matches), ...data.bracket];
   const matchRow = (match) =>
     `<tr class="basketball-match-${e(match.status)}" data-match="${e(match.id)}"><td>${e(match.stage === 'group' ? `Group ${match.group_code}` : match.stage)}</td><td>${e(teamName(match.home_team_id))}</td><td><input class="score-input" name="home_score" type="number" min="0" value="${match.home_score}" ${match.status === 'live' ? '' : 'disabled'}></td><td>–</td><td><input class="score-input" name="away_score" type="number" min="0" value="${match.away_score}" ${match.status === 'live' ? '' : 'disabled'}></td><td>${e(teamName(match.away_team_id))}</td><td>${match.status === 'scheduled' && match.home_team_id && match.away_team_id ? '<button data-basket-start>Start</button>' : ''}${match.status === 'live' ? '<button data-basket-save>Save</button> <button class="primary" data-basket-end>End match</button>' : ''}</td></tr>`;
+  const fixturesDrawn = data.groups.some((group) => group.matches.length);
   const controls =
     me.role === 'super_admin'
-      ? `<div class="actions"><button data-basketball="import">Import confirmed teams</button><button data-basketball="fixtures">Generate group fixtures</button></div><p class="form-note">When all 24 group matches are complete, the top two teams from each group automatically enter the 8-team knockout bracket.</p>`
+      ? `<div class="actions"><button data-basketball="import">Import confirmed teams</button>${fixturesDrawn ? '' : '<button data-basketball="fixtures">Generate group fixtures</button>'}</div><p class="form-note">When all 24 group matches are complete, the top two teams from each group automatically enter the 8-team knockout bracket.</p>`
       : '';
   return {
-    html: `${header('Basketball championship', 'Run group matches, award two points for each win, and select the eight knockout teams.', 'EVENT OPERATIONS', `${data.teams.length} TEAMS`)}<section class="surface panel">${controls}</section>${groupDraw}<section class="surface panel section-gap"><div class="table-scroll"><table><thead><tr><th>Stage</th><th>Home</th><th>Score</th><th></th><th>Score</th><th>Away</th><th>Action</th></tr></thead><tbody>${matches.map(matchRow).join('') || '<tr><td colspan="7">Import teams, then assign groups and generate fixtures.</td></tr>'}</tbody></table></div></section>`,
+    html: `${header('Basketball championship', 'Run group matches, award two points for each win, and select the eight knockout teams.', 'EVENT OPERATIONS', `${data.teams.length} TEAMS`)}<section class="surface panel">${controls}${reportButtons(data)}</section>${groupDraw}<section class="surface panel section-gap"><div class="table-scroll"><table><thead><tr><th>Stage</th><th>Home</th><th>Score</th><th></th><th>Score</th><th>Away</th><th>Action</th></tr></thead><tbody>${matches.map(matchRow).join('') || '<tr><td colspan="7">Import teams, then assign groups.</td></tr>'}</tbody></table></div></section>`,
     bind() {
       bindDrawGroups('basket');
+      bindReport('basketball');
       document.querySelectorAll('[data-basketball]').forEach((button) =>
         button.addEventListener('click', async () => {
           const actions = {
@@ -897,13 +1109,16 @@ async function basketballView() {
       document.querySelectorAll('[data-basket-save]').forEach((button) =>
         button.addEventListener('click', async () => {
           const row = button.closest('tr');
+          const match = matches.find((m) => m.id === row.dataset.match);
           try {
+            const after = await scores(row);
             await api(`/admin/basketball/matches/${row.dataset.match}`, {
               method: 'PATCH',
-              body: JSON.stringify(await scores(row)),
+              body: JSON.stringify(after),
             });
             await render();
             message('Live score saved.');
+            await promptScored('basketball', match, after, data.teams);
           } catch (err) {
             message(err.message, true);
           }
@@ -929,6 +1144,149 @@ async function basketballView() {
             await post(`/admin/basketball/matches/${row.dataset.match}/end`, body);
             await render();
             message('Match completed and standings updated.');
+            await promptScored('basketball', match, saved, data.teams);
+          } catch (err) {
+            message(err.message, true);
+          }
+        }),
+      );
+    },
+  };
+}
+async function cricketView() {
+  const data = await api('/admin/cricket');
+  const byId = new Map(data.teams.map((team) => [team.id, team]));
+  const groups = ['A', 'B', 'C', 'D'];
+  const groupDraw = me.role === 'super_admin' ? drawGroups(data, groups, 'cricket', 5) : '';
+  const teamName = (id) => byId.get(id)?.team_name || 'Team pending';
+  // A cricket line reads runs and wickets, then the overs faced — 145/6 (19.4).
+  const input = (match, field, attrs = '') =>
+    `<input class="score-input" name="${field}" type="number" ${attrs} value="${
+      field.endsWith('_overs') ? Number(match[field]) : match[field]
+    }" ${match.status === 'live' ? '' : 'disabled'}>`;
+  const matchRow = (match) =>
+    `<tr class="cricket-match-${e(match.status)}" data-match="${e(match.id)}"><td>${e(
+      match.stage === 'group' ? `Group ${match.group_code}` : match.stage,
+    )}</td><td>${e(teamName(match.home_team_id))}</td><td>${input(match, 'home_score', 'min="0"')}</td><td>${input(
+      match,
+      'home_wickets',
+      'min="0" max="10"',
+    )}</td><td>${input(match, 'home_overs', 'min="0" max="99.5" step="0.1"')}</td><td>–</td><td>${input(
+      match,
+      'away_score',
+      'min="0"',
+    )}</td><td>${input(match, 'away_wickets', 'min="0" max="10"')}</td><td>${input(
+      match,
+      'away_overs',
+      'min="0" max="99.5" step="0.1"',
+    )}</td><td>${e(teamName(match.away_team_id))}</td><td>${
+      match.status === 'scheduled' && match.home_team_id && match.away_team_id
+        ? '<button data-cricket-start>Start</button>'
+        : ''
+    }${
+      match.status === 'live'
+        ? '<button data-cricket-save>Save</button> <button class="primary" data-cricket-end>End match</button>'
+        : ''
+    }</td></tr>`;
+  const matches = [...data.groups.flatMap((group) => group.matches), ...data.bracket];
+  const fixturesDrawn = data.groups.some((group) => group.matches.length);
+  const controls =
+    me.role === 'super_admin'
+      ? `<div class="actions"><button data-cricket="import">Import confirmed teams</button>${fixturesDrawn ? '' : '<button data-cricket="fixtures">Generate group fixtures</button>'}</div><p class="form-note">When all 40 group matches are complete, the top two teams from each group automatically enter the 8-team knockout bracket.</p>`
+      : '';
+  return {
+    html: `${header('Cricksal championship', 'Run group matches, award two points for each win, and settle level scores with the super over.', 'EVENT OPERATIONS', `${data.teams.length} TEAMS`)}<section class="surface panel">${controls}${reportButtons(data)}<p class="form-note">Group matches use 2 points for a win. A level score needs the super over winner when the match is ended. Enter overs the cricket way — 19.4 means nineteen overs and four balls.</p></section>${groupDraw}<section class="surface panel section-gap"><div class="table-scroll"><table><thead><tr><th>Stage</th><th>Home</th><th>Runs</th><th>Wkts</th><th>Ov</th><th></th><th>Runs</th><th>Wkts</th><th>Ov</th><th>Away</th><th>Action</th></tr></thead><tbody>${matches.map(matchRow).join('') || '<tr><td colspan="11">Import teams, then assign groups.</td></tr>'}</tbody></table></div></section>`,
+    bind() {
+      bindDrawGroups('cricket');
+      bindReport('cricket');
+      document.querySelectorAll('[data-cricket]').forEach((button) =>
+        button.addEventListener('click', async () => {
+          const actions = {
+            import: '/admin/cricket/import',
+            fixtures: '/admin/cricket/generate-fixtures',
+          };
+          if (
+            button.dataset.cricket !== 'import' &&
+            !window.confirm(`Run ${button.textContent.toLowerCase()}?`)
+          )
+            return;
+          try {
+            await post(actions[button.dataset.cricket]);
+            await render();
+            message('Cricksal championship updated.');
+          } catch (err) {
+            message(err.message, true);
+          }
+        }),
+      );
+      document.querySelectorAll('[data-cricket-start]').forEach((button) =>
+        button.addEventListener('click', async () => {
+          try {
+            await post(`/admin/cricket/matches/${button.closest('tr').dataset.match}/start`);
+            await render();
+            message('Match is live on /cricket/match.');
+          } catch (err) {
+            message(err.message, true);
+          }
+        }),
+      );
+      async function scores(row) {
+        const value = (name) => Number(row.querySelector(`[name=${name}]`).value);
+        return {
+          home_score: value('home_score'),
+          away_score: value('away_score'),
+          home_wickets: value('home_wickets'),
+          away_wickets: value('away_wickets'),
+          home_overs: value('home_overs'),
+          away_overs: value('away_overs'),
+          version: matches.find((m) => m.id === row.dataset.match).version,
+        };
+      }
+      document.querySelectorAll('[data-cricket-save]').forEach((button) =>
+        button.addEventListener('click', async () => {
+          const row = button.closest('tr');
+          const match = matches.find((m) => m.id === row.dataset.match);
+          try {
+            const after = await scores(row);
+            await api(`/admin/cricket/matches/${row.dataset.match}`, {
+              method: 'PATCH',
+              body: JSON.stringify(after),
+            });
+            await render();
+            message('Live score saved.');
+            await promptScored('cricket', match, after, data.teams);
+            await promptWicketFall('cricket', match, after, data.teams);
+          } catch (err) {
+            message(err.message, true);
+          }
+        }),
+      );
+      document.querySelectorAll('[data-cricket-end]').forEach((button) =>
+        button.addEventListener('click', async () => {
+          const row = button.closest('tr');
+          const match = matches.find((m) => m.id === row.dataset.match);
+          try {
+            const saved = await scores(row);
+            const updated = await api(`/admin/cricket/matches/${row.dataset.match}`, {
+              method: 'PATCH',
+              body: JSON.stringify(saved),
+            });
+            const body = { version: updated.version };
+            if (saved.home_score === saved.away_score) {
+              const winner = window.prompt(
+                `Tied score: enter the super over winner exactly as shown:\n${teamName(match.home_team_id)}\nor\n${teamName(match.away_team_id)}`,
+              );
+              const team = [match.home_team_id, match.away_team_id].find(
+                (id) => teamName(id).toLowerCase() === winner?.trim().toLowerCase(),
+              );
+              if (!team) throw Error('Choose one of the two teams as the super over winner.');
+              body.penalty_winner_id = team;
+            }
+            await post(`/admin/cricket/matches/${row.dataset.match}/end`, body);
+            await render();
+            message('Match completed and standings updated.');
+            await promptScored('cricket', match, saved, data.teams);
+            await promptWicketFall('cricket', match, saved, data.teams);
           } catch (err) {
             message(err.message, true);
           }
@@ -963,6 +1321,7 @@ async function render() {
     else if (section === 'team' && id) view = await teamDetail(id);
     else if (section === 'sports') view = await sportsView();
     else if (section === 'futsal') view = await futsalView();
+    else if (section === 'cricket') view = await cricketView();
     else if (section === 'basketball') view = await basketballView();
     else if (section === 'event') view = await eventView();
     else if (section === 'admins') view = await adminsView();

@@ -65,6 +65,15 @@ body.futsal-live .score {
   line-height: 0.8;
   text-shadow: 0 5px 0 rgb(0 0 0 / 0.1);
 }
+body.futsal-live .live-scorers {
+  margin-top: 14px;
+  font-size: clamp(15px, 2vw, 26px);
+  font-weight: 600;
+  color: rgb(255 255 255 / 0.85);
+}
+body.futsal-live .live-scorer b {
+  color: #fff;
+}
 body .panel h2 {
   font-size: 1.7rem;
 }
@@ -583,6 +592,31 @@ h1 {
   max-width: 620px;
   margin-bottom: 44px;
 }
+.loading {
+  padding: 45px;
+  text-align: center;
+  color: var(--muted);
+}
+.loading::before {
+  content: '';
+  display: block;
+  width: 30px;
+  height: 30px;
+  margin: 0 auto 14px;
+  border: 3px solid var(--rule);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .loading::before {
+    animation: spinner-turn 0.75s linear infinite;
+  }
+  @keyframes spinner-turn {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+}
 .groups {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -729,6 +763,48 @@ td:first-child {
   font-size: clamp(56px, 12vw, 150px);
   white-space: nowrap;
   color: var(--accent);
+}
+/* Scorer credit under the team name: goal scorers as names on the futsal card,
+   name plus credited points on the basketball card. */
+.live-scorers {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 14px;
+  margin-top: 12px;
+  font-size: clamp(13px, 1.5vw, 19px);
+  font-weight: 600;
+  color: var(--muted);
+}
+.live-scorer {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.live-scorer b {
+  color: var(--accent);
+  font-size: 1.15em;
+}
+/* Wicket credit under the team name: the bowler line mirrors the scorer line but
+   steps lighter, so the batters read first. */
+.live-bowlers {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 14px;
+  margin-top: 6px;
+  font-size: clamp(12px, 1.4vw, 16px);
+  font-weight: 600;
+  color: var(--muted);
+}
+.live-bowler {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.live-bowler b {
+  color: var(--accent);
+  font-size: 1.15em;
 }
 @media (max-width: 700px) {
   .groups {
@@ -1240,4 +1316,171 @@ main {
   .bracket-pair > b {
     font-size: 0.64rem;
   }
+}
+
+/* ------------------------------------------------------------------ motif frame
+   Projected live-scoreboard frame: motif-vertical down the left and right edges,
+   motif-horizontal across the top and bottom. Gated on .match-is-live, which the
+   match script sets only while a match is running and clears for the sponsor
+   rotation, so the idle screen keeps its plain red field.
+
+   The vertical layers are listed first so they paint over the horizontal ones and
+   the side strips stay unbroken through the corners. Both motifs are long strips
+   meant to repeat, so each is sized by its short edge and repeated along its long
+   one. --live-inset (border + gap) also pads .live-page (border-box, set here
+   because this stylesheet has no global reset) and the content is scaled to match,
+   so the score card floats inside the frame on an even gutter instead of sitting
+   flush against the motif's inner edge. */
+body.futsal-live.match-is-live {
+  --live-border: clamp(22px, 2.2vw, 56px);
+  /* Even clear space between the motif's inner edge and the content. */
+  --live-gap: clamp(14px, 1.6vw, 44px);
+  --live-inset: calc(var(--live-border) + var(--live-gap));
+  /* Shrank to fit inside the inset. Tuned per band below: one scale cannot suit
+     both a 1920x1080 projector, which has height to spare, and an 800x600 preview,
+     where the same scale leaves the card butted against the motif. */
+  --live-scale: 0.68;
+  /* XTREME's height and, at its measured 2.52:1, the width it needs. The marks are
+     out of flow now, so this is what keeps the card from sliding underneath them:
+     the card is capped to the inner width minus a mark's span on each side. */
+  --live-mark-x: min(11.52vh, 16vw);
+  --live-mark-span: calc(2.52 * var(--live-mark-x) + 20px);
+  background-color: #df203b;
+  background-image:
+    url('/assets/images/motif-vertical.png'), url('/assets/images/motif-vertical.png'),
+    url('/assets/images/motif-horizontal.png'), url('/assets/images/motif-horizontal.png');
+  background-position:
+    left top,
+    right top,
+    left top,
+    left bottom;
+  background-repeat: repeat-y, repeat-y, repeat-x, repeat-x;
+  background-size:
+    var(--live-border) auto,
+    var(--live-border) auto,
+    auto var(--live-border),
+    auto var(--live-border);
+}
+body.futsal-live.match-is-live .live-page {
+  box-sizing: border-box;
+  padding: var(--live-inset);
+}
+/* Corner brand marks, top-left and top-right. Hidden unless the frame is up —
+   the sponsor screen already carries both logos centred. Positioned out of flow
+   deliberately: in the flex column their (tall) row sat above the score and
+   dragged the centred content down, so taking them out restores the score's
+   original placement without moving the marks. */
+.frame-marks {
+  display: none;
+}
+body.futsal-live.match-is-live .frame-marks {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  /* .live-page is the positioned ancestor; its containing block is the padding
+     box, so the offset is measured from the element edge and needs the full
+     inset to clear the motif. */
+  position: absolute;
+  top: var(--live-inset);
+  right: var(--live-inset);
+  left: var(--live-inset);
+}
+body.futsal-live.match-is-live .frame-marks img {
+  display: block;
+  width: auto;
+  object-fit: contain;
+  /* Nudged off the motif's inner edge. position: relative rather than a margin
+     or a row offset, so the shift is visual only and costs the score none of
+     its vertical budget. XTREME is pulled back up: it is centre-aligned in a
+     row whose height logo.png now defines, so it inherits the shared downward
+     nudge on top of already sitting low against that much taller mark. */
+  position: relative;
+}
+/* XTREME is a 2.5:1 wordmark while logo.png is square, so equal heights read
+   unevenly against each other. The min() against vw is a guard, not a design
+   value: logo.png at 3x is wide enough that on a phone the pair would overrun
+   the space between the motif edges. It only engages below ~1000px. */
+body.futsal-live.match-is-live .frame-marks img:first-child {
+  height: var(--live-mark-x);
+  top: clamp(-2px, 0.4vh, 8px);
+}
+body.futsal-live.match-is-live .frame-marks img:last-child {
+  height: clamp(20px, min(26.1vh, 24vw), 306px);
+  top: clamp(4px, 0.9vh, 12px);
+}
+/* zoom rather than transform: scale() — transform leaves the layout box at full
+   size, so the flex centring would still measure the unscaled card and the gutter
+   would collapse to zero. zoom is applied during layout, so the box shrinks with
+   its type and the remaining slack splits evenly across all four sides.
+   .frame-marks is excluded: the marks are frame furniture and hold their size. */
+body.futsal-live.match-is-live .live-page > :not(.frame-marks) {
+  zoom: var(--live-scale);
+}
+@media (min-width: 1840px) {
+  body.futsal-live.match-is-live {
+    --live-scale: 0.66;
+  }
+}
+@media (max-width: 1839px) and (min-width: 1600px) {
+  body.futsal-live.match-is-live {
+    --live-scale: 0.53;
+  }
+}
+@media (max-width: 1599px) and (min-width: 1400px) {
+  body.futsal-live.match-is-live {
+    --live-scale: 0.53;
+  }
+}
+@media (max-width: 1399px) and (min-width: 1200px) {
+  body.futsal-live.match-is-live {
+    --live-scale: 0.44;
+  }
+}
+@media (max-width: 1199px) and (min-width: 1000px) {
+  body.futsal-live.match-is-live {
+    --live-scale: 0.5;
+  }
+}
+@media (max-width: 999px) and (min-width: 600px) {
+  body.futsal-live.match-is-live {
+    --live-scale: 0.46;
+  }
+}
+/* Phone widths only. Here the two corner marks are wider than the space they leave
+   between them, so the card's cap below falls back to its max() floor; this band just
+   keeps the type legible enough to read at that size. */
+@media (max-width: 599px) {
+  body.futsal-live.match-is-live {
+    --live-scale: 0.4;
+  }
+}
+/* The card sized itself with min(94vw, 1180px), which measures the whole viewport and
+   so ignores the frame inset, and .live-teams' 1fr tracks carry an automatic minimum,
+   so a long company name widened the card further. Both pushed it over the frame below
+   ~1150px. Cap the width below the corner marks instead, and let the name tracks shrink
+   so the name wraps rather than widening the card past the cap.
+
+   The cap is in viewport units on purpose. A percentage here resolves against #match,
+   whose width is itself shrink-to-fit around this card, so Chrome breaks the cycle at a
+   width that does not match the card's own cap — the card then ends up narrower than its
+   container and, having no auto margin, sits left-aligned in it.
+
+   Divided by --live-scale because this box sits inside the zoomed #match. Viewport units
+   still resolve unscaled there, so an undivided cap would be read in layout pixels and
+   land visually at cap x scale — at 1920 that turned a 1107px allowance into a 731px card.
+   The max() floor only engages on a phone, where the marks are wider than the space they
+   leave for the card. */
+body.futsal-live.match-is-live .live-card {
+  /* min-width: 0 rather than the inherited min(94vw, 1180px). A max-width loses to a
+     larger min-width, so keeping the old floor would silently override the cap below it
+     and the card would slide back under the corner marks. */
+  min-width: 0;
+  max-width: calc(
+    max(160px, 100vw - 2 * var(--live-inset) - 2 * var(--live-mark-span)) / var(--live-scale)
+  );
+  margin-inline: auto;
+}
+body.futsal-live.match-is-live .live-teams {
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
 }

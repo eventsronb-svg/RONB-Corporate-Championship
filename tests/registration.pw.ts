@@ -43,21 +43,18 @@ test('new captain signs in, submits one team, corrects rejected payment, and fin
     ).toBeVisible();
     const orderId = new URL(page.url()).searchParams.get('order')!;
     expect(orderId).toBeTruthy();
-    await page.getByRole('button', { name: 'Continue to contact' }).click();
+    // Company name, phone number and sport share this one page, and the same button
+    // validates them and issues the invoice in one go.
+    await page.getByRole('button', { name: 'Issue invoice' }).click();
     await expect(page.getByText('Enter your company name and select a sport.')).toBeVisible();
     await page.getByRole('textbox', { name: 'Company name' }).fill('E2E Company');
     await page.getByRole('radio', { name: /^Basketball / }).check();
-    await page.getByRole('button', { name: 'Continue to contact' }).click();
-    await expect(
-      page.getByRole('heading', { name: 'Where can we reach you?' }),
-    ).toBeVisible();
-    await page.reload();
-    await expect(
-      page.getByRole('heading', { name: 'Where can we reach you?' }),
-    ).toBeVisible();
+    await page.getByRole('button', { name: 'Issue invoice' }).click();
+    await expect(page.getByText('Enter a phone number with 7–15 digits.')).toBeVisible();
     await page.getByRole('textbox', { name: 'Phone number' }).fill('abc');
     await page.getByRole('button', { name: 'Issue invoice' }).click();
-    await expect(page.locator('#phone-form .error')).toBeVisible();
+    await expect(page.locator('#form-error')).toBeVisible();
+    // A full number issues the invoice straight from the same page.
     await page.getByRole('textbox', { name: 'Phone number' }).fill('9800000000');
     await page.getByRole('button', { name: 'Issue invoice' }).click();
     await expect(page.getByRole('heading', { name: 'Transfer 1,130 NPR' })).toBeVisible();
@@ -65,13 +62,15 @@ test('new captain signs in, submits one team, corrects rejected payment, and fin
     await page.reload();
     await expect(page.getByRole('heading', { name: 'Transfer 1,130 NPR' })).toBeVisible();
     await expect(page.locator('code')).toHaveText(paymentCode!);
-    await page.getByRole('button', { name: 'I have paid, upload receipt' }).click();
+    // The transfer details and the receipt field are one screen: picking a file is the
+    // submit, with no button left between the two.
+    await expect(page.getByLabel('Receipt file')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Submit receipt' })).toHaveCount(0);
     await page.getByLabel('Receipt file').setInputFiles({
       name: 'bad.png',
       mimeType: 'image/png',
       buffer: Buffer.from('not an image'),
     });
-    await page.getByRole('button', { name: 'Submit receipt' }).click();
     await expect(page.locator('#receipt-form .error')).toBeVisible();
     // A receipt already inside the 20 MB budget is sent untouched, never re-encoded.
     const smallPng = await sharp({
@@ -81,19 +80,21 @@ test('new captain signs in, submits one team, corrects rejected payment, and fin
       .toBuffer();
     expect(smallPng.length).toBeGreaterThan(4_500_000);
     expect(smallPng.length).toBeLessThan(20 * 1024 * 1024);
+    const sentAsIs = page.waitForRequest(
+      (request) => request.url().endsWith('/receipt') && request.method() === 'POST',
+    );
     await page.getByLabel('Receipt file').setInputFiles({
       name: 'small-receipt.png',
       mimeType: 'image/png',
       buffer: smallPng,
     });
-    const sentAsIs = page.waitForRequest(
-      (request) => request.url().endsWith('/receipt') && request.method() === 'POST',
-    );
-    await page.getByRole('button', { name: 'Submit receipt' }).click();
     const sentBody = (await sentAsIs).postDataBuffer()!;
     expect(sentBody.toString('latin1')).toContain('image/png');
     expect(sentBody.length).toBeLessThan(smallPng.length + 100_000);
     await expect(page.getByRole('heading', { name: 'Receipt received' })).toBeVisible();
+    // The review screen says it is still watching, and can be poked to check right now.
+    await page.getByRole('button', { name: 'Check now' }).click();
+    await expect(page.locator('#review-status')).toContainText('No decision yet');
 
     // Anything above the budget is compressed until it fits, whatever its source size.
     const largePng = await sharp({
@@ -102,15 +103,16 @@ test('new captain signs in, submits one team, corrects rejected payment, and fin
       .png({ compressionLevel: 0 })
       .toBuffer();
     expect(largePng.length).toBeGreaterThan(20 * 1024 * 1024);
+    const submitted = page.waitForRequest(
+      (request) => request.url().endsWith('/receipt') && request.method() === 'POST',
+    );
     await page.getByLabel('Receipt file').setInputFiles({
       name: 'large-receipt.png',
       mimeType: 'image/png',
       buffer: largePng,
     });
-    const submitted = page.waitForRequest(
-      (request) => request.url().endsWith('/receipt') && request.method() === 'POST',
-    );
-    await page.getByRole('button', { name: 'Submit receipt' }).click();
+    // The spinner covers the whole trip: compression, upload and the server's answer.
+    await expect(page.locator('#receipt-upload-status')).toBeVisible();
     const requestBody = (await submitted).postDataBuffer()!;
     expect(requestBody.length).toBeLessThan(20 * 1024 * 1024 + 100_000);
     expect(requestBody.toString('latin1')).toContain('image/webp');
@@ -130,7 +132,6 @@ test('new captain signs in, submits one team, corrects rejected payment, and fin
       page.getByText('Payment rejected: Please upload a clearer receipt.'),
     ).toBeVisible();
     await page.getByLabel('Receipt file').setInputFiles(upload);
-    await page.getByRole('button', { name: 'Submit receipt' }).click();
     await expect(page.getByRole('heading', { name: 'Receipt received' })).toBeVisible();
     await admin.reload();
     await admin.getByRole('button', { name: 'Start review' }).click();
@@ -144,18 +145,23 @@ test('new captain signs in, submits one team, corrects rejected payment, and fin
     const gatedButtons = page.getByRole('button', { name: 'Complete profile' });
     expect(await gatedButtons.count()).toBeGreaterThan(0);
     await expect(gatedButtons.first()).toBeDisabled();
-    await expect(page.getByText('Save your company logo above to unlock')).toBeVisible();
+    await expect(page.getByText('Upload your company logo above to unlock')).toBeVisible();
     await expect(page.getByRole('link', { name: 'Complete profile' })).toHaveCount(0);
     await page.setViewportSize({ width: 390, height: 844 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );
+    // Picking a file uploads it straight away: there is no save button in between, and the
+    // step stays in its waiting state until the server confirms the upload.
+    await expect(page.getByRole('button', { name: 'Save company logo' })).toHaveCount(0);
     await page.getByLabel('Company logo').setInputFiles(upload);
-    await page.getByRole('button', { name: 'Save company logo', exact: true }).click();
+    await expect(page.locator('#company-logo-status')).toBeVisible();
+    // The chosen file shows on screen while it travels, before the server has it.
+    await expect(page.locator('.company-logo-preview')).toBeVisible();
     await expect(page.getByRole('status')).toHaveText('Company logo saved.');
-    // Saving the logo re-renders the step and unlocks each team profile.
+    // Finishing the upload re-renders the step and unlocks each team profile.
     await expect(page.getByRole('button', { name: 'Complete profile' })).toHaveCount(0);
-    await expect(page.getByText('Save your company logo above to unlock')).toHaveCount(0);
+    await expect(page.getByText('Upload your company logo above to unlock')).toHaveCount(0);
     await expect(
       page.locator('.sport-choice').first().getByRole('link', { name: 'Complete profile' }),
     ).toBeVisible();
@@ -165,6 +171,13 @@ test('new captain signs in, submits one team, corrects rejected payment, and fin
       .getByRole('link', { name: 'Complete profile' })
       .click();
     await page.getByRole('textbox', { name: 'Player 1', exact: true }).fill('Draft player');
+    // The roster saves itself a beat after the last keystroke, so leaving the page — even
+    // a reload — never costs the captain their typing.
+    await expect(page.locator('#draft-status')).toHaveText('Draft saved.');
+    await page.reload();
+    await expect(page.getByRole('textbox', { name: 'Player 1', exact: true })).toHaveValue(
+      'Draft player',
+    );
     await page.getByRole('button', { name: 'Back to overview' }).click();
     await expect(page.getByRole('heading', { name: 'Finish your team' })).toBeVisible();
     await page
@@ -225,7 +238,7 @@ test('new captain signs in, submits one team, corrects rejected payment, and fin
       mimeType: 'image/png',
       buffer: Buffer.from('not an image'),
     });
-    await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+    await page.getByRole('button', { name: 'Back to overview' }).click();
     const secondRow = page.locator('.player-row').nth(1);
     await expect(page.locator('.player-row.has-photo-error')).toHaveCount(1);
     await expect(secondRow).toHaveClass(/has-photo-error/);
@@ -250,14 +263,22 @@ test('new captain signs in, submits one team, corrects rejected payment, and fin
       mimeType: 'image/png',
       buffer: hugePhoto,
     });
-    await page.getByRole('button', { name: 'Save draft', exact: true }).click();
-    const photoBody = (await photoRequest).postDataBuffer()!;
-    expect(photoBody.length).toBeLessThan(20 * 1024 * 1024 + 100_000);
-    expect(photoBody.toString('latin1')).toContain('image/webp');
     // Choosing another photo clears the highlight.
     await expect(page.locator('.player-photo-error')).toHaveCount(0);
     await expect(page.locator('.player-row.has-photo-error')).toHaveCount(0);
     await page.screenshot({ path: 'test-results/jersey-onboarding-mobile.png', fullPage: true });
+    // The draft save uploads the compressed photo and drops back to the overview.
+    await page.getByRole('button', { name: 'Back to overview' }).click();
+    const photoBody = (await photoRequest).postDataBuffer()!;
+    expect(photoBody.length).toBeLessThan(20 * 1024 * 1024 + 100_000);
+    expect(photoBody.toString('latin1')).toContain('image/webp');
+    await expect(page.getByRole('heading', { name: 'Finish your team' })).toBeVisible();
+    await page
+      .locator('.sport-choice')
+      .filter({ hasText: 'Basketball' })
+      .getByRole('link', { name: 'Complete profile' })
+      .click();
+    await expect(page.locator('#profile-form')).toBeVisible();
     await page.setViewportSize({ width: 1280, height: 900 });
     const nameBox = await page
       .getByRole('textbox', { name: 'Player 1', exact: true })
@@ -282,10 +303,18 @@ test('new captain signs in, submits one team, corrects rejected payment, and fin
         response.request().method() === 'PATCH' &&
         response.status() === 200,
     );
-    await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+    await page.getByRole('button', { name: 'Back to overview' }).click();
     await profileSaved;
     await expect(page.getByRole('status')).toHaveText('Profile saved.');
+    await expect(page.getByRole('heading', { name: 'Finish your team' })).toBeVisible();
     await page.reload();
+    await expect(page.getByRole('heading', { name: 'Finish your team' })).toBeVisible();
+    await page
+      .locator('.sport-choice')
+      .filter({ hasText: 'Basketball' })
+      .getByRole('link', { name: 'Complete profile' })
+      .click();
+    await expect(page.locator('#profile-form')).toBeVisible();
     for (let i = 0; i < 4; i++) {
       await expect(page.getByRole('textbox', { name: `Player ${i + 1}`, exact: true })).toHaveValue(
         `Player ${i + 1}`,
@@ -382,9 +411,10 @@ test('new captain signs in, submits one team, corrects rejected payment, and fin
     await expect(registeredSport).toHaveClass(/is-registered/);
     await expect(registeredSport).toHaveClass(/is-verified/);
     await expect(registeredSport.getByText('Registered · Verified')).toBeVisible();
-    await page.getByRole('button', { name: 'Continue to invoice' }).click();
-    await expect(page.getByRole('heading', { name: 'Issue your invoice', level: 2 })).toBeVisible();
+    // The saved contact number is reused, so the locked flow never asks for a phone.
     await expect(page.getByLabel('Phone number')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Issue invoice' }).click();
+    await expect(page.getByRole('heading', { name: /^Transfer / })).toBeVisible();
     await page.goto(`/register?order=${orderId}`);
     await expect(page.getByRole('heading', { name: 'See you there E2E Company.' })).toBeVisible();
     await page.getByRole('link', { name: 'See team listing' }).click();
@@ -415,7 +445,6 @@ test('mobile captain can revise an expired payment and recover from session expi
   ).toBeVisible();
   await page.getByRole('textbox', { name: 'Company name' }).fill('Mobile Company');
   await page.getByRole('radio', { name: /^Basketball / }).check();
-  await page.getByRole('button', { name: 'Continue to contact' }).click();
   await page.getByRole('textbox', { name: 'Phone number' }).fill('9800000000');
   await page.route(
     '**/payment-request',
@@ -434,13 +463,15 @@ test('mobile captain can revise an expired payment and recover from session expi
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Payment code expired' })).toBeVisible();
   await page.getByRole('button', { name: 'Revise registration' }).click();
+  // The revised draft keeps its company name and sport but starts over on the same first
+  // page, where the phone lives underneath the company name again.
   await expect(
-    page.getByRole('heading', { name: 'Where can we reach you?' }),
+    page.getByRole('heading', { name: 'Register your company', level: 2 }),
   ).toBeVisible();
   expect(new URL(page.url()).searchParams.get('order')).not.toBe(oldId);
-  await page.getByRole('button', { name: 'Edit company & sports' }).click();
   await expect(page.getByRole('textbox', { name: 'Company name' })).toHaveValue('Mobile Company');
-  await page.getByRole('button', { name: 'Continue to contact' }).click();
+  await expect(page.getByRole('radio', { name: /^Basketball / })).toBeChecked();
+  await page.getByRole('textbox', { name: 'Phone number' }).fill('9800000000');
   await context.clearCookies();
   await page.getByRole('button', { name: 'Issue invoice' }).click();
   await expect(page.getByRole('link', { name: 'Sign in with Google' })).toBeVisible();

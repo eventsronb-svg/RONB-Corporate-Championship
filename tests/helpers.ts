@@ -111,7 +111,7 @@ export async function setup() {
   }
   const sports = (
     await db.query(
-      "INSERT INTO sports(name,price) VALUES('Cricket',1500.25),('Football',2000.50),('Basketball',1000) RETURNING *",
+      "INSERT INTO sports(name,price) VALUES('Cricksal',1500.25),('Football',2000.50),('Basketball',1000) RETURNING *",
     )
   ).rows;
   await db.query(
@@ -138,7 +138,11 @@ export async function setup() {
   const png = await sharp({ create: { width: 8, height: 8, channels: 3, background: '#759585' } })
     .png()
     .toBuffer();
-  function multipart(field: string, buffer = png, extra?: { name: string; value: string }) {
+  function multipart(
+    field: string,
+    buffer = png,
+    extra?: { name: string; value: string } | { name: string; value: string }[],
+  ) {
     const boundary = '----RonbBoundary';
     const pieces = [
       Buffer.from(
@@ -147,10 +151,11 @@ export async function setup() {
       buffer,
       Buffer.from('\r\n'),
     ];
-    if (extra)
+    const extras = Array.isArray(extra) ? extra : extra ? [extra] : [];
+    for (const item of extras)
       pieces.push(
         Buffer.from(
-          `--${boundary}\r\nContent-Disposition: form-data; name="${extra.name}"\r\n\r\n${extra.value}\r\n`,
+          `--${boundary}\r\nContent-Disposition: form-data; name="${item.name}"\r\n\r\n${item.value}\r\n`,
         ),
       );
     pieces.push(Buffer.from(`--${boundary}--\r\n`));
@@ -217,11 +222,26 @@ export async function setup() {
     }
     return playerPhotos;
   }
+  // A complete Cricksal squad needs seven players, so the profile edits below
+  // produce a roster valid for every sport (Futsal needs five, Basketball three).
+  const ROSTER = [
+    'Suman Karki',
+    'Pratik Gurung',
+    'Aarav Shah',
+    'Bibek Thapa',
+    'Nabin Shrestha',
+    'Kiran Basnet',
+    'Ramesh Adhikari',
+  ];
+  const ROSTER_SIZES = ['S', 'M', 'XL', 'L', 'M', 'S', 'L'];
   async function fill(order: any, index = 0) {
-    const f = multipart('logo', png, {
-      name: 'players',
-      value: JSON.stringify(['Suman Karki', 'Pratik Gurung', 'Aarav Shah']),
-    });
+    // A Cricksal roster carries a team sleeve choice, so the profile edits send one
+    // whenever the item is a Cricksal registration.
+    const cricksal = String(order.items[index].sport_name).toLowerCase() === 'cricksal';
+    const f = multipart('logo', png, [
+      { name: 'players', value: JSON.stringify(ROSTER) },
+      ...(cricksal ? [{ name: 'jersey_style', value: JSON.stringify('full_sleeve') }] : []),
+    ]);
     const r = await call(
       'PATCH',
       `/orders/${order.id}/items/${order.items[index].id}/profile`,
@@ -236,8 +256,9 @@ export async function setup() {
     const saved = r.json().items.find((i: any) => i.id === itemId);
     const playerPhotos = await uploadPlayerPhotos(order, index, saved.players.length);
     const sized = await call('PATCH', `/orders/${order.id}/items/${itemId}/profile`, {
-      players: saved.players,
-      jersey_sizes: ['S', 'M', 'XL'],
+      players: ROSTER,
+      jersey_sizes: ROSTER_SIZES,
+      jersey_style: cricksal ? 'full_sleeve' : undefined,
       player_photos: playerPhotos,
     });
     if (sized.statusCode !== 200) throw new Error(sized.body);

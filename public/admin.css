@@ -3,6 +3,7 @@
 :root {
   --bg: var(--paper);
   --line: var(--rule);
+  --rail: 230px;
   --green: oklch(0.95 0.025 145);
   --green-ink: oklch(0.4 0.09 145);
   --red: oklch(0.96 0.025 25);
@@ -436,24 +437,32 @@ tbody tr:hover {
 }
 /* Championship scoring states need to be unmistakable at a glance. */
 tbody tr.futsal-match-live,
-tbody tr.futsal-match-live:hover {
+tbody tr.futsal-match-live:hover,
+tbody tr.cricket-match-live,
+tbody tr.cricket-match-live:hover {
   background: #d51f3a;
   color: #fff;
 }
 tbody tr.futsal-match-completed,
 tbody tr.futsal-match-completed:hover,
 tbody tr.basketball-match-completed,
-tbody tr.basketball-match-completed:hover {
+tbody tr.basketball-match-completed:hover,
+tbody tr.cricket-match-completed,
+tbody tr.cricket-match-completed:hover {
   background: #157a40;
   color: #fff;
 }
 tbody tr.futsal-match-live td,
 tbody tr.futsal-match-completed td,
-tbody tr.basketball-match-completed td {
+tbody tr.basketball-match-completed td,
+tbody tr.cricket-match-live td,
+tbody tr.cricket-match-completed td {
   border-bottom-color: rgb(255 255 255 / 0.28);
 }
 tbody tr.futsal-match-live .status,
-tbody tr.futsal-match-completed .status {
+tbody tr.futsal-match-completed .status,
+tbody tr.cricket-match-live .status,
+tbody tr.cricket-match-completed .status {
   background: rgb(255 255 255 / 0.2);
   color: inherit;
 }
@@ -738,6 +747,71 @@ tbody tr.futsal-match-completed .status {
   color: var(--muted);
   text-align: center;
 }
+/* Spinner primitives: any state that waits on the server shows one of these. */
+.spinner {
+  display: inline-block;
+  width: 0.85em;
+  height: 0.85em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  vertical-align: -0.1em;
+}
+.loading::before {
+  content: '';
+  display: block;
+  width: 30px;
+  height: 30px;
+  margin: 0 auto 14px;
+  border: 3px solid var(--line);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+}
+.button.is-busy::before {
+  content: '';
+  flex: none;
+  width: 15px;
+  height: 15px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+}
+.button.is-busy {
+  cursor: progress;
+}
+/* A view is loading: dim the workspace and spin a spinner over it. */
+#content[aria-busy='true']::before {
+  content: '';
+  position: fixed;
+  inset: 0 0 0 var(--rail);
+  background: rgb(251 249 249 / 0.78);
+  z-index: 5;
+}
+#content[aria-busy='true']::after {
+  content: '';
+  position: fixed;
+  top: calc(50% - 17px);
+  left: calc(var(--rail) + (100vw - var(--rail)) / 2 - 17px);
+  width: 34px;
+  height: 34px;
+  border: 4px solid var(--line);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  z-index: 6;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .spinner,
+  .loading::before,
+  .button.is-busy::before,
+  #content[aria-busy='true']::after {
+    animation: spinner-turn 0.75s linear infinite;
+  }
+  @keyframes spinner-turn {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+}
 .skip {
   position: fixed;
   top: -100px;
@@ -789,6 +863,9 @@ tbody tr.futsal-match-completed .status {
   }
 }
 @media (max-width: 1100px) {
+  :root {
+    --rail: 195px;
+  }
   .shell {
     grid-template-columns: 195px minmax(0, 1fr);
   }
@@ -816,6 +893,9 @@ tbody tr.futsal-match-completed .status {
   }
 }
 @media (max-width: 700px) {
+  :root {
+    --rail: 0px;
+  }
   .draw-grid {
     grid-template-columns: 1fr;
     padding: 0 16px 16px;
@@ -1318,4 +1398,42 @@ tbody tr.futsal-match-completed .status {
   .jersey-selector legend {
     font-size: 11.9px;
   }
+}
+
+/* Scored-by prompt: after a live score save, the organizer credits the goal or
+   points to one player from the scoring team's roster. */
+.scorer-prompt {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgb(0 0 0 / 0.45);
+}
+.scorer-card {
+  width: min(440px, 100%);
+  max-height: 80vh;
+  overflow: auto;
+  padding: 24px;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  box-shadow: 0 24px 70px rgb(0 0 0 / 0.25);
+}
+.scorer-card h2 {
+  margin: 0 0 4px;
+  font-size: 1.25rem;
+}
+.scorer-choices {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0;
+}
+.scorer-choices button {
+  justify-content: flex-start;
+  text-align: left;
+}
+.scorer-skip {
+  width: 100%;
 }

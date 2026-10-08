@@ -73,6 +73,64 @@ a {
 .skip-link:focus {
   top: 10px;
 }
+/* Decorative motif down the left and right page edges. Anchored to <main> so the
+   masthead and footer, which are siblings of it, stay full-bleed.
+   The source strip is 201x4401, shown as one --edge-motif-width column per edge (45px,
+   so the motif reads at ~22%) and tiled vertically to reach any content height. Two
+   layers are needed because one background image cannot sit at two positions.
+   flow-root keeps the first and last children's margins inside <main>; without it they
+   collapse through and drag the box away from the header and footer, leaving the
+   motif unpainted in a gap at each end. */
+main {
+  display: flow-root;
+  --edge-motif-width: 45px;
+  /* Set to <1 only where <main> is zoomed, so the strip keeps its intended on-screen
+     width instead of shrinking along with the content. */
+  --edge-motif-zoom: 1;
+  /* Breathing room between the motif and the content beside it. */
+  --edge-gutter: 20px;
+  /* Inset every child clear of the motif. The motif is painted in the padding box, so
+     this moves the content inward and leaves the strips pinned to the page edges. */
+  padding-inline: calc(var(--edge-motif-width) + var(--edge-gutter));
+  background-image:
+    url('/assets/images/motif-vertical.png'), url('/assets/images/motif-vertical.png');
+  background-repeat: repeat-y;
+  background-position:
+    left top,
+    right top;
+  background-size:
+    calc(var(--edge-motif-width) / var(--edge-motif-zoom)) auto,
+    calc(var(--edge-motif-width) / var(--edge-motif-zoom)) auto;
+}
+/* Narrower viewports cannot spare the full-width strip without crowding the content, so
+   it tapers down to keep the motif present on phones too. The columns stay a background,
+   so narrowing them never reflows the content. */
+@media (max-width: 1280px) {
+  main {
+    --edge-motif-width: 34px;
+  }
+}
+@media (max-width: 900px) {
+  main {
+    --edge-motif-width: 24px;
+  }
+}
+@media (max-width: 480px) {
+  main {
+    --edge-motif-width: 20px;
+  }
+}
+/* Now that the motif is present on phones, shrink the content to give it room. Every
+   size in this file is px (no rem anywhere), so there is no single font-size to step
+   down; zoom scales the whole box uniformly instead of editing hundreds of values. It is
+   used rather than transform: scale() because it reflows layout, leaving text crisp and
+   hit targets correctly sized. 0.8333 is 1/1.2, a 16.7% reduction. */
+@media (max-width: 767px) {
+  main {
+    zoom: 0.8333;
+    --edge-motif-zoom: 0.8333;
+  }
+}
 .masthead {
   height: 80px;
   width: 100%;
@@ -177,14 +235,34 @@ a {
   text-transform: uppercase;
   margin-bottom: 22px;
 }
+/* Presenter mark inside the hero eyebrow. It sits on its own line with "presents"
+   beneath it, so it is block-level and centred by auto margins rather than inline.
+   Sized in em so it tracks the eyebrow's font-size across every breakpoint; the source
+   is 1185x471, so width stays in ratio. */
+.presenter-mark {
+  display: block;
+  height: 3.3em;
+  width: auto;
+  margin: 0 auto 0.32em;
+}
+.presenter-word {
+  display: block;
+}
 .hero-title {
   font-family: VarsityTeam, Ultimate, sans-serif;
   font-weight: 700;
-  font-size: clamp(38.4px, 5.4vw, 86.4px);
+  /* Capped at 75.6px rather than 86.4px: the hero's max-width stops the copy column
+     growing past ~608px, so a larger font makes "RONB Corporate" run into the logo
+     visual at >=1500px. Below 1400px the 5.4vw term governs and is unaffected. */
+  font-size: clamp(38.4px, 5.4vw, 75.6px);
   letter-spacing: 0;
   text-transform: uppercase;
   line-height: 1.04;
   margin-bottom: 24px;
+  /* "RONB Corporate" is the widest line and must never break, so the <br> below it is
+     the only wrap point. nowrap stops it silently reflowing to three lines; the
+     font-size clamps at each breakpoint are sized to keep it inside .hero-copy. */
+  white-space: nowrap;
 }
 .hero-title span {
   color: var(--accent);
@@ -263,14 +341,20 @@ a {
   text-align: center;
 }
 .event-strip {
-  width: 100%;
   margin: 0;
+  /* Full-bleed like the masthead and footer, so it cancels <main>'s content inset. Its
+     own padding still clears the motif. width must stay auto: width:100% resolves against
+     the containing block and would ignore the negative margins, leaving a gap on the
+     right. */
+  margin-inline: calc(-1 * (var(--edge-motif-width) + var(--edge-gutter)));
+  width: auto;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   background: #e8233c;
   border-top: 1px solid #e8233c;
   border-bottom: 1px solid #e8233c;
   padding: 25px clamp(28.6px, 4vw, 48px);
+  padding-inline: max(clamp(28.6px, 4vw, 48px), calc(var(--edge-motif-width) + var(--edge-gutter)));
   gap: 35px;
 }
 .event-strip div {
@@ -837,6 +921,24 @@ h2 {
 .registration-sport[open] {
   border-color: var(--ink);
 }
+/* Capacity reached: the whole card is greyed out and the register action is closed. */
+.registration-sport.is-full {
+  background: var(--tint);
+}
+.registration-sport.is-full .registration-sport-icon .sport-choice-icon {
+  filter: grayscale(1);
+  opacity: 0.6;
+}
+.registration-sport.is-full .button[disabled]:hover {
+  transform: none;
+  box-shadow: none;
+}
+.registration-sport .slots-filled {
+  color: var(--muted);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
 .registration-sport summary {
   display: grid;
   grid-template-columns: 46px minmax(0, 1fr) 22px;
@@ -999,6 +1101,12 @@ h2 {
   line-height: 1.8;
   font-weight: 600;
 }
+/* The payment details and the receipt upload share one screen now; the rule is where the
+   transfer instructions end and the proof of payment begins. */
+.receipt-rule {
+  margin: 34px 0 26px;
+  border-top: 1px solid var(--rule);
+}
 .incl-vat {
   color: var(--muted);
   font-size: 15.6px;
@@ -1027,6 +1135,59 @@ h2 {
   padding: 45px;
   text-align: center;
   color: var(--muted);
+}
+/* Spinner primitives: any state that waits on the server shows one of these. */
+.spinner {
+  display: inline-block;
+  width: 0.85em;
+  height: 0.85em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  vertical-align: -0.1em;
+}
+.loading::before,
+.teams-state.is-loading::before {
+  content: '';
+  display: block;
+  width: 30px;
+  height: 30px;
+  margin: 0 auto 14px;
+  border: 3px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+}
+.teams-state.is-loading {
+  opacity: 1;
+}
+.button.is-busy::before {
+  content: '';
+  flex: none;
+  width: 17px;
+  height: 17px;
+  border: 2.5px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+}
+.button.is-busy {
+  cursor: progress;
+}
+.button.is-busy:hover {
+  transform: none;
+  box-shadow: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .spinner,
+  .loading::before,
+  .teams-state.is-loading::before,
+  .button.is-busy::before {
+    animation: spinner-turn 0.75s linear infinite;
+  }
+  @keyframes spinner-turn {
+    to {
+      transform: rotate(360deg);
+    }
+  }
 }
 @media (prefers-reduced-motion: no-preference) {
   .hero-copy {
@@ -1216,7 +1377,9 @@ h2 {
   .event-strip {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 10px;
-    padding: 24px clamp(28.6px, 4vw, 48px);
+    /* padding-block only: a `padding` shorthand here would reset the padding-inline that
+       keeps the strip's text clear of the motif. */
+    padding-block: 24px;
   }
   .event-strip strong {
     font-size: 18.2px;
@@ -1346,14 +1509,6 @@ h2 {
     padding: 10px;
   }
 }
-/* Below this the bar cannot hold wordmark, mark and button together. The mark is
-   the branding that matters, so the wordmark text is dropped rather than letting
-   the header scroll sideways or crushing the logo. */
-@media (max-width: 700px) {
-  .wordmark {
-    display: none;
-  }
-}
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
@@ -1435,6 +1590,43 @@ h2 {
   color: var(--muted);
   font-size: 16px;
 }
+/* Shown the moment a file is picked and cleared when the server answers. */
+.upload-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--muted);
+}
+.upload-status[hidden] {
+  display: none;
+}
+form.is-loading input[type='file'] {
+  cursor: progress;
+  opacity: 0.7;
+}
+/* Review screen: the line pulses while it asks the server, and "Check now" skips the wait. */
+.review-watch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 24px;
+}
+.review-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--muted);
+}
+.review-status.is-checking {
+  color: var(--ink);
+}
+#draft-status {
+  color: var(--muted);
+}
 
 .roster-fields {
   min-width: 0;
@@ -1465,7 +1657,6 @@ h2 {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
 }
 .player-photo-clear {
   position: absolute;
@@ -1483,7 +1674,9 @@ h2 {
   display: grid;
   place-items: center;
   cursor: pointer;
-  z-index: 1;
+  /* Above .player-photo-pick (z-index 2), whose invisible file input would
+     otherwise swallow the click and open the picker instead of removing. */
+  z-index: 3;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
 }
 .player-photo-clear[hidden] {
@@ -1783,6 +1976,26 @@ h2 {
   }
   .masthead-link {
     font-size: 13.26px;
+  }
+  /* Mobile header carries only the XTREME mark and the register button; the wordmark and
+     "presents" are dropped. The mark is left-aligned and the button pushed right with
+     margin-left:auto, so the mark can grow to fill the 72px bar's height instead of
+     competing for horizontal room the way it did when it was centred. Height-only sizing
+     preserves the 1185x471 ratio. 46px is the desktop maximum and still clears the bar. */
+  .masthead {
+    display: flex;
+    justify-content: flex-start;
+  }
+  .masthead-link {
+    margin-left: auto;
+  }
+  .masthead-logo {
+    height: clamp(34px, 13vw, 46px);
+    max-width: 40vw;
+  }
+  .wordmark,
+  .masthead-presents {
+    display: none;
   }
   .hero-title {
     font-size: clamp(37.4px, 8.07vw, 64.09px);

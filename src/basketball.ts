@@ -137,10 +137,25 @@ async function publicMatch(tx: Queryable, match: Row | undefined) {
     )
   ).rows;
   const byId = new Map(teams.map((t) => [t.id, t]));
+  const scorersFor = async (teamId: string | null) =>
+    teamId
+      ? (
+          await tx.query<Row>(
+            `SELECT s.player_id,p.player_name,sum(s.points)::int AS points
+             FROM basketball_scorers s JOIN team_players p ON p.id=s.player_id
+             WHERE s.match_id=$1 AND s.team_id=$2
+             GROUP BY s.player_id,p.player_name
+             ORDER BY min(s.created_at),p.player_name`,
+            [match.id, teamId],
+          )
+        ).rows
+      : [];
   return {
     ...match,
     home_team: byId.get(match.home_team_id) ?? null,
     away_team: byId.get(match.away_team_id) ?? null,
+    home_scorers: await scorersFor(match.home_team_id),
+    away_scorers: await scorersFor(match.away_team_id),
   };
 }
 function nextSlot(stage: string, position: number) {
@@ -191,6 +206,48 @@ async function createBracket(tx: Queryable) {
     await tx.query("INSERT INTO basketball_matches(stage,bracket_position) VALUES('semi',$1)", [i]);
   await tx.query("INSERT INTO basketball_matches(stage,bracket_position) VALUES('final',1)");
 }
+// A score corrected downwards must not leave more points credited to players than
+// the team has on the board, so the newest assignments are trimmed first. One
+// assignment can cover several points, so a partial trim shrinks it instead of
+// dropping it.
+async function trimScorers(tx: Queryable, match: Row, side: 'home' | 'away', score: number) {
+  const teamId = side === 'home' ? match.home_team_id : match.away_team_id;
+  if (!teamId) return;
+  let assigned = (
+    await one(
+      tx,
+      'SELECT coalesce(sum(points),0)::int AS total FROM basketball_scorers WHERE match_id=$1 AND team_id=$2',
+      [match.id, teamId],
+    )
+  )!.total;
+  while (assigned > score) {
+    const latest = await one(
+      tx,
+      'SELECT id,points FROM basketball_scorers WHERE match_id=$1 AND team_id=$2 ORDER BY created_at DESC,id DESC LIMIT 1',
+      [match.id, teamId],
+    );
+    if (!latest) return;
+    const excess = assigned - score;
+    if (latest.points > excess) {
+      await tx.query('UPDATE basketball_scorers SET points=points-$2 WHERE id=$1', [
+        latest.id,
+        excess,
+      ]);
+      assigned = score;
+    } else {
+      await tx.query('DELETE FROM basketball_scorers WHERE id=$1', [latest.id]);
+      assigned -= latest.points;
+    }
+  }
+}
+
+// Round labels for the knockout report, in the order the bracket plays out.
+const knockoutStageLabels: Record<string, string> = {
+  quarter: 'Quarterfinals',
+  semi: 'Semifinals',
+  final: 'Final',
+};
+
 export async function registerBasketball(app: FastifyInstance, db: Database, c: Config) {
   const guard = auth(db, c);
   app.get('/basketball/data', async () => {
@@ -220,7 +277,9 @@ export async function registerBasketball(app: FastifyInstance, db: Database, c: 
     ];
     const teams = (
       await db.query<Row>(
-        `SELECT t.id,i.team_name,i.logo_url,t.group_code,t.group_assigned_at,t.selected
+        `SELECT t.id,i.team_name,i.logo_url,t.group_code,t.group_assigned_at,t.selected,
+   coalesce((SELECT json_agg(json_build_object('id',p.id,'player_name',p.player_name) ORDER BY p.position,p.created_at,p.id)
+     FROM team_players p WHERE p.order_item_id=t.order_item_id),'[]') AS players
          FROM basketball_teams t JOIN order_items i ON i.id=t.order_item_id
          ORDER BY i.team_name,t.id`,
       )
@@ -241,6 +300,80 @@ export async function registerBasketball(app: FastifyInstance, db: Database, c: 
   app.get('/admin/basketball', { preHandler: guard.admin }, async () =>
     (await app.inject({ method: 'GET', url: '/basketball/data' })).json(),
   );
+  // The organizer exports a stage once it finishes: every fixture with its final
+  // score and the players credited with the points, grouped by round for the PDF.
+  app.get('/admin/basketball/report', { preHandler: guard.admin }, async (req) => {
+    const query = z
+      .object({ stage: z.enum(['group', 'knockout']).default('group') })
+      .parse(req.query);
+    const data = (await app.inject({ method: 'GET', url: '/basketball/data' })).json() as {
+      groups: { code: string; matches: Row[] }[];
+      bracket: Row[];
+      teams: Row[];
+    };
+    const names = new Map<string, string>(data.teams.map((team) => [team.id, team.team_name]));
+    const credits = new Map<string, { player_name: string; points: number }[]>();
+    const creditRows = await db.query<Row>(
+      `SELECT s.match_id,s.team_id,p.player_name,sum(s.points)::int AS points
+       FROM basketball_scorers s JOIN team_players p ON p.id=s.player_id
+       GROUP BY s.match_id,s.team_id,p.player_name
+       ORDER BY min(s.created_at),p.player_name`,
+    );
+    for (const row of creditRows.rows) {
+      const key = `${row.match_id}:${row.team_id}`;
+      credits.set(key, [
+        ...(credits.get(key) ?? []),
+        { player_name: row.player_name, points: row.points },
+      ]);
+    }
+    const matchView = (match: Row) => ({
+      home_team: names.get(match.home_team_id) ?? 'Team to be confirmed',
+      away_team: names.get(match.away_team_id) ?? 'Team to be confirmed',
+      home_score: match.home_score,
+      away_score: match.away_score,
+      status: match.status,
+      home_scorers: match.home_team_id
+        ? (credits.get(`${match.id}:${match.home_team_id}`) ?? [])
+        : [],
+      away_scorers: match.away_team_id
+        ? (credits.get(`${match.id}:${match.away_team_id}`) ?? [])
+        : [],
+      // A tied knockout score only hides who went through on penalties.
+      penalty_winner:
+        match.stage !== 'group' && match.home_score === match.away_score && match.winner_team_id
+          ? (names.get(match.winner_team_id) ?? null)
+          : null,
+    });
+    const sections = [];
+    if (query.stage === 'group') {
+      for (const group of data.groups) {
+        if (group.matches.length)
+          sections.push({
+            label: `Group ${group.code}`,
+            matches: group.matches.map(matchView),
+          });
+      }
+    } else {
+      const byStage = new Map<string, Row[]>();
+      for (const match of data.bracket) {
+        const list = byStage.get(match.stage) ?? [];
+        list.push(match);
+        byStage.set(match.stage, list);
+      }
+      for (const [stage, matches] of byStage)
+        sections.push({
+          label: knockoutStageLabels[stage] ?? stage,
+          matches: matches.map(matchView),
+        });
+    }
+    const event = await one(db, 'SELECT title FROM events WHERE active');
+    return {
+      sport: 'basketball',
+      stage: query.stage,
+      title: event?.title ?? 'RONB Corporate Championship',
+      sections,
+    };
+  });
   app.post('/admin/basketball/import', { preHandler: guard.superAdmin }, async (req) =>
     db.transaction(async (tx) => {
       const sport = await one(tx, "SELECT id FROM sports WHERE lower(name)='basketball'");
@@ -391,11 +524,66 @@ export async function registerBasketball(app: FastifyInstance, db: Database, c: 
         'stale_match',
         'This score changed elsewhere. Refresh and try again.',
       );
-      return one(
+      const updated = (await one(
         tx,
         'UPDATE basketball_matches SET home_score=$2,away_score=$3,version=version+1 WHERE id=$1 RETURNING *',
         [m.id, b.home_score, b.away_score],
+      ))!;
+      await trimScorers(tx, updated, 'home', updated.home_score);
+      await trimScorers(tx, updated, 'away', updated.away_score);
+      return updated;
+    }),
+  );
+  // The organizer saves a raised score and then credits it to a player from the
+  // team's roster, which is what /basketball/match prints under the team name.
+  app.post('/admin/basketball/matches/:id/scorers', { preHandler: guard.admin }, async (req) =>
+    db.transaction(async (tx) => {
+      const b = z
+        .object({ team_id: uuid, player_id: uuid, points: z.number().int().min(1).max(999) })
+        .strict()
+        .parse(req.body);
+      const m = await one(tx, 'SELECT * FROM basketball_matches WHERE id=$1 FOR UPDATE', [
+        params.parse(req.params).id,
+      ]);
+      assert(m, 404, 'not_found', 'Match not found');
+      assert(
+        b.team_id === m.home_team_id || b.team_id === m.away_team_id,
+        400,
+        'team_mismatch',
+        'That team is not playing in this match',
       );
+      const player = await one(
+        tx,
+        `SELECT p.id FROM team_players p JOIN basketball_teams t ON t.order_item_id=p.order_item_id
+         WHERE t.id=$1 AND p.id=$2`,
+        [b.team_id, b.player_id],
+      );
+      assert(player, 404, 'player_not_found', 'That player is not on the team roster');
+      const score = b.team_id === m.home_team_id ? m.home_score : m.away_score;
+      const assigned = (
+        await one(
+          tx,
+          'SELECT coalesce(sum(points),0)::int AS total FROM basketball_scorers WHERE match_id=$1 AND team_id=$2',
+          [m.id, b.team_id],
+        )
+      )!.total;
+      assert(
+        assigned + b.points <= score,
+        409,
+        'scorers_exceed_score',
+        `Only ${score - assigned} of the team's ${score} points are still unassigned`,
+      );
+      const row = await one(
+        tx,
+        'INSERT INTO basketball_scorers(match_id,team_id,player_id,points) VALUES($1,$2,$3,$4) RETURNING *',
+        [m.id, b.team_id, b.player_id, b.points],
+      );
+      await audit(tx, req.actor!.id, 'basketball.match.scorer', 'basketball', m.id, {
+        team_id: b.team_id,
+        player_id: b.player_id,
+        points: b.points,
+      });
+      return row;
     }),
   );
   app.post('/admin/basketball/matches/:id/end', { preHandler: guard.admin }, async (req) =>
@@ -438,6 +626,8 @@ export async function registerBasketball(app: FastifyInstance, db: Database, c: 
         "UPDATE basketball_matches SET home_score=$2,away_score=$3,status='completed',winner_team_id=$4,completed_at=now(),version=version+1 WHERE id=$1 RETURNING *",
         [m.id, b.home_score, b.away_score, winner],
       );
+      await trimScorers(tx, done!, 'home', b.home_score);
+      await trimScorers(tx, done!, 'away', b.away_score);
       if (m.stage === 'group') {
         const complete = await one(
           tx,

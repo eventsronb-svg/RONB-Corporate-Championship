@@ -33,6 +33,7 @@ import {
 import { registerAdmin } from './admin.js';
 import { registerFutsal } from './futsal.js';
 import { registerBasketball } from './basketball.js';
+import { registerCricket } from './cricket.js';
 import { assert, HttpError } from './errors.js';
 async function parseProfileUpdate(
   req: FastifyRequest,
@@ -513,6 +514,7 @@ export async function buildApp(deps: {
   await registerAdmin(app, db, c, storage);
   await registerFutsal(app, db, c);
   await registerBasketball(app, db, c);
+  await registerCricket(app, db, c);
   await app.register(staticPlugin, { root: resolve('public'), prefix: '/assets/' });
   app.get('/admin', async (_req, reply) => reply.sendFile('admin.html'));
   app.get('/', async (_req, reply) => reply.sendFile('index.html'));
@@ -521,6 +523,8 @@ export async function buildApp(deps: {
   app.get('/futsal/match', async (_req, reply) => reply.sendFile('futsal-match.html'));
   app.get('/basketball', async (_req, reply) => reply.sendFile('basketball.html'));
   app.get('/basketball/match', async (_req, reply) => reply.sendFile('basketball-match.html'));
+  app.get('/cricket', async (_req, reply) => reply.sendFile('cricket.html'));
+  app.get('/cricket/match', async (_req, reply) => reply.sendFile('cricket-match.html'));
   return app;
 }
 
@@ -554,6 +558,10 @@ function staticPath(pathname: string): string | undefined {
     relativePath = 'basketball.html';
   } else if (pathname === '/basketball/match') {
     relativePath = 'basketball-match.html';
+  } else if (pathname === '/cricket') {
+    relativePath = 'cricket.html';
+  } else if (pathname === '/cricket/match') {
+    relativePath = 'cricket-match.html';
   } else if (pathname.startsWith('/assets/')) {
     relativePath = pathname.slice('/assets/'.length);
   } else {

@@ -36,22 +36,22 @@ Each sport row from `/sports` includes `filled_slots` (reserved capacity: invoic
 
 Every endpoint in this section requires the captain `session` cookie. A foreign order or item is treated as missing (`404`).
 
-| Method | Path                                                 | Request / behavior                                                     |
-| ------ | ---------------------------------------------------- | ---------------------------------------------------------------------- |
-| GET    | `/orders/current`                                    | Open order, otherwise latest rejected order, otherwise `null`          |
-| POST   | `/orders/draft`                                      | Create draft or return existing open order                             |
-| PATCH  | `/orders/:id/sports`                                 | Full selection replacement; body below                                 |
-| POST   | `/orders/:id/phone`                                  | `{ "phone_number": "+977 9800000000" }`                                |
+| Method | Path                                                 | Request / behavior                                                                  |
+| ------ | ---------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| GET    | `/orders/current`                                    | Open order, otherwise latest rejected order, otherwise `null`                       |
+| POST   | `/orders/draft`                                      | Create draft or return existing open order                                          |
+| PATCH  | `/orders/:id/sports`                                 | Full selection replacement; body below                                              |
+| POST   | `/orders/:id/phone`                                  | `{ "phone_number": "+977 9800000000" }`                                             |
 | POST   | `/orders/:id/invoice`                                | Lock current prices and VAT-inclusive total; repeat calls return the frozen invoice |
-| POST   | `/orders/:id/payment-request`                        | Create or return the existing code, QR and expiry                      |
-| POST   | `/orders/:id/receipt`                                | Multipart file field `receipt`; creates receipt and submits for review |
-| GET    | `/orders/:id/status`                                 | Full resumable order, items and payment information                    |
-| POST   | `/orders/:id/cancel-and-revise`                      | Cancel old order and return a new prefilled draft                      |
-| GET    | `/orders/:id/items/:item_id/profile`                 | Profile draft, available after confirmation                            |
-| PATCH  | `/orders/:id/items/:item_id/profile`                 | Save roster, player photos and/or upload logo                          |
-| POST   | `/orders/:id/items/:item_id/profile/complete`        | Explicit Done; complete item and queue email if it is the last one     |
-| POST   | `/orders/:id/items/:item_id/player-photos/:position` | Upload one player photo for a roster position                          |
-| GET    | `/orders/:id/items/:item_id/player-photos/:position` | Redirect to a 300-second signed URL for the captain's own photo        |
+| POST   | `/orders/:id/payment-request`                        | Create or return the existing code, QR and expiry                                   |
+| POST   | `/orders/:id/receipt`                                | Multipart file field `receipt`; creates receipt and submits for review              |
+| GET    | `/orders/:id/status`                                 | Full resumable order, items and payment information                                 |
+| POST   | `/orders/:id/cancel-and-revise`                      | Cancel old order and return a new prefilled draft                                   |
+| GET    | `/orders/:id/items/:item_id/profile`                 | Profile draft, available after confirmation                                         |
+| PATCH  | `/orders/:id/items/:item_id/profile`                 | Save roster, player photos and/or upload logo                                       |
+| POST   | `/orders/:id/items/:item_id/profile/complete`        | Explicit Done; complete item and queue email if it is the last one                  |
+| POST   | `/orders/:id/items/:item_id/player-photos/:position` | Upload one player photo for a roster position                                       |
+| GET    | `/orders/:id/items/:item_id/player-photos/:position` | Redirect to a 300-second signed URL for the captain's own photo                     |
 
 Sports selection:
 
@@ -73,7 +73,7 @@ An order response includes order columns plus:
       "id": "<item-uuid>",
       "order_id": "<order-uuid>",
       "sport_id": "<sport-uuid>",
-      "sport_name": "Cricket",
+      "sport_name": "Cricksal",
       "team_name": "Valley Strikers",
       "price_at_purchase": "1500.25",
       "logo_url": null,
@@ -108,7 +108,7 @@ Profile JSON updates accept `{ "players": ["Suman Karki", "Pratik Gurung"], "jer
 
 Optional `player_photos` holds one photo object key per player in roster order, aligned with `players`; `null` (or a shorter array) leaves that player photo-less. Upload photos with `POST /orders/:id/items/:item_id/player-photos/:position` (multipart field `photo`, PNG/JPEG/WebP, up to 5 MB, unlocked after payment confirmation), then reference the returned `photo_url` key (e.g. `player-photos/<uuid>.webp`). Photos are stored in a private bucket. Roster endpoints return the keys to the owning captain and to admins, but do not expose public URLs; `GET /orders/:id/items/:item_id/player-photos/:position` redirects the captain to a short-lived signed URL, and the key is excluded from public `/teams` responses.
 
-Multipart updates accept one `logo` file and JSON fields `players`, `jersey_sizes`, `captain_position`, and `player_photos`. Arbitrary `logo_url` strings are not accepted. Completing a profile requires a stored logo, the sport's minimum roster (Futsal 5, Basketball 3, Crickshal 7; otherwise 1), and a jersey size for every player. Incomplete sizes return `409` with `jersey_sizes_required`. Editing a completed roster to remove sizes clears profile completion, so it must be completed again. Confirmation email remains idempotent.
+Multipart updates accept one `logo` file and JSON fields `players`, `jersey_sizes`, `captain_position`, and `player_photos`. Arbitrary `logo_url` strings are not accepted. Completing a profile requires a stored logo, the sport's minimum roster (Futsal 5, Basketball 3, Cricksal 7; otherwise 1), and a jersey size for every player. Incomplete sizes return `409` with `jersey_sizes_required`. Editing a completed roster to remove sizes clears profile completion, so it must be completed again. Confirmation email remains idempotent.
 
 Existing completed rosters retain their status after migration, with unknown sizes returned as `null`. Jersey sizes are visible to the owner and admins, and are excluded from public `/teams` responses.
 
@@ -144,17 +144,17 @@ Admin detail receipts contain `{id, uploaded_at, signed_url, expires_in: 300}`. 
 
 ## Admin configuration — super admin only
 
-| Method | Path                | Request / response                                                                       |
-| ------ | ------------------- | ---------------------------------------------------------------------------------------- |
-| GET    | `/admin/sports`     | Array of all sports, including inactive ones                                             |
-| POST   | `/admin/sports`     | `{ "name": "Cricket", "price": "1500.00", "description": "...", "active": true }`; `201` |
-| PATCH  | `/admin/sports/:id` | Any nonempty subset of the create fields                                                 |
-| DELETE | `/admin/sports/:id` | Set `active=false`; preserve historical registrations                                    |
-| GET    | `/admin/event`      | Active event or `null`                                                                   |
-| PATCH  | `/admin/event`      | Edit active event, or create the initial one                                             |
-| GET    | `/admin/admins`     | Array of organizer accounts                                                              |
-| POST   | `/admin/admins`     | `{ "email": "organizer@example.com", "role": "staff" }`; `201`, adds allowlist entry     |
-| PATCH  | `/admin/admins/:id` | `{ "role": "staff", "active": false }`; either or both fields                            |
+| Method | Path                | Request / response                                                                        |
+| ------ | ------------------- | ----------------------------------------------------------------------------------------- |
+| GET    | `/admin/sports`     | Array of all sports, including inactive ones                                              |
+| POST   | `/admin/sports`     | `{ "name": "Cricksal", "price": "1500.00", "description": "...", "active": true }`; `201` |
+| PATCH  | `/admin/sports/:id` | Any nonempty subset of the create fields                                                  |
+| DELETE | `/admin/sports/:id` | Set `active=false`; preserve historical registrations                                     |
+| GET    | `/admin/event`      | Active event or `null`                                                                    |
+| PATCH  | `/admin/event`      | Edit active event, or create the initial one                                              |
+| GET    | `/admin/admins`     | Array of organizer accounts                                                               |
+| POST   | `/admin/admins`     | `{ "email": "organizer@example.com", "role": "staff" }`; `201`, adds allowlist entry      |
+| PATCH  | `/admin/admins/:id` | `{ "role": "staff", "active": false }`; either or both fields                             |
 
 Event fields: `title`, `description`, `start_date`, `end_date`, `venue`. Supply all fields to create the first event; subsequent PATCH requests accept a subset. Dates must include a timezone, and the end must not precede the start. There is at most one active event.
 
@@ -164,7 +164,7 @@ Organizer roles: `staff` and `super_admin`. Email matching is case-insensitive. 
 
 | Method | Path                                                      | Response                                                                                                |
 | ------ | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| GET    | `/admin/teams?search=&limit=&offset=`                     | `{teams,limit,offset}`; completed registrations and teams awaiting payment only                        |
+| GET    | `/admin/teams?search=&limit=&offset=`                     | `{teams,limit,offset}`; completed registrations and teams awaiting payment only                         |
 | GET    | `/admin/teams/:id`                                        | Team name, status, registration contact and all sport rosters with jersey sizes                         |
 | PATCH  | `/admin/teams/:id/items/:item_id/profile`                 | Replace roster: `players`, `jersey_sizes`, `captain_position`, `player_photos`; multipart logo optional |
 | POST   | `/admin/teams/:id/items/:item_id/player-photos/:position` | Upload (multipart `photo`) or replace one member photo; returns `{position, photo_url}`                 |

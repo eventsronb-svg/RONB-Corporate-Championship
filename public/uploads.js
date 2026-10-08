@@ -12,6 +12,22 @@ const SCALE_STEPS = [1, 0.75, 0.5, 0.35, 0.25];
 const BUDGET_MB = Math.round(MAX_UPLOAD_BYTES / 1024 / 1024);
 // Lets callers label size failures as "Image too big" instead of parsing messages.
 const tooBig = (message) => Object.assign(new Error(message), { code: 'image_too_big' });
+const invalidImage = () =>
+  new Error('This image could not be opened. Choose a valid PNG, JPEG or WebP.');
+
+// A photo or receipt that already fits the budget is uploaded untouched, so the browser
+// never decodes it. Reading the first bytes keeps that promise while still refusing a
+// corrupt file here instead of after a round trip to the server.
+async function hasImageHeader(file) {
+  const head = new Uint8Array(await file.slice(0, 16).arrayBuffer());
+  const startsAt = (offset, signature) =>
+    signature.every((byte, index) => head[offset + index] === byte);
+  if (file.type === 'image/png')
+    return startsAt(0, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  if (file.type === 'image/jpeg') return startsAt(0, [0xff, 0xd8, 0xff]);
+  // WebP is a RIFF container with the format name at offset 8.
+  return startsAt(0, [0x52, 0x49, 0x46, 0x46]) && startsAt(8, [0x57, 0x45, 0x42, 0x50]);
+}
 
 const toBlob = (canvas, quality) =>
   new Promise((resolve) => canvas.toBlob(resolve, 'image/webp', quality));
@@ -49,12 +65,15 @@ export async function prepareUpload(file, kind) {
   // that already fits the budget is sent as-is, which avoids decoding a large photo only to
   // re-encode it into something bigger than the original.
   const dimensionCap = MAX_DIMENSION[kind];
-  if (!dimensionCap && file.size <= MAX_UPLOAD_BYTES) return file;
+  if (!dimensionCap && file.size <= MAX_UPLOAD_BYTES) {
+    if (!(await hasImageHeader(file))) throw invalidImage();
+    return file;
+  }
   let bitmap;
   try {
     bitmap = await createImageBitmap(file);
   } catch {
-    throw new Error('This image could not be opened. Choose a valid PNG, JPEG or WebP.');
+    throw invalidImage();
   }
   try {
     // Logos shrink to a fixed longest edge; other kinds start at full size.

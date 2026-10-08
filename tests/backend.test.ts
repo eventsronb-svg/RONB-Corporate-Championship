@@ -16,8 +16,16 @@ describe('registration and publication', () => {
     const order = await h.confirm();
     await h.fill(order);
     const path = `/orders/${order.id}/items/${order.items[0].id}/profile`;
-    const players = ['Small player', 'Medium player', 'Large player', 'Extra large player'];
-    const jersey_sizes = ['S', 'M', 'L', 'XL'];
+    const players = [
+      'Small player',
+      'Medium player',
+      'Large player',
+      'Extra large player',
+      'Fifth player',
+      'Sixth player',
+      'Seventh player',
+    ];
+    const jersey_sizes = ['S', 'M', 'L', 'XL', 'S', 'M', 'L'];
     for (const body of [
       { players, jersey_sizes: ['XXL', 'M', 'L', 'XL'] },
       { players, jersey_sizes: ['S'] },
@@ -29,6 +37,7 @@ describe('registration and publication', () => {
     const saved = await h.call('PATCH', path, {
       players,
       jersey_sizes,
+      jersey_style: 'full_sleeve',
       captain_position: 2,
       player_photos,
     });
@@ -45,7 +54,7 @@ describe('registration and publication', () => {
     expect((await h.call('GET', `/admin/teams/${order.id}`)).statusCode).toBe(401);
     expect((await h.call('GET', '/admin/teams')).statusCode).toBe(401);
     expect((await h.call('GET', '/teams')).json()[0]).not.toHaveProperty('jersey_sizes');
-    for (const search of ['Valley', 'Cricket', 'Anish', 'captain@example.com', '9800000000']) {
+    for (const search of ['Valley', 'Cricksal', 'Anish', 'captain@example.com', '9800000000']) {
       const list = (
         await h.call('GET', `/admin/teams?search=${encodeURIComponent(search)}`, undefined, 'staff')
       ).json();
@@ -65,7 +74,10 @@ describe('registration and publication', () => {
         order.items[0].id,
       ]),
     ).rejects.toThrow();
-    const draft = await h.call('PATCH', path, { players, jersey_sizes: ['S', null, 'L', 'XL'] });
+    const draft = await h.call('PATCH', path, {
+      players,
+      jersey_sizes: ['S', null, 'L', 'XL', 'M', 'M', 'L'],
+    });
     expect(draft.json().items[0].profile_completed_at).toBeNull();
     expect((await h.call('POST', `${path}/complete`)).json().error).toBe('jersey_sizes_required');
     expect((await h.call('GET', '/teams')).json()).toEqual([]);
@@ -82,8 +94,8 @@ describe('registration and publication', () => {
     await migrate(h.db);
     await migrate(h.db);
     const current = (await h.call('GET', `/orders/${order.id}/status`)).json();
-    expect(current.items[0].jersey_sizes).toEqual([null, null, null]);
-    expect(current.items[0].players).toHaveLength(3);
+    expect(current.items[0].jersey_sizes).toEqual([null, null, null, null, null, null, null]);
+    expect(current.items[0].players).toHaveLength(7);
     expect(current.items[0].profile_completed_at).toBeTruthy();
   });
   it('gates a team until its profile is complete and sends one asynchronous confirmation', async () => {
@@ -108,7 +120,15 @@ describe('registration and publication', () => {
     expect(first).toHaveLength(1);
     expect(first[0].team_name).toBe('Valley Strikers');
     expect(first[0]).not.toHaveProperty('user_id');
-    expect(first[0].players).toEqual(['Suman Karki', 'Pratik Gurung', 'Aarav Shah']);
+    expect(first[0].players).toEqual([
+      'Suman Karki',
+      'Pratik Gurung',
+      'Aarav Shah',
+      'Bibek Thapa',
+      'Nabin Shrestha',
+      'Kiran Basnet',
+      'Ramesh Adhikari',
+    ]);
     expect((await h.db.query('SELECT * FROM email_jobs')).rows).toHaveLength(1);
     expect(h.sent).toHaveLength(0);
     expect((await h.call('GET', `/teams?sport_id=${h.sports[0].id}`)).json()).toHaveLength(1);
@@ -301,12 +321,29 @@ describe('registration and publication', () => {
     expect(uploaded.statusCode).toBe(200);
     expect(uploaded.json().photo_url).toMatch(/^player-photos\//);
     const saved = await h.call('PATCH', `/orders/${order.id}/items/${order.items[0].id}/profile`, {
-      players: ['Suman Karki', 'Pratik Gurung', 'Aarav Shah'],
-      jersey_sizes: ['S', 'M', 'XL'],
-      player_photos: [null, uploaded.json().photo_url, null],
+      players: [
+        'Suman Karki',
+        'Pratik Gurung',
+        'Aarav Shah',
+        'Bibek Thapa',
+        'Nabin Shrestha',
+        'Kiran Basnet',
+        'Ramesh Adhikari',
+      ],
+      jersey_sizes: ['S', 'M', 'XL', 'L', 'M', 'S', 'L'],
+      jersey_style: 'full_sleeve',
+      player_photos: [null, uploaded.json().photo_url, null, null, null, null, null],
     });
     expect(saved.statusCode).toBe(200);
-    expect(saved.json().items[0].photo_urls).toEqual([null, uploaded.json().photo_url, null]);
+    expect(saved.json().items[0].photo_urls).toEqual([
+      null,
+      uploaded.json().photo_url,
+      null,
+      null,
+      null,
+      null,
+      null,
+    ]);
     const status = (await h.call('GET', `/orders/${order.id}/status`)).json();
     expect(status.items[0].photo_urls[1]).toBe(uploaded.json().photo_url);
     expect(status.items[0].players[1]).toBe('Pratik Gurung');
@@ -368,12 +405,20 @@ describe('registration and publication', () => {
     expect(logo.statusCode).toBe(200);
     const path = `/orders/${order.id}/items/${order.items[0].id}/profile`;
     expect((await h.call('POST', `${path}/complete`)).json().error).toBe('player_photos_required');
-    const player_photos = await h.uploadPlayerPhotos(order);
+    const player_photos = await h.uploadPlayerPhotos(order, 0, 7);
     expect(
       (
         await h.call('PATCH', path, {
-          players: ['Suman Karki', 'Pratik Gurung', 'Aarav Shah'],
-          jersey_sizes: ['S', 'M', 'XL'],
+          players: [
+            'Suman Karki',
+            'Pratik Gurung',
+            'Aarav Shah',
+            'Bibek Thapa',
+            'Nabin Shrestha',
+            'Kiran Basnet',
+            'Ramesh Adhikari',
+          ],
+          jersey_sizes: ['S', 'M', 'XL', 'L', 'M', 'S', 'L'],
           player_photos,
         })
       ).statusCode,
@@ -388,8 +433,8 @@ describe('registration and publication', () => {
     const saved = await h.call('PATCH', path, { captain_position: 1 });
     expect(saved.statusCode).toBe(200);
     expect(saved.json().items[0].captain_position).toBe(1);
-    expect(saved.json().items[0].players).toHaveLength(3);
-    expect((await h.call('PATCH', path, { captain_position: 3 })).statusCode).toBe(400);
+    expect(saved.json().items[0].players).toHaveLength(7);
+    expect((await h.call('PATCH', path, { captain_position: 9 })).statusCode).toBe(400);
     expect((await h.call('PATCH', path, { captain_position: -1 })).statusCode).toBe(400);
     expect((await h.call('GET', path)).json().captain_position).toBe(1);
     const changed = await h.call('PATCH', path, { players: ['New player'] });
@@ -572,8 +617,16 @@ describe('registration and publication', () => {
     let list = (await h.call('GET', '/orders')).json();
     expect(list).toHaveLength(1);
     expect(list[0]).toMatchObject({ id: o.id, resume_step: 'registered' });
-    expect(list[0].items[0]).toMatchObject({ sport_name: 'Cricket' });
-    expect(list[0].items[0].players).toEqual(['Suman Karki', 'Pratik Gurung', 'Aarav Shah']);
+    expect(list[0].items[0]).toMatchObject({ sport_name: 'Cricksal' });
+    expect(list[0].items[0].players).toEqual([
+      'Suman Karki',
+      'Pratik Gurung',
+      'Aarav Shah',
+      'Bibek Thapa',
+      'Nabin Shrestha',
+      'Kiran Basnet',
+      'Ramesh Adhikari',
+    ]);
     expect((await h.call('GET', '/orders', undefined, 'stranger')).json()).toEqual([]);
     // A confirmed order is still "open" for draft(), so Add sports must use start().
     const second = (await h.call('POST', '/orders/start')).json();
@@ -589,7 +642,7 @@ describe('registration and publication', () => {
     expect(list).toHaveLength(2);
     expect(
       (list as { items: { sport_name: string }[] }[]).map((r) => r.items[0].sport_name).sort(),
-    ).toEqual(['Cricket', 'Football']);
+    ).toEqual(['Cricksal', 'Football']);
   });
 });
 describe('authorization and validation', () => {
