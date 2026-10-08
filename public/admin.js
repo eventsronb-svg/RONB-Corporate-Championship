@@ -1159,33 +1159,35 @@ async function cricketView() {
   const groups = ['A', 'B', 'C', 'D'];
   const groupDraw = me.role === 'super_admin' ? drawGroups(data, groups, 'cricket', 5) : '';
   const teamName = (id) => byId.get(id)?.team_name || 'Team pending';
-  // A cricket line reads runs and wickets, then the overs faced — 145/6 (19.4).
+  // A cricket line reads runs and wickets, then the overs faced — 145/6 (9.4).
   const input = (match, field, attrs = '') =>
     `<input class="score-input" name="${field}" type="number" ${attrs} value="${
       field.endsWith('_overs') ? Number(match[field]) : match[field]
     }" ${match.status === 'live' ? '' : 'disabled'}>`;
+  // Cricksal is ten overs and seven wickets a side, so the overs box tops out at
+  // 10 and the wicket box at 7. The side in to bat is picked before the first ball.
   const matchRow = (match) =>
     `<tr class="cricket-match-${e(match.status)}" data-match="${e(match.id)}"><td>${e(
       match.stage === 'group' ? `Group ${match.group_code}` : match.stage,
     )}</td><td>${e(teamName(match.home_team_id))}</td><td>${input(match, 'home_score', 'min="0"')}</td><td>${input(
       match,
       'home_wickets',
-      'min="0" max="10"',
-    )}</td><td>${input(match, 'home_overs', 'min="0" max="99.5" step="0.1"')}</td><td>–</td><td>${input(
+      'min="0" max="7"',
+    )}</td><td>${input(match, 'home_overs', 'min="0" max="10" step="0.1"')}</td><td>–</td><td>${input(
       match,
       'away_score',
       'min="0"',
-    )}</td><td>${input(match, 'away_wickets', 'min="0" max="10"')}</td><td>${input(
+    )}</td><td>${input(match, 'away_wickets', 'min="0" max="7"')}</td><td>${input(
       match,
       'away_overs',
-      'min="0" max="99.5" step="0.1"',
+      'min="0" max="10" step="0.1"',
     )}</td><td>${e(teamName(match.away_team_id))}</td><td>${
       match.status === 'scheduled' && match.home_team_id && match.away_team_id
-        ? '<button data-cricket-start>Start</button>'
+        ? `<select class="batting-select" data-cricket-batting aria-label="Who bats first"><option value="home">${e(teamName(match.home_team_id))} bats</option><option value="away">${e(teamName(match.away_team_id))} bats</option></select> <button data-cricket-start>Start</button>`
         : ''
     }${
       match.status === 'live'
-        ? '<button data-cricket-save>Save</button> <button class="primary" data-cricket-end>End match</button>'
+        ? `<button data-cricket-swap title="Currently batting: ${e(teamName(match.batting_side === 'away' ? match.away_team_id : match.home_team_id))}">Swap batting</button> <button data-cricket-save>Save</button> <button class="primary" data-cricket-end>End match</button>`
         : ''
     }</td></tr>`;
   const matches = [...data.groups.flatMap((group) => group.matches), ...data.bracket];
@@ -1195,7 +1197,7 @@ async function cricketView() {
       ? `<div class="actions"><button data-cricket="import">Import confirmed teams</button>${fixturesDrawn ? '' : '<button data-cricket="fixtures">Generate group fixtures</button>'}</div><p class="form-note">When all 40 group matches are complete, the top two teams from each group automatically enter the 8-team knockout bracket.</p>`
       : '';
   return {
-    html: `${header('Cricksal championship', 'Run group matches, award two points for each win, and settle level scores with the super over.', 'EVENT OPERATIONS', `${data.teams.length} TEAMS`)}<section class="surface panel">${controls}${reportButtons(data)}<p class="form-note">Group matches use 2 points for a win. A level score needs the super over winner when the match is ended. Enter overs the cricket way — 19.4 means nineteen overs and four balls.</p></section>${groupDraw}<section class="surface panel section-gap"><div class="table-scroll"><table><thead><tr><th>Stage</th><th>Home</th><th>Runs</th><th>Wkts</th><th>Ov</th><th></th><th>Runs</th><th>Wkts</th><th>Ov</th><th>Away</th><th>Action</th></tr></thead><tbody>${matches.map(matchRow).join('') || '<tr><td colspan="11">Import teams, then assign groups.</td></tr>'}</tbody></table></div></section>`,
+    html: `${header('Cricksal championship', 'Run group matches, award two points for each win, and settle level scores with the super over.', 'EVENT OPERATIONS', `${data.teams.length} TEAMS`)}<section class="surface panel">${controls}${reportButtons(data)}<p class="form-note">Group matches use 2 points for a win. A level score needs the super over winner when the match is ended. Cricksal is ten overs and seven wickets a side, and the side in to bat is set when the match starts and swapped at the innings break. Enter overs the cricket way — 9.4 means nine overs and four balls.</p></section>${groupDraw}<section class="surface panel section-gap"><div class="table-scroll"><table><thead><tr><th>Stage</th><th>Home</th><th>Runs</th><th>Wkts</th><th>Ov</th><th></th><th>Runs</th><th>Wkts</th><th>Ov</th><th>Away</th><th>Action</th></tr></thead><tbody>${matches.map(matchRow).join('') || '<tr><td colspan="11">Import teams, then assign groups.</td></tr>'}</tbody></table></div></section>`,
     bind() {
       bindDrawGroups('cricket');
       bindReport('cricket');
@@ -1222,9 +1224,30 @@ async function cricketView() {
       document.querySelectorAll('[data-cricket-start]').forEach((button) =>
         button.addEventListener('click', async () => {
           try {
-            await post(`/admin/cricket/matches/${button.closest('tr').dataset.match}/start`);
+            const row = button.closest('tr');
+            const batting_side = row.querySelector('[data-cricket-batting]')?.value || 'home';
+            await post(`/admin/cricket/matches/${row.dataset.match}/start`, { batting_side });
             await render();
-            message('Match is live on /cricket/match.');
+            message('Match is live on /cricket/match. Swap batting at the innings break.');
+          } catch (err) {
+            message(err.message, true);
+          }
+        }),
+      );
+      document.querySelectorAll('[data-cricket-swap]').forEach((button) =>
+        button.addEventListener('click', async () => {
+          try {
+            const row = button.closest('tr');
+            const match = matches.find((m) => m.id === row.dataset.match);
+            const batting_side = match.batting_side === 'home' ? 'away' : 'home';
+            await post(`/admin/cricket/matches/${match.id}/batting`, {
+              batting_side,
+              version: match.version,
+            });
+            await render();
+            message(
+              `Batting swapped to ${teamName(batting_side === 'home' ? match.home_team_id : match.away_team_id)}.`,
+            );
           } catch (err) {
             message(err.message, true);
           }

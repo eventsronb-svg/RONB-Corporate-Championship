@@ -147,23 +147,23 @@ describe('cricket championship', () => {
       {
         home_score: 145,
         away_score: 139,
-        home_wickets: 6,
-        away_wickets: 8,
-        home_overs: 19.4,
-        away_overs: 20,
+        home_wickets: 4,
+        away_wickets: 6,
+        home_overs: 9.4,
+        away_overs: 10,
         version: started.json().version,
       },
       'staff',
     );
     expect(saved.statusCode).toBe(200);
-    expect(saved.json().home_wickets).toBe(6);
-    expect(Number(saved.json().home_overs)).toBe(19.4);
+    expect(saved.json().home_wickets).toBe(4);
+    expect(Number(saved.json().home_overs)).toBe(9.4);
 
     // Six balls roll into the next over, and nobody loses more than ten.
     const badOvers = await h.call(
       'PATCH',
       `/admin/cricket/matches/${first.id}`,
-      { home_score: 145, away_score: 139, home_overs: 19.6, version: saved.json().version },
+      { home_score: 145, away_score: 139, home_overs: 9.6, version: saved.json().version },
       'staff',
     );
     expect(badOvers.statusCode).toBe(400);
@@ -173,7 +173,7 @@ describe('cricket championship', () => {
         await h.call(
           'PATCH',
           `/admin/cricket/matches/${first.id}`,
-          { home_score: 145, away_score: 139, home_wickets: 11, version: saved.json().version },
+          { home_score: 145, away_score: 139, home_wickets: 8, version: saved.json().version },
           'staff',
         )
       ).statusCode,
@@ -225,8 +225,8 @@ describe('cricket championship', () => {
       'staff',
     );
     expect(level.statusCode).toBe(200);
-    expect(level.json().home_wickets).toBe(6);
-    expect(Number(level.json().home_overs)).toBe(19.4);
+    expect(level.json().home_wickets).toBe(4);
+    expect(Number(level.json().home_overs)).toBe(9.4);
 
     // A level score cannot end without a super over winner, in the group stage
     // as much as in the knockout rounds.
@@ -243,7 +243,7 @@ describe('cricket championship', () => {
     // API draws the bracket the way the live flow does.
     await h.db.query(
       `UPDATE cricket_matches SET status='completed',home_score=120,away_score=115,
-         home_wickets=4,away_wickets=7,home_overs=20.0,away_overs=20.0,completed_at=now()
+         home_wickets=4,away_wickets=6,home_overs=10.0,away_overs=10.0,completed_at=now()
        WHERE stage='group' AND id <> $1`,
       [first.id],
     );
@@ -304,10 +304,10 @@ describe('cricket championship', () => {
     expect(opening.home_team).toBe(names.get(first.home_team_id));
     expect(opening.home_score).toBe(145);
     expect(opening.away_score).toBe(145);
-    expect(opening.home_wickets).toBe(6);
-    expect(opening.away_wickets).toBe(8);
-    expect(opening.home_overs).toBe(19.4);
-    expect(opening.away_overs).toBe(20);
+    expect(opening.home_wickets).toBe(4);
+    expect(opening.away_wickets).toBe(6);
+    expect(opening.home_overs).toBe(9.4);
+    expect(opening.away_overs).toBe(10);
     expect(opening.status).toBe('completed');
     expect(opening.penalty_winner).toBe(names.get(first.home_team_id));
     // The trim dropped the 85 entirely and shrunk the 60 to the 50 left on the board.
@@ -373,9 +373,9 @@ describe('cricket championship', () => {
         home_score: 120,
         away_score: 110,
         home_wickets: 6,
-        away_wickets: 8,
-        home_overs: 20,
-        away_overs: 19.3,
+        away_wickets: 7,
+        home_overs: 10,
+        away_overs: 9.3,
         version: started.json().version,
       },
       'staff',
@@ -428,7 +428,7 @@ describe('cricket championship', () => {
     const trimmed = await h.call(
       'PATCH',
       `/admin/cricket/matches/${first.id}`,
-      { home_score: 120, away_score: 110, home_wickets: 4, version: saved.json().version },
+      { home_score: 120, away_score: 110, home_wickets: 5, version: saved.json().version },
       'staff',
     );
     expect(trimmed.statusCode).toBe(200);
@@ -438,11 +438,11 @@ describe('cricket championship', () => {
         [first.id, first.home_team_id],
       )
     ).rows[0].total;
-    expect(credited).toBe(4);
+    expect(credited).toBe(5);
     const afterTrim = (await h.call('GET', '/cricket/live')).json();
     expect(bowlers(afterTrim.home_bowlers)).toEqual([
       { player_name: 'Kiran Kumal', wickets: 3 },
-      { player_name: 'Prabin Shrestha', wickets: 1 },
+      { player_name: 'Prabin Shrestha', wickets: 2 },
     ]);
 
     // Every wicket credit leaves its trace in the audit log.

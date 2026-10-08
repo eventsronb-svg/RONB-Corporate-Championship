@@ -314,8 +314,8 @@ export async function seedChampionships(
         let away = (index * 2) % 4;
         if (home === away) away += 1;
         if (tournament.cricket) {
-          home = 100 + ((index * 7) % 60);
-          away = 80 + ((index * 11) % 55);
+          home = 60 + ((index * 7) % 50);
+          away = 50 + ((index * 11) % 40);
           if (home === away) away += 6;
           await tx.query(
             `UPDATE ${tournament.matches}
@@ -327,10 +327,10 @@ export async function seedChampionships(
               fixture.id,
               home,
               away,
-              4 + (index % 6),
-              5 + (index % 5),
-              20 - (index % 6),
-              20 - ((index + 2) % 6),
+              2 + (index % 6),
+              3 + (index % 5),
+              10 - ((index % 6) * 0.5),
+              10 - (((index + 2) % 6) * 0.5),
               home > away ? fixture.home_team_id : fixture.away_team_id,
             ],
           );
@@ -344,11 +344,10 @@ export async function seedChampionships(
       }
 
       // The Cricksal demo keeps its deciding group fixture *in play*: the away side
-      // is done at 110/8 from their 20 overs and the home side is chasing at 87/3
-      // off 12.4, so the desk and the projector open on the innings that ends the
-      // group stage. Batters on both sides and each team's bowlers are credited
-      // within their own tallies, and finishing the match through the desk draws
-      // the knockout bracket.
+      // is done at 110/7 off 10.0 and the home side is chasing at 87/3 off 8.4, so
+      // the desk and the projector open on the innings that ends the group stage.
+      // Batters on both sides and each team's bowlers are credited within their own
+      // tallies, and finishing the match through the desk draws the knockout bracket.
       if (tournament.cricket) {
         const playing = (
           await one(
@@ -359,8 +358,8 @@ export async function seedChampionships(
         )!;
         await tx.query(
           `UPDATE ${tournament.matches}
-           SET status='live',version=1,home_score=87,away_score=110,
-               home_wickets=3,away_wickets=8,home_overs=12.4,away_overs=20.0
+           SET status='live',version=1,batting_side='home',home_score=87,away_score=110,
+               home_wickets=3,away_wickets=7,home_overs=8.4,away_overs=10.0
            WHERE id=$1`,
           [playing.id],
         );

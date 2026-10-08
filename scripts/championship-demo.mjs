@@ -436,10 +436,10 @@ async function play(sportName, match, home, away, penaltyWinner) {
   if (sportName === 'cricket') {
     // A cricket line needs all three numbers: the wickets follow the runs, and
     // the side with fewer runs is the one that used its full twenty overs.
-    patch.home_wickets = Math.min(10, Math.floor(home / 25));
-    patch.away_wickets = Math.min(10, Math.floor(away / 25));
-    patch.home_overs = home >= away ? 19.4 : 20.0;
-    patch.away_overs = away >= home ? 19.4 : 20.0;
+    patch.home_wickets = Math.min(7, Math.floor(home / 25));
+    patch.away_wickets = Math.min(7, Math.floor(away / 25));
+    patch.home_overs = home >= away ? 9.4 : 10.0;
+    patch.away_overs = away >= home ? 9.4 : 10.0;
   }
   const saved = await call('PATCH', `/admin/${sportName}/matches/${match.id}`, patch);
   const body = { version: saved.version };
@@ -556,8 +556,8 @@ if (PLAY) {
     away_score: 97,
     home_wickets: 4,
     away_wickets: 6,
-    home_overs: 17.2,
-    away_overs: 16.5,
+    home_overs: 9.2,
+    away_overs: 9.5,
     version: cricketSemis[1].version + 1,
   });
   console.log(

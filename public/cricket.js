@@ -11,16 +11,27 @@ const team = (v) =>
 // The live strip at the top reuses the same side card as futsal — crest plus
 // name — and falls back to the site crest when a team has not uploaded a logo,
 // so the panel reads the same whether the demo seeds crests or a real team does.
-const ongoingSide = (value) =>
-  `<div class="ongoing-side"><img src="${esc(value?.logo_url || '/assets/images/logo.webp')}" alt="${esc(value?.team_name || 'Team')} logo"><strong>${esc(value?.team_name || 'Team')}</strong></div>`;
-// A fixture line reads both innings the cricket way: 145/6 (20.0) – 139/8 (19.4).
+// Bat and ball mark who is in to bat and who is bowling. The assignment only
+// exists once the organizer starts the match, so the tags show on live lines.
+const batIcon =
+  '<svg class="role-icon role-bat" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><g transform="rotate(45 12 12)"><rect x="10.7" y="1.5" width="2.6" height="7.2" rx="1.3"/><rect x="9" y="8.2" width="6" height="14.3" rx="2.6"/></g></svg>';
+const ballIcon =
+  '<svg class="role-icon role-ball" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M7.2 6.6c2.6 1.6 2.6 9.2 0 10.8"/></svg>';
+const roleTag = (m, side) => {
+  if (m.status !== 'live' || !m.batting_side) return '';
+  const batting = m.batting_side === side;
+  return `<span class="innings-role ${batting ? 'is-batting' : 'is-bowling'}" title="${batting ? 'Batting' : 'Bowling'}" aria-label="${batting ? 'Batting' : 'Bowling'}">${batting ? batIcon : ballIcon}</span>`;
+};
+const ongoingSide = (value, role = '') =>
+  `<div class="ongoing-side"><img src="${esc(value?.logo_url || '/assets/images/logo.webp')}" alt="${esc(value?.team_name || 'Team')} logo"><strong>${role}${esc(value?.team_name || 'Team')}</strong></div>`;
+// A fixture line reads both innings the cricket way: 145/6 (9.4) – 139/8 (10.0).
 const scoreLine = (m) =>
   `${m.home_score}/${m.home_wickets} (${Number(m.home_overs).toFixed(1)}) – ${m.away_score}/${m.away_wickets} (${Number(m.away_overs).toFixed(1)})`;
 // Bracket boxes sit shoulder to shoulder, so they keep the compact runs and
 // wickets and leave the overs to the fixtures, the report and the big screen.
 const bracketScore = (m) => `${m.home_score}/${m.home_wickets} – ${m.away_score}/${m.away_wickets}`;
 const fixture = (m, by) =>
-  `<div class="fixture"><span>${team(by.get(m.home_team_id))}</span><b>${m.status === 'scheduled' ? '—' : scoreLine(m)}</b><span>${team(by.get(m.away_team_id))}</span></div>`;
+  `<div class="fixture"><span>${roleTag(m, 'home')}${team(by.get(m.home_team_id))}</span><b>${m.status === 'scheduled' ? '—' : scoreLine(m)}</b><span>${roleTag(m, 'away')}${team(by.get(m.away_team_id))}</span></div>`;
 const bracketMatch = (m, by) => {
   const result = (id) =>
     m.status !== 'completed' || !m.winner_team_id
@@ -132,7 +143,7 @@ function render(data, live) {
     done && generated
       ? `<section class="stage bracket-stage"><h2>Match bracket</h2><div class="bracket basketball-bracket"><svg class="bracket-connections" aria-hidden="true"></svg>${round('quarter', 'Quarterfinals', (m) => m.bracket_position <= 2)}${round('semi', 'Semifinals', (m) => m.bracket_position === 1)}${round('final', 'Final', () => true)}${round('semi', 'Semifinals', (m) => m.bracket_position === 2)}${round('quarter', 'Quarterfinals', (m) => m.bracket_position > 2, true)}</div></section>`
       : '';
-  app.innerHTML = `${live?.status === 'live' ? `<section class="ongoing-match"><p>Live now</p><div class="ongoing-scoreboard cricket-line">${ongoingSide(live.home_team)}<b>${scoreLine(live)}</b>${ongoingSide(live.away_team)}</div></section>` : ''}${bracket}${done ? `<details class="group-stage" ${groupStageOpen ? 'open' : ''}><summary>Group stage complete · 4 tables · 40 matches</summary><div class="groups">${groups}</div></details>` : `<div class="groups">${groups}</div>`}`;
+  app.innerHTML = `${live?.status === 'live' ? `<section class="ongoing-match"><p>Live now</p><div class="ongoing-scoreboard cricket-line">${ongoingSide(live.home_team, roleTag(live, 'home'))}<b>${scoreLine(live)}</b>${ongoingSide(live.away_team, roleTag(live, 'away'))}</div></section>` : ''}${bracket}${done ? `<details class="group-stage" ${groupStageOpen ? 'open' : ''}><summary>Group stage complete · 4 tables · 40 matches</summary><div class="groups">${groups}</div></details>` : `<div class="groups">${groups}</div>`}`;
   drawBracketConnections();
 }
 async function load() {

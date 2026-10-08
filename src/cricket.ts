@@ -23,21 +23,23 @@ const groupRoundRobin = [
   [1, 2],
   [3, 4],
 ] as const;
-// Overs are written the cricket way: 19.4 is nineteen overs and four balls, so
-// the fraction never passes five.
+// Overs are written the cricket way: 9.4 is nine overs and four balls, so the
+// fraction never passes five. Cricksal is a ten-over game, so an innings can
+// never read past 10.0.
 const overs = z
   .number()
   .min(0)
-  .max(99.5)
+  .max(10)
   .refine((value) => Math.round((value % 1) * 10) <= 5, {
     message: 'Overs cannot pass .5 — six balls roll into the next over',
   });
+const battingSide = z.enum(['home', 'away']);
 const scoreBody = z
   .object({
     home_score: z.number().int().min(0).max(999),
     away_score: z.number().int().min(0).max(999),
-    home_wickets: z.number().int().min(0).max(10).optional(),
-    away_wickets: z.number().int().min(0).max(10).optional(),
+    home_wickets: z.number().int().min(0).max(7).optional(),
+    away_wickets: z.number().int().min(0).max(7).optional(),
     home_overs: overs.optional(),
     away_overs: overs.optional(),
     version: z.number().int().positive(),
@@ -581,6 +583,10 @@ export async function registerCricket(app: FastifyInstance, db: Database, c: Con
   );
   app.post('/admin/cricket/matches/:id/start', { preHandler: guard.admin }, async (req) =>
     db.transaction(async (tx) => {
+      const b = z
+        .object({ batting_side: battingSide.default('home') })
+        .strict()
+        .parse(req.body ?? {});
       const m = await one(tx, 'SELECT * FROM cricket_matches WHERE id=$1 FOR UPDATE', [
         params.parse(req.params).id,
       ]);
@@ -589,9 +595,44 @@ export async function registerCricket(app: FastifyInstance, db: Database, c: Con
       assert(m.home_team_id && m.away_team_id, 409, 'teams_pending', 'Both teams must be known');
       return one(
         tx,
-        "UPDATE cricket_matches SET status='live',version=version+1 WHERE id=$1 RETURNING *",
-        [m.id],
+        "UPDATE cricket_matches SET status='live',batting_side=$2,version=version+1 WHERE id=$1 RETURNING *",
+        [m.id, b.batting_side],
       );
+    }),
+  );
+  // The innings break swaps the two roles: the side that bowled first comes in to
+  // bat. Bumping the version redraws the projector, which keys on it.
+  app.post('/admin/cricket/matches/:id/batting', { preHandler: guard.admin }, async (req) =>
+    db.transaction(async (tx) => {
+      const b = z
+        .object({ version: z.number().int().positive(), batting_side: battingSide })
+        .strict()
+        .parse(req.body);
+      const m = await one(tx, 'SELECT * FROM cricket_matches WHERE id=$1 FOR UPDATE', [
+        params.parse(req.params).id,
+      ]);
+      assert(m, 404, 'not_found', 'Match not found');
+      assert(
+        m.status === 'live',
+        409,
+        'invalid_state',
+        'Batting can only change while the match is live',
+      );
+      assert(
+        m.version === b.version,
+        409,
+        'stale_match',
+        'This score changed elsewhere. Refresh and try again.',
+      );
+      const updated = await one(
+        tx,
+        'UPDATE cricket_matches SET batting_side=$2,version=version+1 WHERE id=$1 RETURNING *',
+        [m.id, b.batting_side],
+      );
+      await audit(tx, req.actor!.id, 'cricket.match.batting', 'cricket', m.id, {
+        batting_side: b.batting_side,
+      });
+      return updated;
     }),
   );
   app.patch('/admin/cricket/matches/:id', { preHandler: guard.admin }, async (req) =>
@@ -687,7 +728,7 @@ export async function registerCricket(app: FastifyInstance, db: Database, c: Con
   app.post('/admin/cricket/matches/:id/wickets', { preHandler: guard.admin }, async (req) =>
     db.transaction(async (tx) => {
       const b = z
-        .object({ team_id: uuid, player_id: uuid, wickets: z.number().int().min(1).max(10) })
+        .object({ team_id: uuid, player_id: uuid, wickets: z.number().int().min(1).max(7) })
         .strict()
         .parse(req.body);
       const m = await one(tx, 'SELECT * FROM cricket_matches WHERE id=$1 FOR UPDATE', [
