@@ -18,5 +18,3 @@ CREATE INDEX IF NOT EXISTS basketball_matches_group_idx ON basketball_matches(st
 CREATE INDEX IF NOT EXISTS basketball_matches_bracket_idx ON basketball_matches(stage, bracket_position) WHERE stage <> 'group';
 CREATE INDEX IF NOT EXISTS basketball_scorers_match_team_idx ON basketball_scorers(match_id, team_id, created_at);
 CREATE INDEX IF NOT EXISTS basketball_scorers_match_idx ON basketball_scorers(match_id, created_at);
-CREATE INDEX IF NOT EXISTS basketball_fouls_match_team_idx ON basketball_fouls(match_id, team_id, created_at);
-CREATE INDEX IF NOT EXISTS basketball_fouls_match_idx ON basketball_fouls(match_id, created_at);
