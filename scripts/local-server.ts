@@ -187,8 +187,10 @@ console.log(`
 
   - "Sign in with Google" bounces straight back; no Google account is involved.
   - Futsal (32), Cricksal (20) and Basketball (16) are fully drawn with every
-    group fixture except the last one played. End that last one on the desk and
-    the knockout bracket draws itself.
+    group fixture except the last one played. The Cricksal decider boots already
+    live — the away side done at 110/8, the home side chasing at 87/3 — and the
+    futsal and basketball last fixtures sit scheduled. End a last fixture on the
+    desk and that sport's knockout bracket draws itself.
   - Two pending payments per sport sit in the review queue for desk practice.
   - Confirm your own payment from the organizer desk to reach the team profile.
   - Restarting this process wipes every row and file: that is the reset button.

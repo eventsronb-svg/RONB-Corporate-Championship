@@ -343,6 +343,60 @@ export async function seedChampionships(
         }
       }
 
+      // The Cricksal demo keeps its deciding group fixture *in play*: the away side
+      // is done at 110/8 from their 20 overs and the home side is chasing at 87/3
+      // off 12.4, so the desk and the projector open on the innings that ends the
+      // group stage. Batters on both sides and each team's bowlers are credited
+      // within their own tallies, and finishing the match through the desk draws
+      // the knockout bracket.
+      if (tournament.cricket) {
+        const playing = (
+          await one(
+            tx,
+            `SELECT id,home_team_id,away_team_id FROM ${tournament.matches} WHERE id=$1`,
+            [last],
+          )
+        )!;
+        await tx.query(
+          `UPDATE ${tournament.matches}
+           SET status='live',version=1,home_score=87,away_score=110,
+               home_wickets=3,away_wickets=8,home_overs=12.4,away_overs=20.0
+           WHERE id=$1`,
+          [playing.id],
+        );
+        const roster = async (teamId: string, count: number) =>
+          (
+            await tx.query(
+              `SELECT tp.id FROM team_players tp
+               JOIN ${tournament.table} t ON t.order_item_id=tp.order_item_id
+               WHERE t.id=$1 ORDER BY tp.position LIMIT $2`,
+              [teamId, count],
+            )
+          ).rows.map((r) => r.id);
+        const homePlayers = await roster(playing.home_team_id, 5);
+        const awayPlayers = await roster(playing.away_team_id, 5);
+        const scorers = [
+          [playing.home_team_id, homePlayers, [40, 23, 19]],
+          [playing.away_team_id, awayPlayers, [45, 30, 22]],
+        ] as const;
+        for (const [teamId, players, runs] of scorers)
+          for (const [index, playerId] of players.slice(0, 3).entries())
+            await tx.query(
+              'INSERT INTO cricket_scorers(match_id,team_id,player_id,runs) VALUES($1,$2,$3,$4)',
+              [playing.id, teamId, playerId, runs[index]],
+            );
+        const bowlers = [
+          [playing.home_team_id, homePlayers, [2, 1]],
+          [playing.away_team_id, awayPlayers, [2, 1]],
+        ] as const;
+        for (const [teamId, players, wickets] of bowlers)
+          for (const [index, playerId] of players.slice(3, 5).entries())
+            await tx.query(
+              'INSERT INTO cricket_wickets(match_id,team_id,player_id,wickets) VALUES($1,$2,$3,$4)',
+              [playing.id, teamId, playerId, wickets[index]],
+            );
+      }
+
       // Two pending payments per sport keep the review queue worth clicking through.
       for (const [queueIndex, status] of ['receipt_submitted', 'under_review'].entries()) {
         const name = pendingCompanies[sportIndex * 2 + queueIndex];
