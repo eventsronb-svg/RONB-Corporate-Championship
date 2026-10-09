@@ -145,18 +145,18 @@ function render(data, live) {
     rounds('quarter', 'Quarterfinals', (match) => match.bracket_position > 2, true),
     rounds('prequarter', 'Round of 16', (match) => match.bracket_position > 4, true),
   ].join('');
-  const groupsView = groupsDone
-    ? `<details class="group-stage" ${groupStageOpen ? 'open' : ''}><summary><span>Group stage complete</span><span>${data.groups.length} tables · ${groupMatches.length} matches</span></summary><div class="groups">${groups}</div></details>`
-    : `<div class="groups">${groups}</div>`;
   const bracketView =
     groupsDone && bracketGenerated
       ? `<section class="stage bracket-stage"><h2>Match bracket</h2><div class="bracket"><svg class="bracket-connections" aria-hidden="true"></svg>${bracket}</div></section>`
       : '';
   const thirds = data.third_place;
-  const thirdPlaceView = thirds?.table.length
-    ? `<section class="panel stage"><h2>Third-place qualification</h2><p>${thirds.complete ? 'Final standings' : 'Provisional standings'}. The best four qualify, ranked by points, goal difference, then goals scored.${thirds.draw_required ? ' A manual draw will decide the remaining qualifying spots.' : ''}${thirds.draw_applied ? ' Tied teams were ordered by a recorded manual draw.' : ''}</p><div class="scroll"><table><thead><tr><th>Rank</th><th>Team</th><th>Group</th><th>P</th><th>Pts</th><th>GD</th><th>GF</th><th>Status</th></tr></thead><tbody>${thirds.table.map((row) => `<tr class="${row.qualified ? 'qualified-team' : ''}"><td>${row.draw_pending ? 'Tied' : row.position}</td><td>${team(row)}</td><td>${esc(row.group_code)}</td><td>${row.played}</td><td><b>${row.points}</b></td><td>${row.goal_difference}</td><td>${row.goals_for}</td><td>${row.qualified ? 'Qualified' : row.draw_pending ? 'Draw pending' : thirds.complete ? 'Eliminated' : 'Provisional'}</td></tr>`).join('')}</tbody></table></div></section>`
+  const thirdPlaceView = groupsDone && thirds?.table.length
+    ? `<section class="panel stage third-place"><h2>Third-place qualification</h2><p>${thirds.complete ? 'Final standings' : 'Provisional standings'}. The best four qualify, ranked by points, goal difference, then goals scored.${thirds.draw_required ? ' A manual draw will decide the remaining qualifying spots.' : ''}${thirds.draw_applied ? ' Tied teams were ordered by a recorded manual draw.' : ''}</p><div class="scroll"><table><thead><tr><th>Rank</th><th>Team</th><th>Group</th><th>P</th><th>Pts</th><th>GD</th><th>GF</th><th>Status</th></tr></thead><tbody>${thirds.table.map((row) => `<tr class="${row.qualified ? 'qualified-team' : ''}"><td>${row.draw_pending ? 'Tied' : row.position}</td><td>${team(row)}</td><td>${esc(row.group_code)}</td><td>${row.played}</td><td><b>${row.points}</b></td><td>${row.goal_difference}</td><td>${row.goals_for}</td><td>${row.qualified ? 'Qualified' : row.draw_pending ? 'Draw pending' : thirds.complete ? 'Eliminated' : 'Provisional'}</td></tr>`).join('')}</tbody></table></div></section>`
     : '';
-  app.innerHTML = `${ongoing(live)}${bracketView}${thirdPlaceView}${groupsView}`;
+  const groupsView = groupsDone
+    ? `<details class="group-stage" ${groupStageOpen ? 'open' : ''}><summary><span>Group stage complete</span><span>${data.groups.length} tables · ${groupMatches.length} matches</span></summary><div class="groups">${groups}</div>${thirdPlaceView}</details>`
+    : `<div class="groups">${groups}</div>`;
+  app.innerHTML = `${ongoing(live)}${bracketView}${groupsView}`;
   drawBracketConnections();
 }
 

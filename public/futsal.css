@@ -425,8 +425,7 @@ body .panel > .fixture > b {
 .ongoing-side img {
   width: clamp(54px, 8vw, 90px);
   height: clamp(54px, 8vw, 90px);
-  border-radius: 50%;
-  object-fit: cover;
+  object-fit: contain;
   background: var(--white);
 }
 .ongoing-scoreboard > b {
@@ -709,8 +708,7 @@ td:first-child {
 .logo {
   width: 26px;
   height: 26px;
-  border-radius: 50%;
-  object-fit: cover;
+  object-fit: contain;
   background: var(--tint);
 }
 .fixture {
@@ -788,8 +786,7 @@ td:first-child {
 .live-team img {
   width: clamp(72px, 13vw, 150px);
   height: clamp(72px, 13vw, 150px);
-  border-radius: 50%;
-  object-fit: cover;
+  object-fit: contain;
   display: block;
   margin: 0 auto 16px;
   background: var(--tint);
@@ -1015,6 +1012,11 @@ td:first-child {
   padding: 22px;
   border-top: 1px solid var(--rule);
 }
+/* The third-place table is part of the group-stage disclosure, so it lines up
+   with the group tables rather than sitting on its own outside the card. */
+.group-stage > .third-place {
+  margin: 0 22px 22px;
+}
 .group-stage[open] summary {
   border-bottom: 1px solid var(--rule);
 }
@@ -1050,6 +1052,9 @@ td:first-child {
   }
   .group-stage > .groups {
     padding: 12px;
+  }
+  .group-stage > .third-place {
+    margin: 0 12px 12px;
   }
   .group-stage summary {
     padding: 18px;
