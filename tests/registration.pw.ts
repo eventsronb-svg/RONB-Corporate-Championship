@@ -478,7 +478,7 @@ test('mobile captain can revise an expired payment and recover from session expi
 });
 
 test('empty sports and expired captain sessions have usable screens', async ({ page, context }) => {
-  await page.route('**/sports', (route) => route.fulfill({ json: [] }));
+  await page.route('**/sports*', (route) => route.fulfill({ json: [] }));
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Corporate Championship' })).toBeVisible();
   await expect(page.getByText('No sports are open for registration yet.').first()).toBeVisible();

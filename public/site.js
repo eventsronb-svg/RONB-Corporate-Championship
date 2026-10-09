@@ -65,14 +65,21 @@ const e = (title, body) =>
 async function load() {
   const [eventResponse, sportsResponse] = await Promise.all([
     fetch('/assets/championship.json'),
-    api('/sports'),
+    api('/sports?include_inactive=1'),
   ]);
   if (!eventResponse.ok) throw new Error('Event information is unavailable.');
   const [event, sportsPayload] = await Promise.all([
     eventResponse.json(),
     Promise.resolve(sportsResponse),
   ]);
-  const sports = sportsPayload.map((sport) => ({ ...sport, slug: slugify(sport.name) }));
+  // Registration-closed sports normally drop off the page, but the futsal and
+  // cricksal cards stay as links to their live scoreboards.
+  const sports = sportsPayload
+    .map((sport) => ({ ...sport, slug: slugify(sport.name) }))
+    .filter(
+      (sport) =>
+        sport.active !== false || sport.slug === 'cricksal' || sport.slug === 'futsal',
+    );
   data = { ...event, sports, show_teams_section: true };
   void api('/site-settings')
     .then((settings) => {
@@ -93,13 +100,10 @@ function sportIcon(sport, className = 'sport-symbol') {
 }
 function sportCard(sport) {
   const lineup = sport.slug === 'cricksal' || sport.slug === 'futsal';
-  const href =
-    sport.slug === 'cricksal'
-      ? 'https://ronbevents.com/cricksal'
-      : sport.slug === 'futsal'
-        ? 'https://ronbevents.com/futsal'
-        : `/register?focus=${encodeURIComponent(sport.slug)}`;
-  return `<a class="sport sport-${sport.slug}" href="${href}"><div class="sport-top"><span class="sport-format">${lineup ? 'View the lineup' : 'Open for registration'}</span></div><h3>${esc(sport.name)}</h3>${sport.description ? `<p>${esc(sport.description)}</p>` : ''}<span class="sport-link">${lineup ? "Let's go" : "Let's play"}</span>${sportIcon(sport)}</a>`;
+  const href = lineup
+    ? `/${sport.slug}`
+    : `/register?focus=${encodeURIComponent(sport.slug)}`;
+  return `<a class="sport sport-${sport.slug}" href="${href}"><div class="sport-top"><span class="sport-format">${lineup ? 'Check the scores' : 'Open for registration'}</span></div><h3>${esc(sport.name)}</h3>${sport.description ? `<p>${esc(sport.description)}</p>` : ''}<span class="sport-link">${lineup ? "Let's go" : "Let's play"}</span>${sportIcon(sport)}</a>`;
 }
 function home() {
   document.title = `${data.title} ${data.edition}`;

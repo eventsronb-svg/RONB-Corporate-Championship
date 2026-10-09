@@ -156,8 +156,15 @@ export async function buildApp(deps) {
         const row = await one(db, "SELECT value FROM site_settings WHERE key='show_teams_section'");
         return { show_teams_section: row?.value !== false };
     });
-    app.get('/sports', async () => (await db.query(`SELECT s.*, (SELECT count(*)::int FROM order_items i JOIN orders o ON o.id=i.order_id WHERE i.sport_id=s.id AND o.status=ANY($1::text[])) AS filled_slots,
- (SELECT count(*)::int FROM order_items i JOIN orders o ON o.id=i.order_id WHERE i.sport_id=s.id AND o.status=ANY($2::text[]) AND i.profile_completed_at IS NOT NULL) AS listed_slots FROM sports s WHERE active ORDER BY name`, [reservedStates, paid])).rows);
+    app.get('/sports', async (req) => {
+        // Registration flows use the default (active only). The public home page passes
+        // include_inactive=1 so closed sports can still surface their scoreboard links.
+        const { include_inactive } = z
+            .object({ include_inactive: z.coerce.number().int().min(0).max(1).default(0) })
+            .parse(req.query);
+        return (await db.query(`SELECT s.*, (SELECT count(*)::int FROM order_items i JOIN orders o ON o.id=i.order_id WHERE i.sport_id=s.id AND o.status=ANY($1::text[])) AS filled_slots,
+ (SELECT count(*)::int FROM order_items i JOIN orders o ON o.id=i.order_id WHERE i.sport_id=s.id AND o.status=ANY($2::text[]) AND i.profile_completed_at IS NOT NULL) AS listed_slots FROM sports s WHERE ($3::bool OR active) ORDER BY name`, [reservedStates, paid, include_inactive === 1])).rows;
+    });
     app.get('/teams', async (req) => {
         const q = z
             .object({
