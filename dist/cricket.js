@@ -14,6 +14,28 @@ const groupRoundRobin = [
     [0, 3],
     [1, 2],
 ];
+// Five teams play five rounds, with one bye per round.
+const fiveTeamRoundRobin = [
+    [0, 1],
+    [2, 3],
+    [0, 2],
+    [1, 4],
+    [0, 3],
+    [2, 4],
+    [0, 4],
+    [1, 3],
+    [1, 2],
+    [3, 4],
+];
+async function expectedGroupMatches(tx) {
+    const counts = (await tx.query('SELECT group_code,count(*)::int AS count FROM cricket_teams GROUP BY group_code')).rows;
+    const total = counts.reduce((sum, row) => sum + row.count, 0);
+    assert(total === 16 || total === 17, 409, 'team_count', 'Cricksal requires 16 or 17 imported confirmed teams');
+    assert(counts.length === 4 &&
+        groups.every((code) => counts.find((row) => row.group_code === code)?.count ===
+            (code === 'A' && total === 17 ? 5 : 4)), 409, 'groups_incomplete', 'Assign four teams per group, with five in Group A for the 17-team field');
+    return total === 17 ? 28 : 24;
+}
 // Overs are written the cricket way: 9.4 is nine overs and four balls, so the
 // fraction never passes five. Cricksal is a ten-over game, so an innings can
 // never read past 10.0.
@@ -169,8 +191,9 @@ function nextSlot(stage, position) {
         : null;
 }
 async function createBracket(tx) {
+    const expected = await expectedGroupMatches(tx);
     const groupMatches = await one(tx, "SELECT count(*)::int AS total,count(*) FILTER (WHERE status='completed')::int AS completed FROM cricket_matches WHERE stage='group'");
-    assert(groupMatches?.total === 24 && groupMatches.completed === 24, 409, 'groups_incomplete', 'Complete all 24 group matches before creating the bracket');
+    assert(groupMatches?.total === expected && groupMatches.completed === expected, 409, 'groups_incomplete', `Complete all ${expected} group matches before creating the bracket`);
     assert(!(await one(tx, "SELECT id FROM cricket_matches WHERE stage='quarter' LIMIT 1")), 409, 'bracket_exists', 'The cricket bracket already exists');
     const qualified = [];
     for (const group of groups)
@@ -388,8 +411,10 @@ export async function registerCricket(app, db, c) {
         assert(team, 404, 'not_found', 'Team not found');
         const body = groupBody.parse(req.body);
         if (body.group_code) {
+            const field = await one(tx, 'SELECT count(*)::int AS total FROM cricket_teams');
+            const capacity = body.group_code === 'A' && field?.total === 17 ? 5 : 4;
             const count = await one(tx, 'SELECT count(*)::int AS count FROM cricket_teams WHERE group_code=$1 AND id<>$2', [body.group_code, team.id]);
-            assert((count?.count ?? 0) < 4, 409, 'group_full', `Group ${body.group_code} already has four teams`);
+            assert((count?.count ?? 0) < capacity, 409, 'group_full', `Group ${body.group_code} already has ${capacity} teams`);
         }
         // Re-saving the same group keeps this team's place in the draw; clearing the
         // group drops the stamp so a later assignment draws a fresh order.
@@ -411,16 +436,17 @@ export async function registerCricket(app, db, c) {
     app.post('/admin/cricket/generate-fixtures', { preHandler: guard.superAdmin }, async (req) => db.transaction(async (tx) => {
         assert(!(await one(tx, 'SELECT id FROM cricket_matches LIMIT 1')), 409, 'fixtures_exist', 'Fixtures already exist');
         const count = await one(tx, 'SELECT count(*)::int AS total FROM cricket_teams');
-        assert(count?.total === 16, 409, 'team_count', 'Cricksal requires exactly 16 imported confirmed teams');
+        assert(count?.total === 16 || count?.total === 17, 409, 'team_count', 'Cricksal requires 16 or 17 imported confirmed teams');
+        const matchCount = await expectedGroupMatches(tx);
         for (const group of groups) {
-            // Placement order fixes the six pairings for each group of four.
+            // Placement order fixes the round-robin pairings for each group.
             const teams = (await tx.query('SELECT id FROM cricket_teams WHERE group_code=$1 ORDER BY group_assigned_at,id', [group])).rows;
-            assert(teams.length === 4, 409, 'groups_incomplete', `Group ${group} needs four teams`);
-            for (const [position, [home, away]] of groupRoundRobin.entries())
+            const pairings = teams.length === 5 ? fiveTeamRoundRobin : groupRoundRobin;
+            for (const [position, [home, away]] of pairings.entries())
                 await tx.query("INSERT INTO cricket_matches(stage,group_code,group_position,home_team_id,away_team_id) VALUES('group',$1,$2,$3,$4)", [group, position + 1, teams[home].id, teams[away].id]);
         }
-        await audit(tx, req.actor.id, 'cricket.fixtures.generate', 'cricket', (await one(tx, 'SELECT id FROM cricket_teams LIMIT 1')).id, { matches: 24 });
-        return { matches: 24 };
+        await audit(tx, req.actor.id, 'cricket.fixtures.generate', 'cricket', (await one(tx, 'SELECT id FROM cricket_teams LIMIT 1')).id, { matches: matchCount });
+        return { matches: matchCount };
     }));
     app.post('/admin/cricket/matches/:id/start', { preHandler: guard.admin }, async (req) => db.transaction(async (tx) => {
         // Serialize starts for this sport, including requests from other organizer tabs.
@@ -559,7 +585,7 @@ export async function registerCricket(app, db, c) {
         const done = await one(tx, "UPDATE cricket_matches SET status='completed',winner_team_id=$2,completed_at=now(),version=version+1 WHERE id=$1 RETURNING *", [m.id, winner]);
         if (m.stage === 'group') {
             const complete = await one(tx, "SELECT count(*)::int AS total,count(*) FILTER (WHERE status='completed')::int AS completed FROM cricket_matches WHERE stage='group'");
-            if (complete?.total === 24 && complete.completed === 24) {
+            if (complete && complete.total > 0 && complete.completed === complete.total) {
                 await createBracket(tx);
                 await audit(tx, req.actor.id, 'cricket.bracket.generate', 'cricket', m.id, {
                     teams: 8,
