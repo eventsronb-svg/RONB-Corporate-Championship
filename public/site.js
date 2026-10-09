@@ -91,6 +91,16 @@ function sportIcon(sport, className = 'sport-symbol') {
   const symbols = { futsal: '⚽', basketball: '🏀' };
   return `<span class="${className}" aria-hidden="true">${symbols[slug] || '🏆'}</span>`;
 }
+function sportCard(sport) {
+  const lineup = sport.slug === 'cricksal' || sport.slug === 'futsal';
+  const href =
+    sport.slug === 'cricksal'
+      ? 'https://ronbevents.com/cricksal'
+      : sport.slug === 'futsal'
+        ? 'https://ronbevents.com/futsal'
+        : `/register?focus=${encodeURIComponent(sport.slug)}`;
+  return `<a class="sport sport-${sport.slug}" href="${href}"><div class="sport-top"><span class="sport-format">${lineup ? 'View the lineup' : 'Open for registration'}</span></div><h3>${esc(sport.name)}</h3>${sport.description ? `<p>${esc(sport.description)}</p>` : ''}<span class="sport-link">${lineup ? "Let's go" : "Let's play"}</span>${sportIcon(sport)}</a>`;
+}
 function home() {
   document.title = `${data.title} ${data.edition}`;
   main.innerHTML = `
@@ -106,7 +116,7 @@ function home() {
       <img class="hero-visual" src="/assets/images/logo.webp?v=20260927-2" alt="Corporate Championship" width="1600" height="1600" />
     </section>
     <div class="event-strip"><div><span>Save the dates</span><strong>October 10-13, 2026</strong></div><div><span>Meet us at</span><strong>Royal Sports Park, Chunikhel</strong></div><div><span>TEAM UP & TURN UP</span><strong>Ready to Bring the Heat?</strong></div></div>
-    <section class="section" id="sports">${sectionHeader('A game for your team', 'Good colleagues. Great teammates.', 'Pick your sport, rally your people, and give the office something new to talk about.')}<div class="sport-grid">${data.sports.map((sport) => `<a class="sport sport-${sport.slug}" href="/register?focus=${encodeURIComponent(sport.slug)}"><div class="sport-top"><span class="sport-format">Open for registration</span></div><h3>${esc(sport.name)}</h3>${sport.description ? `<p>${esc(sport.description)}</p>` : ''}<span class="sport-link">Let's play</span>${sportIcon(sport)}</a>`).join('')}</div><p class="section-note">Registration fees and available places are shown when you sign in.</p></section>
+    <section class="section" id="sports">${sectionHeader('A game for your team', 'Good colleagues. Great teammates.', 'Pick your sport, rally your people, and give the office something new to talk about.')}<div class="sport-grid">${data.sports.map(sportCard).join('')}</div><p class="section-note">Registration fees and available places are shown when you sign in.</p></section>
     <section class="team-story section"><p class="eyebrow">Better together</p><h2>A different kind<br>of team meeting.</h2><p>Swap the meeting room for the court. Cheer for your colleagues, meet other company teams, and make memories beyond the workday.</p><a class="button" href="/register">Make your company part of it</a></section>
     <section class="section" id="teams">${sectionHeader('', 'Meet the teams', 'Your next friendly rivals. Confirmed teams appear here once their captain completes the team profile.')}<div class="teams-shell"><div class="team-tabs" role="tablist" aria-label="Team sports">${data.sports.map((sport, index) => `<button role="tab" id="tab-${sport.slug}" aria-label="${esc(sport.name)}" aria-controls="teams-panel" aria-selected="${index === 0}" tabindex="${index === 0 ? 0 : -1}" data-sport="${esc(sport.name)}" data-slug="${sport.slug}" ${sport.max_teams ? `data-max="${sport.max_teams}"` : ''}>${esc(sport.name)}</button>`).join('')}</div><div class="team-list" id="teams-panel" role="tabpanel" aria-labelledby="tab-${data.sports[0]?.slug || ''}" aria-live="polite"><p class="teams-state is-loading">Loading confirmed teams…</p></div></div></section>
     <section class="section venue-section" id="venue"><img class="venue-date" src="/assets/images/dates.png?v=20260923-1" alt="See you in October 10 to 13 2026 · Chunikhel, Kathmandu" width="1536" height="1024" /><div class="venue-copy"><p class="eyebrow">Room to play. Reasons to stay.</p><h2>${esc(data.venue)}</h2><p>Four days of team spirit at ${esc(data.locality)}. Get your colleagues together and meet us on the court.</p><a class="button primary" href="${esc(data.maps_url)}" target="_blank" rel="noreferrer">Open directions</a></div><div class="venue-map"><iframe title="Royal Sports Park location on Google Maps" src="${esc(data.maps_embed_url)}" loading="lazy" allowfullscreen referrerpolicy="no-referrer"></iframe><p>Royal Sports Park, Chunikhel · <a href="${esc(data.maps_url)}" target="_blank" rel="noreferrer">View larger map and directions ↗</a></p></div></section>
