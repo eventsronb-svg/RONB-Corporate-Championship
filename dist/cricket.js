@@ -510,7 +510,7 @@ export async function registerCricket(app, db, c) {
         return updated;
     }));
     // The organizer saves a raised score and then credits it to a batsman from the
-    // team's roster, which is what /cricket/match prints under the team name.
+    // team's roster, which is what /cricksal/match prints under the team name.
     app.post('/admin/cricket/matches/:id/scorers', { preHandler: guard.admin }, async (req) => db.transaction(async (tx) => {
         const b = z
             .object({ team_id: uuid, player_id: uuid, runs: z.number().int().min(1).max(999) })

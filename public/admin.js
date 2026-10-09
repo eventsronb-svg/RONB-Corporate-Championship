@@ -1277,7 +1277,7 @@ async function cricketView() {
             const batting_side = row.querySelector('[data-cricket-batting]')?.value || 'home';
             await post(`/admin/cricket/matches/${row.dataset.match}/start`, { batting_side });
             await render();
-            message('Match is live on /cricket/match. Swap batting at the innings break.');
+            message('Match is live on /cricksal/match. Swap batting at the innings break.');
           } catch (err) {
             await render();
             message(err.message, true);

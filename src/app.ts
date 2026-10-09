@@ -529,8 +529,8 @@ export async function buildApp(deps: {
   app.get('/futsal/match', async (_req, reply) => reply.sendFile('futsal-match.html'));
   app.get('/basketball', async (_req, reply) => reply.sendFile('basketball.html'));
   app.get('/basketball/match', async (_req, reply) => reply.sendFile('basketball-match.html'));
-  app.get('/cricket', async (_req, reply) => reply.sendFile('cricket.html'));
-  app.get('/cricket/match', async (_req, reply) => reply.sendFile('cricket-match.html'));
+  app.get('/cricksal', async (_req, reply) => reply.sendFile('cricket.html'));
+  app.get('/cricksal/match', async (_req, reply) => reply.sendFile('cricket-match.html'));
   return app;
 }
 
@@ -564,9 +564,9 @@ function staticPath(pathname: string): string | undefined {
     relativePath = 'basketball.html';
   } else if (pathname === '/basketball/match') {
     relativePath = 'basketball-match.html';
-  } else if (pathname === '/cricket') {
+  } else if (pathname === '/cricksal') {
     relativePath = 'cricket.html';
-  } else if (pathname === '/cricket/match') {
+  } else if (pathname === '/cricksal/match') {
     relativePath = 'cricket-match.html';
   } else if (pathname.startsWith('/assets/')) {
     relativePath = pathname.slice('/assets/'.length);
