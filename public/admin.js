@@ -658,8 +658,10 @@ const placedFirst = (a, b) => {
   if (!b.group_assigned_at) return -1;
   return a.group_assigned_at > b.group_assigned_at ? 1 : -1;
 };
-// Every championship group holds four teams.
+// Cricksal's finalized 17-team field has five teams in Group A.
 function drawGroups(data, groups, prefix, quota = GROUP_SIZE) {
+  const quotaFor = (code) =>
+    prefix === 'cricket' && data.teams.length === 17 && code === 'A' ? 5 : quota;
   const unassigned = data.teams.filter((team) => !team.group_code);
   const allAssigned = data.teams.length > 0 && !unassigned.length;
   // A stray code keeps its teams visible instead of hiding them behind a missing option.
@@ -695,7 +697,7 @@ function drawGroups(data, groups, prefix, quota = GROUP_SIZE) {
     ...(unassigned.length ? [['', `Unassigned · ${size(unassigned.length)}`]] : []),
     ...codes.map((code) => {
       const count = teamsFor(code).length;
-      return [code, `Group ${code} · ${count}/${quota} teams`];
+      return [code, `Group ${code} · ${count}/${quotaFor(code)} teams`];
     }),
   ];
   const active = choices.some(([code]) => code === drawGroupView[prefix])
@@ -717,7 +719,7 @@ function drawGroups(data, groups, prefix, quota = GROUP_SIZE) {
     // for the teams inside it so a correct assignment is never lost.
     const optionsFor = (team) =>
       groups
-        .filter((group) => teamsFor(group).length < quota || group === team.group_code)
+        .filter((group) => teamsFor(group).length < quotaFor(group) || group === team.group_code)
         .map(
           (group) =>
             `<option value="${group}" ${team.group_code === group ? 'selected' : ''}>Group ${group}</option>`,
@@ -1238,7 +1240,7 @@ async function cricketView() {
   const fixturesDrawn = data.groups.some((group) => group.matches.length);
   const controls =
     me.role === 'super_admin'
-      ? `<div class="actions"><button data-cricket="import">Import confirmed teams</button>${fixturesDrawn ? '' : '<button data-cricket="fixtures">Generate group fixtures</button>'}</div><p class="form-note">When all 24 group matches are complete, the top two teams from each group automatically enter the 8-team knockout bracket.</p>`
+      ? `<div class="actions"><button data-cricket="import">Import confirmed teams</button>${fixturesDrawn ? '' : '<button data-cricket="fixtures">Generate group fixtures</button>'}</div><p class="form-note">When all ${data.teams.length === 17 ? 28 : 24} group matches are complete, the top two teams from each group automatically enter the 8-team knockout bracket.</p>`
       : '';
   return {
     html: `${header('Cricksal championship', 'Run group matches, award two points for each win, and settle level scores with the super over.', 'EVENT OPERATIONS', `${data.teams.length} TEAMS`)}<section class="surface panel">${controls}${reportButtons(data)}<p class="form-note">Group matches use 2 points for a win. A level score needs the super over winner when the match is ended. Cricksal is ten overs and seven wickets a side, and the side in to bat is set when the match starts and swapped at the innings break. Enter overs the cricket way — 9.4 means nine overs and four balls.</p></section>${groupDraw}<section class="surface panel section-gap"><div class="table-scroll"><table><thead><tr><th>Stage</th><th>Home</th><th>Runs</th><th>Wkts</th><th>Ov</th><th></th><th>Runs</th><th>Wkts</th><th>Ov</th><th>Away</th><th>Action</th></tr></thead><tbody>${matches.map(matchRow).join('') || '<tr><td colspan="11">Import teams, then assign groups.</td></tr>'}</tbody></table></div></section>`,

@@ -56,6 +56,93 @@ async function addPlayer(table: 'cricket_teams', teamId: string, name: string) {
 }
 
 describe('cricket championship', () => {
+  it('supports five teams in Group A and creates the bracket after all 28 matches', async () => {
+    await seedTeams(17, h.sports[0].id, 'Cricket Team');
+    await h.call('POST', '/admin/cricket/import', {}, 'admin');
+    const teams = (await h.call('GET', '/admin/cricket', undefined, 'admin')).json().teams;
+    for (const [index, team] of teams.entries()) {
+      const group = index < 5 ? 'A' : 'BCD'[Math.floor((index - 5) / 4)];
+      expect(
+        (
+          await h.call(
+            'PATCH',
+            `/admin/cricket/teams/${team.id}/group`,
+            { group_code: group },
+            'admin',
+          )
+        ).statusCode,
+      ).toBe(200);
+    }
+    expect(
+      (
+        await h.call(
+          'PATCH',
+          `/admin/cricket/teams/${teams[5].id}/group`,
+          { group_code: 'A' },
+          'admin',
+        )
+      ).json().error,
+    ).toBe('group_full');
+    expect(
+      (await h.call('POST', '/admin/cricket/generate-fixtures', {}, 'admin')).json().matches,
+    ).toBe(28);
+    const view = (await h.call('GET', '/admin/cricket', undefined, 'admin')).json();
+    expect(view.groups.map((group: any) => group.matches.length)).toEqual([10, 6, 6, 6]);
+    for (const group of view.groups) {
+      // Read group membership from the updated public data, not the imported snapshot.
+      const members = view.teams.filter((team: any) => team.group_code === group.code);
+      expect(
+        new Set(
+          group.matches.map((match: any) =>
+            [match.home_team_id, match.away_team_id].sort().join(':'),
+          ),
+        ).size,
+      ).toBe(group.matches.length);
+      for (const team of members)
+        expect(
+          group.matches.filter(
+            (match: any) => match.home_team_id === team.id || match.away_team_id === team.id,
+          ),
+        ).toHaveLength(members.length - 1);
+    }
+    const last = view.groups[3].matches.at(-1);
+    await h.db.query(
+      "UPDATE cricket_matches SET status='completed',home_score=100,away_score=90,winner_team_id=home_team_id,completed_at=now() WHERE id<>$1",
+      [last.id],
+    );
+    expect((await h.call('GET', '/admin/cricket', undefined, 'admin')).json().bracket).toHaveLength(
+      0,
+    );
+    const started = await h.call('POST', `/admin/cricket/matches/${last.id}/start`, {}, 'admin');
+    expect(started.statusCode).toBe(200);
+    const saved = await h.call(
+      'PATCH',
+      `/admin/cricket/matches/${last.id}`,
+      { home_score: 100, away_score: 90, version: started.json().version },
+      'admin',
+    );
+    expect(saved.statusCode).toBe(200);
+    expect(
+      (
+        await h.call(
+          'POST',
+          `/admin/cricket/matches/${last.id}/end`,
+          { version: saved.json().version },
+          'admin',
+        )
+      ).statusCode,
+    ).toBe(200);
+    const final = (await h.call('GET', '/admin/cricket', undefined, 'admin')).json();
+    expect(final.bracket).toHaveLength(7);
+    expect(final.teams.filter((team: any) => team.selected)).toHaveLength(8);
+    expect(
+      final.groups.every(
+        (group: any) =>
+          final.teams.filter((team: any) => team.group_code === group.code && team.selected)
+            .length === 2,
+      ),
+    ).toBe(true);
+  });
   it('rejects the former 20-team field before creating any fixtures', async () => {
     await seedTeams(20, h.sports[0].id, 'Cricket Team');
     await h.call('POST', '/admin/cricket/import', {}, 'admin');
