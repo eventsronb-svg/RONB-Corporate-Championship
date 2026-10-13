@@ -1,8 +1,9 @@
 // Disposable local demo server for the whole championship flow. It uses an in-memory
 // PGlite database only, so nothing touches the configured database. Every registration
 // is complete, and both championships are imported, drawn and played into the knockout.
-// DEMO_PLAY=1 plays everything into the knockout; DEMO_PLAY=groups draws the groups
-// and completes every group match except the last fixture of each sport.
+// DEMO_PLAY=1 plays everything into the knockout; DEMO_PLAY=groups draws the futsal
+// and basketball groups and completes every group match except the last fixture of
+// each sport; DEMO_PLAY=groups-cricket does the same for futsal and cricksal.
 import { PGlite } from '@electric-sql/pglite';
 import { buildApp } from '../dist/app.js';
 import { config } from '../dist/config.js';
@@ -403,9 +404,11 @@ console.log(
 // DEMO_PLAY=groups instead draws the futsal and basketball groups and plays every
 // group match but one, leaving a single scheduled fixture per sport with no
 // knockout bracket yet, while cricket stays imported and unassigned so its draw
-// can be done by hand from the admin screen.
+// can be done by hand from the admin screen. DEMO_PLAY=groups-cricket does the same
+// but seeds futsal and cricksal, leaving basketball imported and unassigned.
 const PLAY = process.env.DEMO_PLAY === '1';
 const GROUPS_ONLY = process.env.DEMO_PLAY === 'groups';
+const GROUPS_CRICKET = process.env.DEMO_PLAY === 'groups-cricket';
 for (const sportName of ['futsal', 'cricket', 'basketball']) {
   const imported = await call('POST', `/admin/${sportName}/import`);
   const { teams } = await call('GET', `/admin/${sportName}`);
@@ -473,14 +476,15 @@ async function playRound(sportName, stage, score) {
   return played;
 }
 
-if (PLAY || GROUPS_ONLY) {
+if (PLAY || GROUPS_ONLY || GROUPS_CRICKET) {
   await drawGroupsAndFixtures('futsal', ['A', 'B', 'C', 'D', 'E', 'F']);
 }
 let futsal = await call('GET', '/admin/futsal');
-const futsalGroups = PLAY || GROUPS_ONLY ? groupFixtures(futsal) : [];
-// Group-stage-only mode stops one fixture short of a complete group stage.
-const futsalToPlay = GROUPS_ONLY && !PLAY ? futsalGroups.slice(0, -1) : futsalGroups;
-if (PLAY || GROUPS_ONLY)
+const futsalGroups = PLAY || GROUPS_ONLY || GROUPS_CRICKET ? groupFixtures(futsal) : [];
+// Group-stage-only modes stop one fixture short of a complete group stage.
+const futsalToPlay =
+  (GROUPS_ONLY || GROUPS_CRICKET) && !PLAY ? futsalGroups.slice(0, -1) : futsalGroups;
+if (PLAY || GROUPS_ONLY || GROUPS_CRICKET)
   for (const [index, match] of futsalToPlay.entries()) {
     const home = 1 + ((index * 3) % 5);
     await play('futsal', match, home, index % 7 === 0 ? home : 1 + ((index * 3 + 2) % 4));
@@ -589,6 +593,24 @@ if (PLAY) {
       `basketball ${basketballGroups.length - 1}/${basketballGroups.length} matches completed — ` +
       `one scheduled fixture left in each, no bracket yet. Cricket: ` +
       `${cricketTeams.length} teams imported, none assigned to a group.`,
+  );
+} else if (GROUPS_CRICKET) {
+  await drawGroupsAndFixtures('cricket', ['A', 'B', 'C', 'D']);
+  const cricket = await call('GET', '/admin/cricket');
+  const cricketGroups = groupFixtures(cricket);
+  // A couple of group ties ends level so the super-over path is exercised.
+  for (const [index, match] of cricketGroups.slice(0, -1).entries()) {
+    const home = 120 + ((index * 7) % 45);
+    const away = index % 6 === 0 ? home : 110 + ((index * 11) % 50);
+    await play('cricket', match, home, away, home === away ? match.home_team_id : undefined);
+  }
+  // Basketball stays imported but unassigned; the draw can be run by hand from admin.
+  const basketballTeams = (await call('GET', '/admin/basketball')).teams;
+  console.log(
+    `Group stages: futsal ${futsalGroups.length - 1}/${futsalGroups.length} matches completed, ` +
+      `cricksal ${cricketGroups.length - 1}/${cricketGroups.length} matches completed — ` +
+      `one scheduled fixture left in each, no bracket yet. Basketball: ` +
+      `${basketballTeams.length} teams imported, none assigned to a group.`,
   );
 } else {
   console.log('');

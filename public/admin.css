@@ -472,6 +472,20 @@ tbody tr.cricket-match-completed .status {
   font-size: 11px;
   margin-top: 3px;
 }
+/* Wickets and overs carry their own labels and read wider than a bare run
+   total, so the cricket boxes get roomier — about 1.5x the score input. */
+input.score-input[name$='_wickets'],
+input.score-input[name$='_overs'] {
+  width: 6.5em;
+}
+/* On phones the wickets/overs columns and the action buttons squeeze the run
+   totals into a sliver; give the score boxes a floor width so a three-digit
+   total still fits with the spinner. */
+@media (max-width: 700px) {
+  input.score-input[name$='_score'] {
+    width: 5em;
+  }
+}
 .strong {
   font-weight: 600;
 }
@@ -541,6 +555,39 @@ tbody tr.cricket-match-completed .status {
   font-size: 16px;
   font-weight: 600;
   margin: 0 0 22px;
+}
+/* The third-place standings fold into a disclosure so the long table does not
+   dominate the workspace. It opens on load only while a manual draw needs the
+   organizer's attention. */
+.panel.third-place-panel > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+  list-style: none;
+}
+.panel.third-place-panel > summary::-webkit-details-marker {
+  display: none;
+}
+.panel.third-place-panel > summary h2 {
+  margin: 0;
+}
+.panel.third-place-panel > summary::after {
+  content: '';
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: rotate(45deg);
+  transition: transform 0.2s ease;
+}
+.panel.third-place-panel[open] > summary {
+  margin-bottom: 22px;
+}
+.panel.third-place-panel[open] > summary::after {
+  transform: rotate(-135deg);
 }
 .detail-grid {
   display: grid;

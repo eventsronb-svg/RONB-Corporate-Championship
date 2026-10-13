@@ -54,9 +54,8 @@ function renderCurrent() {
   // name and contribution together under the team. The bowler line does the same
   // for the wickets, marked broadcast style — a bold W with the count, as the
   // TV score graphic prints a wicket — to keep the two numbers apart.
-  // Each side also carries its own innings — runs, wickets and overs — beneath
-  // its crest: one combined line is ~10.6em of display type, far too wide to sit
-  // between the crests without pushing one of them off the frame.
+  // Both innings share a single centre line between the crests — the scoreboard
+  // layout — so the card reads logo · score · logo with the names beneath.
   // The role line names the side in to bat and the side in the field, tagged with
   // the bat and the ball; the innings break flips it.
   const batIcon =
@@ -67,16 +66,15 @@ function renderCurrent() {
     const batting = m.batting_side === side;
     return `<div class="live-role ${batting ? 'is-batting' : 'is-bowling'}">${batting ? batIcon : ballIcon}<span>${batting ? 'Batting' : 'Bowling'}</span></div>`;
   };
-  const team = (t, scorers, bowlers, innings, role) =>
-    `<div class="live-team"><img src="${esc(t?.logo_url || '/assets/images/logo.webp')}" alt="">${esc(t?.team_name || 'Team to be confirmed')}${role}<div class="live-innings">${innings}</div>${scorers?.length ? `<div class="live-scorers">${scorers.map((s) => `<span class="live-scorer">${esc(s.player_name)}<b>${s.runs}</b></span>`).join('')}</div>` : ''}${bowlers?.length ? `<div class="live-bowlers">${bowlers.map((w) => `<span class="live-bowler">${esc(w.player_name)}<b>W${w.wickets}</b></span>`).join('')}</div>` : ''}</div>`;
+  const team = (t, scorers, bowlers, role) =>
+    `<div class="live-team"><img src="${esc(t?.logo_url || '/assets/images/logo.webp')}" alt="">${esc(t?.team_name || 'Team to be confirmed')}${role}${scorers?.length ? `<div class="live-scorers">${scorers.map((s) => `<span class="live-scorer">${esc(s.player_name)}<b>${s.runs}</b></span>`).join('')}</div>` : ''}${bowlers?.length ? `<div class="live-bowlers">${bowlers.map((w) => `<span class="live-bowler">${esc(w.player_name)}<b>W${w.wickets}</b></span>`).join('')}</div>` : ''}</div>`;
   const stage = m.stage === 'group' ? `Group ${esc(m.group_code)}` : esc(m.stage);
-  // The full line reads both innings — runs, wickets and the overs faced — so
-  // the projected card and the printed report never disagree; here each half
-  // lives with the team it belongs to.
+  // The shared centre line reads both innings — runs, wickets and the overs
+  // faced — so the projected card and the printed report never disagree.
   const innings = (runs, wickets, overs) =>
     `${runs}/${wickets} (${Number(overs).toFixed(1)})`;
   show(
-    `<section class="live-card"><div class="sport">Cricksal</div><div class="group">${stage}</div><div class="live-teams">${team(m.home_team, m.home_scorers, m.home_bowlers, innings(m.home_score, m.home_wickets, m.home_overs), m.batting_side ? roleLine('home') : '')}${team(m.away_team, m.away_scorers, m.away_bowlers, innings(m.away_score, m.away_wickets, m.away_overs), m.batting_side ? roleLine('away') : '')}</div></section>`,
+    `<section class="live-card"><div class="sport">Cricksal</div><div class="group">${stage}</div><div class="live-teams">${team(m.home_team, m.home_scorers, m.home_bowlers, m.batting_side ? roleLine('home') : '')}<div class="score">${innings(m.home_score, m.home_wickets, m.home_overs)} – ${innings(m.away_score, m.away_wickets, m.away_overs)}</div>${team(m.away_team, m.away_scorers, m.away_bowlers, m.batting_side ? roleLine('away') : '')}</div></section>`,
     'Live',
   );
 }

@@ -1310,10 +1310,12 @@ main {
   white-space: nowrap;
 }
 .bracket-logo .logo {
-  width: clamp(29px, 3.39vw, 51px);
-  height: clamp(29px, 3.39vw, 51px);
+  width: clamp(34px, 4vw, 60px);
+  height: clamp(34px, 4vw, 60px);
   margin: 0;
   border: 2px solid transparent;
+  /* Team logos are transparent PNGs: no tint chip, let the bracket card show through. */
+  background: transparent;
 }
 .bracket-pair > .bracket-winner .logo {
   border-color: #27a84b;
@@ -1334,8 +1336,8 @@ main {
   font-size: clamp(0.75rem, 1.04vw, 1.04rem);
 }
 .basketball-bracket .bracket-logo .logo {
-  width: clamp(31px, 3.64vw, 55px);
-  height: clamp(31px, 3.64vw, 55px);
+  width: clamp(36px, 4.2vw, 64px);
+  height: clamp(36px, 4.2vw, 64px);
   border-width: 3px;
 }
 @media (max-width: 700px) {
@@ -1351,8 +1353,8 @@ main {
     gap: 1px;
   }
   .bracket-logo .logo {
-    width: 23px;
-    height: 23px;
+    width: 27px;
+    height: 27px;
   }
   .bracket-pair > b {
     font-size: 0.64rem;
@@ -1525,31 +1527,47 @@ body.futsal-live.match-is-live .live-card {
 body.futsal-live.match-is-live .live-teams {
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
 }
-/* One cricket innings is ~5.2em of display type and the combined
-   "87/3 (12.4) – 110/8 (20.0)" is ~10.6em: inside the centre auto track it
-   swallowed the card, collapsed both 1fr crest tracks to zero and pushed the
-   away side out past the frame — clipped, not scrollable, because this page
-   hides its overflow. Cricket therefore carries each side's innings under its
-   own crest — the broadcast layout — as two flex columns that wrap rather than
-   overflow, sized to stay inside the frame's width cap at every scale band.
+/* The broadcast scoreboard: the two crested sides keep the outer tracks with
+   the names beneath them, and both innings share one centre line so the card
+   reads logo · score · logo. Denser than a futsal or basketball score, the
+   combined cricket line — "87/3 (12.4) – 110/8 (20.0)" — is ~10.6em of display
+   type, so it takes a smaller size than the shared .score rule and is dropped to
+   the crests' centre so it sits level with the logos.
 
    These overrides must live in this stylesheet: the response ships
    style-src 'self', so an inline <style> block in cricket-match.html is dropped
    by the CSP and never applies. */
 body.cricket-live .live-teams {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  align-items: flex-start;
+  /* The shared grid already supplies minmax(0, 1fr) auto minmax(0, 1fr) under
+     .match-is-live; top-align so the innings line reads with the crests. */
+  align-items: start;
   gap: clamp(18px, 4vw, 72px);
 }
 body.cricket-live .live-team {
-  /* Equal columns: each side takes half the card so its scorer and bowler rows
-     wrap inside that width instead of defining it, and the row only wraps when
-     the nowrap innings line itself cannot fit — at projector sizes both crests
-     sit side by side. */
-  flex: 1 1 0;
   min-width: 0;
+}
+body.cricket-live .score {
+  align-self: start;
+  /* The same clamp as .live-team img's crest, halved, so the line's optical
+     centre lands on the crest centre rather than at the top of its box. */
+  margin-top: calc(clamp(110px, 18vw, 240px) / 2 - 0.4em);
+  font-size: clamp(30px, 4.8vw, 96px);
+}
+/* Below the projector bands three tracks no longer fit, so the innings line
+   takes its own row above the two sides — the same fallback the public live
+   strip uses for the long cricket line. */
+@media (max-width: 999px) {
+  body.cricket-live.match-is-live .live-teams {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    justify-items: center;
+  }
+  body.cricket-live .score {
+    grid-column: 1 / -1;
+    order: -1;
+    align-self: center;
+    margin-top: 0;
+    font-size: clamp(27px, 5.1vw, 60px);
+  }
 }
 
 .role-icon {

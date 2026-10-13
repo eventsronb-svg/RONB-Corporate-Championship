@@ -13,17 +13,17 @@ import { one, postgres } from './db.js';
 import { config } from './config.js';
 import { fileTokenValid, googleProvider, hybridStorage, validateFile, } from './providers.js';
 import { auth, registerAuth } from './auth.js';
-import { Orders, teamSelection, profileInput, uuid, detail, paid, reservedStates, audit, } from './orders.js';
+import { Orders, teamSelection, profileInput, adminProfileInput, uuid, detail, paid, reservedStates, audit, } from './orders.js';
 import { registerAdmin } from './admin.js';
 import { registerFutsal } from './futsal.js';
 import { registerBasketball } from './basketball.js';
 import { registerCricket } from './cricket.js';
 import { assert, HttpError } from './errors.js';
-async function parseProfileUpdate(req) {
+async function parseProfileUpdate(req, schema = profileInput) {
     let input = {};
     let upload;
     if (req.isMultipart()) {
-        for await (const part of req.parts({ limits: { fields: 6, parts: 7 } })) {
+        for await (const part of req.parts({ limits: { fields: 7, parts: 8 } })) {
             if (part.type === 'file') {
                 assert(part.fieldname === 'logo', 400, 'invalid_field', 'The file field must be named logo');
                 upload = await validateFile(await part.toBuffer(), part.mimetype, 'logo');
@@ -36,7 +36,8 @@ async function parseProfileUpdate(req) {
                     'jersey_style',
                     'jersey_styles',
                     'player_photos',
-                ].includes(part.fieldname), 400, 'invalid_field', 'Only players, captain_position, jersey_sizes, jersey_style, player_photos and logo fields are accepted');
+                    ...(schema === adminProfileInput ? ['team_name'] : []),
+                ].includes(part.fieldname), 400, 'invalid_field', 'Only players, captain_position, jersey_sizes, jersey_style, player_photos, team_name and logo fields are accepted');
                 let value;
                 try {
                     value = JSON.parse(String(part.value));
@@ -44,12 +45,12 @@ async function parseProfileUpdate(req) {
                 catch {
                     throw new HttpError(400, 'invalid_players', 'Profile fields must contain valid JSON');
                 }
-                input = profileInput.parse({ ...input, [part.fieldname]: value });
+                input = schema.parse({ ...input, [part.fieldname]: value });
             }
         }
     }
     else
-        input = profileInput.parse(req.body);
+        input = schema.parse(req.body);
     return { input, upload };
 }
 export async function buildApp(deps) {
@@ -321,7 +322,7 @@ export async function buildApp(deps) {
     });
     app.patch('/admin/orders/:id/items/:item_id/profile', { preHandler: guard.admin }, async (req) => {
         const p = itemIds(req.params);
-        const { input, upload } = await parseProfileUpdate(req);
+        const { input, upload } = await parseProfileUpdate(req, adminProfileInput);
         const stored = upload ? await storage.put('logo', upload.buffer, upload.mime) : undefined;
         try {
             const item = await orders.adminProfile(p.id, p.item_id, {
@@ -331,6 +332,8 @@ export async function buildApp(deps) {
             await audit(db, req.actor.id, 'order.profile.edit', 'order', p.id, {
                 item_id: p.item_id,
                 players: input.players?.length,
+                team_name: input.team_name,
+                logo_replaced: Boolean(stored),
             });
             return item;
         }

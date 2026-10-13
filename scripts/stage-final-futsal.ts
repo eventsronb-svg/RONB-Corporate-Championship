@@ -9,60 +9,92 @@ import { config } from '../src/config.js';
 import { postgres, one } from '../src/db.js';
 import { s3Storage } from '../src/providers.js';
 
-const field = [
-  ['A', 'Xtreme', 'Xtreme.png'],
-  ['A', 'Pace x', 'Pace X.png'],
-  ['A', 'Buddha Air', 'Buddha Air Pvt. Ltd.jpg'],
-  ['A', 'Pathao', 'Pathao.svg'],
-  ['B', 'Surya Jyoti Insurance', 'Surya Jyoti Insurance.jpg'],
-  ['B', 'CG Net', 'CG Net.svg'],
-  ['B', 'Nabil Bank', 'Nabil Bank.jpg'],
-  ['B', 'KIEC', 'KIEC.jpg'],
-  ['C', 'Studsphere', 'Studsphere.jpg'],
-  ['C', 'Techspire', 'Techspire.webp'],
-  ['C', 'Club Nova', 'Club Nova.avif'],
-  ['C', 'Jupiter X', null, 'JX'],
-  ['D', 'Neema Education', 'Neema Educaation Foundation.jpg'],
-  ['D', 'Global IME', 'Global IME.jpg'],
-  ['D', 'Prabhu Bank', 'Prabhu Bank.jpg'],
-  ['D', 'KUKL', 'KUKL.jpg'],
-  ['E', 'Sushree', 'Sushree.jpg'],
-  ['E', 'Nepal Telecom', 'Nepal Telecom Limited.png'],
-  ['E', 'FECON', 'FECON.jpg'],
-  ['E', 'Nepal SBI', 'SBI Bank.jpg'],
-  ['F', 'Ncell', 'Ncell.jpg'],
-  ['F', 'Himalaya Hive', null, 'HH'],
-  ['F', 'IME Group', 'IME Group.jpg'],
-  ['F', 'CG Holding', 'CG Holdings.jpg'],
-] as const;
-const action = 'futsal.final_field.stage.2026-10-09';
-const resources = '/Users/ronbstudios/Desktop/Teams as a whole/resources';
+type Team = {
+  group: string;
+  name: string;
+  /** Reuse an already-public logo for an otherwise unchanged team. */
+  reuse?: true;
+  /** A supplied official source, relative to assets/futsal-official. */
+  file?: string;
+  /** Deliberate organizer-controlled placeholder; this can be replaced in Admin. */
+  placeholder?: string;
+};
+
+// Transcribed from TEAMS.xlsx (Team Draw). The Group A cell says "To be Confirm".
+// It is intentionally staged as an editable placeholder rather than retaining Pathao.
+const field: Team[] = [
+  { group: 'A', name: 'Xtreme', file: '../../XTREME.png' },
+  { group: 'A', name: 'Pace X', reuse: true },
+  { group: 'A', name: 'Buddha Air', reuse: true },
+  { group: 'A', name: 'Under Review', placeholder: '' },
+  { group: 'B', name: 'Surya Jyoti Insurance', reuse: true },
+  { group: 'B', name: 'CG Net', reuse: true },
+  { group: 'B', name: 'Nabil Bank', reuse: true },
+  { group: 'B', name: 'KIEC', reuse: true },
+  { group: 'C', name: 'Studsphere', reuse: true },
+  { group: 'C', name: 'SIRONIK Tech', file: 'sironik.jpeg' },
+  { group: 'C', name: 'Club Nova', reuse: true },
+  { group: 'C', name: 'Vianet FC', file: '../../vianet.jpeg' },
+  { group: 'D', name: 'Neema Education', reuse: true },
+  { group: 'D', name: 'Global IME', reuse: true },
+  { group: 'D', name: 'Prabhu Bank', reuse: true },
+  { group: 'D', name: 'KUKL', reuse: true },
+  { group: 'E', name: 'Sushree', reuse: true },
+  { group: 'E', name: 'Nepal Telecom', reuse: true },
+  { group: 'E', name: 'FECON', reuse: true },
+  { group: 'E', name: 'Nepal SBI', reuse: true },
+  { group: 'F', name: 'Ncell', reuse: true },
+  { group: 'F', name: 'Civil Aviation', file: 'CAAN.png' },
+  { group: 'F', name: 'IME Group', reuse: true },
+  { group: 'F', name: 'CG Holding', reuse: true },
+];
+const action = 'futsal.official_field.stage.2026-10-09.v2';
+const resources = resolve('assets', 'futsal-official');
 const c = config();
 const db = postgres(c.DATABASE_URL);
 const storage = s3Storage(c);
 const uploaded: { key: string; url: string }[] = [];
 let committed = false;
 try {
-  // Decode every source before any database mutation or remote upload.
-  const logos: { group: string; name: string; file: string; buffer: Buffer }[] = [];
-  for (const [group, name, file, letters] of field) {
-    const source = file
-      ? await readFile(join(resources, file))
+  if (
+    process.argv.includes('--apply') &&
+    (await one(db, 'SELECT id FROM audit_logs WHERE action=$1', [action]))
+  )
+    throw new Error('This official field has already been staged. Refusing to replace admin edits.');
+  // Resolve reusable logos before any mutation. These URLs remain public after the
+  // old entries are archived, and avoid requesting assets the organizer already supplied.
+  const existing = await db.query<{ team_name: string; logo_url: string }>(
+    'SELECT team_name,logo_url FROM futsal_teams WHERE logo_url IS NOT NULL',
+  );
+  const existingLogos = new Map(
+    existing.rows.map((team) => [team.team_name.trim().toLocaleLowerCase(), team.logo_url]),
+  );
+  const logos: { group: string; name: string; source: string; buffer?: Buffer; url?: string }[] = [];
+  for (const team of field) {
+    const existingLogo = existingLogos.get(team.name.trim().toLocaleLowerCase());
+    if (team.reuse && existingLogo) {
+      logos.push({ group: team.group, name: team.name, source: 'existing database logo', url: existingLogo });
+      continue;
+    }
+    if (team.reuse)
+      throw new Error(`No reusable database logo exists for ${team.name}; add its official logo to ${resources}`);
+    const source = team.file
+      ? await readFile(resolve(resources, team.file))
       : Buffer.from(
-          `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="640"><rect width="640" height="640" rx="48" fill="#152619"/><text x="320" y="340" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="240" font-weight="700" fill="#ffffff">${letters}</text></svg>`,
+          `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="640" aria-label=""><rect width="640" height="640" fill="#000000"/>${team.placeholder ? `<text x="320" y="340" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="180" font-weight="700" fill="#ffffff">${team.placeholder}</text>` : ''}</svg>`,
         );
     const buffer = await sharp(source)
       .rotate()
       .resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true })
       .webp({ quality: 90, alphaQuality: 100 })
       .toBuffer();
-    logos.push({ group, name, file: file ?? `${letters} text`, buffer });
+    logos.push({ group: team.group, name: team.name, source: team.file ?? 'solid black placeholder', buffer });
   }
   console.log(
     JSON.stringify(
       {
         apply: process.argv.includes('--apply'),
-        teams: logos.map(({ buffer, ...logo }) => ({ ...logo, bytes: buffer.length })),
+        teams: logos.map(({ buffer, ...logo }) => ({ ...logo, bytes: buffer?.length ?? 0 })),
       },
       null,
       2,
@@ -96,9 +128,12 @@ try {
     await writeFile(backupPath, JSON.stringify(backup, null, 2), { mode: 0o600 });
     console.log(`Backup saved: ${backupPath}`);
     for (const logo of logos) {
-      const stored = await storage.put('logo', logo.buffer, 'image/webp');
-      uploaded.push(stored);
-      const response = await fetch(stored.url, { signal: AbortSignal.timeout(20000) });
+      if (logo.buffer) {
+        const stored = await storage.put('logo', logo.buffer, 'image/webp');
+        uploaded.push(stored);
+        logo.url = stored.url;
+      }
+      const response = await fetch(logo.url!, { signal: AbortSignal.timeout(20000) });
       if (!response.ok)
         throw new Error(`Logo for ${logo.name} is not publicly readable: ${response.status}`);
       const info = await sharp(Buffer.from(await response.arrayBuffer())).metadata();
@@ -111,8 +146,8 @@ try {
         logos.map((logo, index) => ({
           group: logo.group,
           name: logo.name,
-          source: logo.file,
-          ...uploaded[index],
+          source: logo.source,
+          url: logo.url,
         })),
         null,
         2,
@@ -189,14 +224,14 @@ try {
         const item = (await one(
           tx,
           'INSERT INTO order_items(order_id,sport_id,price_at_purchase,team_name,logo_url) VALUES($1,$2,$3,$4,$5) RETURNING id',
-          [order.id, sport.id, sport.price, logo.name, uploaded[index].url],
+          [order.id, sport.id, sport.price, logo.name, logo.url],
         ))!;
         await tx.query(
           'INSERT INTO futsal_teams(order_item_id,team_name,logo_url,group_code,group_assigned_at) VALUES($1,$2,$3,$4,$5)',
           [
             item.id,
             logo.name,
-            uploaded[index].url,
+            logo.url,
             logo.group,
             new Date(Date.UTC(2026, 9, 9, 0, 0, index)),
           ],

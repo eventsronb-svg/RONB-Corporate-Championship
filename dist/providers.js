@@ -93,8 +93,10 @@ export function s3Storage(c) {
         region: c.S3_REGION,
         forcePathStyle: true,
         credentials: { accessKeyId: c.S3_ACCESS_KEY_ID, secretAccessKey: c.S3_SECRET_ACCESS_KEY },
-        requestHandler: { requestTimeout: 15000, connectionTimeout: 5000 },
-        maxAttempts: 2,
+        // Cold object-storage endpoints occasionally take longer than five seconds
+        // to establish TLS. Keep uploads resilient without making requests unbounded.
+        requestHandler: { requestTimeout: 30000, connectionTimeout: 20000 },
+        maxAttempts: 4,
     });
     const bucket = (kind) => kind === 'receipt'
         ? c.S3_RECEIPTS_BUCKET

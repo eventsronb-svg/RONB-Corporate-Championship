@@ -64,6 +64,10 @@ export const profileInput = z
     player_photos: z.array(z.string().startsWith('player-photos/').nullable()).max(100).optional(),
   })
   .strict();
+export const adminProfileInput = profileInput.extend({
+  // Company identity is managed by organizers from the Teams desk only.
+  team_name: z.string().trim().min(1).max(120).optional(),
+});
 export async function transition(
   tx: Queryable,
   order: Row,
@@ -531,13 +535,13 @@ export class Orders {
   async adminProfile(
     id: string,
     itemId: string,
-    input: z.infer<typeof profileInput> & { logo_url?: string },
+    input: z.infer<typeof adminProfileInput> & { logo_url?: string },
     complete = false,
   ) {
     return this.db.transaction(async (tx) => {
       const o = await one(tx, 'SELECT * FROM orders WHERE id=$1 FOR UPDATE', [id]);
       assert(o, 404, 'not_found', 'Order not found');
-      return this.applyProfile(tx, o!, itemId, input, complete);
+      return this.applyProfile(tx, o!, itemId, input, complete, true);
     });
   }
   private async applyProfile(
@@ -546,6 +550,7 @@ export class Orders {
     itemId: string,
     input: z.infer<typeof profileInput> & { logo_url?: string },
     complete = false,
+    organizerEdit = false,
   ) {
     const id = o.id;
     const item = await one(tx, 'SELECT * FROM order_items WHERE id=$1 AND order_id=$2', [
@@ -644,7 +649,8 @@ export class Orders {
       assert(
         input.players !== undefined ||
           input.logo_url !== undefined ||
-          input.captain_position !== undefined,
+          input.captain_position !== undefined ||
+          (organizerEdit && 'team_name' in input),
         400,
         'empty_update',
         'Provide players, a captain, or a logo',
@@ -675,7 +681,7 @@ export class Orders {
           teamJerseyStyle,
         ]);
       if (input.logo_url) {
-        if (item.logo_url) {
+        if (item.logo_url && !organizerEdit) {
           const prior = await priorCompany(tx, o);
           assert(
             !prior,
@@ -690,6 +696,15 @@ export class Orders {
           item.team_name,
         ]);
       }
+      const teamName = organizerEdit
+        ? (input as z.infer<typeof adminProfileInput>).team_name
+        : undefined;
+      if (teamName !== undefined)
+        await tx.query('UPDATE order_items SET team_name=$2 WHERE order_id=$1 AND team_name=$3', [
+          id,
+          teamName,
+          item.team_name,
+        ]);
       if (input.players) {
         await tx.query('DELETE FROM team_players WHERE order_item_id=$1', [itemId]);
         for (const [position, name] of input.players.entries())

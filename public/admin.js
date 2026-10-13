@@ -371,6 +371,10 @@ function openRosterEditor(panel, orderId, item) {
   const addButton = form.querySelector('[data-add-player]');
   const error = form.querySelector('.error');
   const photoSelections = new Map();
+  form.insertAdjacentHTML(
+    'afterbegin',
+    `<fieldset class="roster-fields team-details"><legend>Team details</legend><label class="input-group">Team name<input name="team_name" type="text" value="${e(item.team_name)}" maxlength="120" required></label><label class="input-group">Team logo<input name="logo" type="file" accept="image/png,image/jpeg,image/webp"></label><p class="form-note">Choose a new logo only when replacing the current one. These details apply to every sport in this registration.</p></fieldset>`,
+  );
   view.hidden = true;
   form.hidden = false;
   error.hidden = true;
@@ -527,15 +531,21 @@ function openRosterEditor(panel, orderId, item) {
             row.photo = uploaded.photo_url;
           }),
       );
+      const update = new FormData();
+      update.append(
+        'team_name',
+        JSON.stringify(form.querySelector('[name="team_name"]').value.trim()),
+      );
+      update.append('players', JSON.stringify(filled.map((row) => row.name)));
+      update.append('jersey_sizes', JSON.stringify(filled.map((row) => row.jersey)));
+      update.append('jersey_style', JSON.stringify(cricket ? (filled[0]?.style ?? null) : null));
+      update.append('captain_position', JSON.stringify(captainPosition));
+      update.append('player_photos', JSON.stringify(filled.map((row) => row.photo)));
+      const logo = form.querySelector('[name="logo"]').files?.[0];
+      if (logo) update.append('logo', logo);
       await api(`/admin/orders/${orderId}/items/${item.id}/profile`, {
         method: 'PATCH',
-        body: JSON.stringify({
-          players: filled.map((row) => row.name),
-          jersey_sizes: filled.map((row) => row.jersey),
-          jersey_style: cricket ? (filled[0]?.style ?? null) : null,
-          captain_position: captainPosition,
-          player_photos: filled.map((row) => row.photo),
-        }),
+        body: update,
       });
       await render();
       message('Team roster saved.');
@@ -957,7 +967,7 @@ async function futsalView() {
   const thirds = data.third_place;
   const pendingTeams = thirds?.table.filter((team) => team.draw_pending) ?? [];
   const ranking = thirds?.table.length
-    ? `<section class="surface panel section-gap"><h2>Third-place qualification</h2><p class="form-note">${thirds.complete ? 'Final standings' : 'Provisional standings, qualification is confirmed after all 36 matches'}. Ranked by points, goal difference, then goals scored. The best four qualify.</p><div class="table-scroll"><table><thead><tr><th>Rank</th><th>Team</th><th>Group</th><th>Pts</th><th>GD</th><th>GF</th><th>Status</th></tr></thead><tbody>${thirds.table.map((team) => `<tr><td>${team.draw_pending ? 'Tied' : team.position}</td><td>${e(team.team_name)}</td><td>${e(team.group_code)}</td><td>${team.points}</td><td>${team.goal_difference}</td><td>${team.goals_for}</td><td>${team.qualified ? 'Qualified' : team.draw_pending ? 'Manual draw pending' : thirds.complete ? 'Eliminated' : 'Provisional'}</td></tr>`).join('')}</tbody></table></div>${thirds.draw_required && me.role === 'super_admin' ? `<form data-third-place-draw><h3>Record the manual draw</h3><p class="form-note">Conduct the draw for the tied teams, then enter their order below. Saving creates the knockout bracket.</p>${thirds.table.map((team) => (team.draw_pending ? `<label>Rank ${team.position}<select data-draw-team required>${pendingTeams.map((candidate) => `<option value="${e(candidate.id)}" ${candidate.id === team.id ? 'selected' : ''}>${e(candidate.team_name)} (Group ${e(candidate.group_code)})</option>`).join('')}</select></label>` : `<input type="hidden" data-draw-team value="${e(team.id)}">`)).join('')}<button class="primary" type="submit">Save draw and generate bracket</button></form>` : ''}</section>`
+    ? `<details class="surface panel section-gap third-place-panel" ${thirds.draw_required ? 'open' : ''}><summary><h2>Third-place qualification</h2></summary><p class="form-note">${thirds.complete ? 'Final standings' : 'Provisional standings, qualification is confirmed after all 36 matches'}. Ranked by points, goal difference, then goals scored. The best four qualify.</p><div class="table-scroll"><table><thead><tr><th>Rank</th><th>Team</th><th>Group</th><th>Pts</th><th>GD</th><th>GF</th><th>Status</th></tr></thead><tbody>${thirds.table.map((team) => `<tr><td>${team.draw_pending ? 'Tied' : team.position}</td><td>${e(team.team_name)}</td><td>${e(team.group_code)}</td><td>${team.points}</td><td>${team.goal_difference}</td><td>${team.goals_for}</td><td>${team.qualified ? 'Qualified' : team.draw_pending ? 'Manual draw pending' : thirds.complete ? 'Eliminated' : 'Provisional'}</td></tr>`).join('')}</tbody></table></div>${thirds.draw_required && me.role === 'super_admin' ? `<form data-third-place-draw><h3>Record the manual draw</h3><p class="form-note">Conduct the draw for the tied teams, then enter their order below. Saving creates the knockout bracket.</p>${thirds.table.map((team) => (team.draw_pending ? `<label>Rank ${team.position}<select data-draw-team required>${pendingTeams.map((candidate) => `<option value="${e(candidate.id)}" ${candidate.id === team.id ? 'selected' : ''}>${e(candidate.team_name)} (Group ${e(candidate.group_code)})</option>`).join('')}</select></label>` : `<input type="hidden" data-draw-team value="${e(team.id)}">`)).join('')}<button class="primary" type="submit">Save draw and generate bracket</button></form>` : ''}</details>`
     : '';
   return {
     html: `${header('Futsal championship', 'Start live matches, save scores and complete matches to update the public tables.', 'EVENT OPERATIONS', `${data.teams.length} TEAMS`)}<section class="surface panel">${controls}${reportButtons(data)}<p class="form-note">Group matches use 3 points for a win, 1 for a draw. Tied knockout matches require the penalty winner when ended.</p></section>${groupDraw}${ranking}<section class="surface panel section-gap"><div class="table-scroll"><table><thead><tr><th>Stage</th><th>Home</th><th>Score</th><th></th><th>Score</th><th>Away</th><th>Action</th></tr></thead><tbody>${matches.map(matchRow).join('') || '<tr><td colspan="7">Import teams, then assign groups.</td></tr>'}</tbody></table></div></section>`,

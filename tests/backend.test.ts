@@ -205,6 +205,7 @@ describe('registration and publication', () => {
       'PATCH',
       path,
       {
+        team_name: 'Himalayan Hawks',
         players: ['Ramesh Gurung', 'Nisha Thapa'],
         jersey_sizes: ['L', 'M'],
         captain_position: 1,
@@ -213,6 +214,7 @@ describe('registration and publication', () => {
       'staff',
     );
     expect(edited.statusCode).toBe(200);
+    expect(edited.json().items[0].team_name).toBe('Himalayan Hawks');
     expect(edited.json().items[0].players).toEqual(['Ramesh Gurung', 'Nisha Thapa']);
     expect(edited.json().items[0].captain_position).toBe(1);
     expect(edited.json().items[0].photo_urls).toEqual([photo.json().photo_url, null]);
@@ -221,6 +223,7 @@ describe('registration and publication', () => {
     const teams = (await h.call('GET', '/teams')).json();
     expect(teams[0].players).toEqual(['Ramesh Gurung', 'Nisha Thapa']);
     const detail = (await h.call('GET', `/admin/teams/${order.id}`, undefined, 'staff')).json();
+    expect(detail.team_name).toBe('Himalayan Hawks');
     expect(detail.items[0].players).toEqual(['Ramesh Gurung', 'Nisha Thapa']);
 
     const signed = await h.call(

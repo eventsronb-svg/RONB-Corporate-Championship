@@ -25,6 +25,7 @@ import {
   Orders,
   teamSelection,
   profileInput,
+  adminProfileInput,
   uuid,
   detail,
   paid,
@@ -38,11 +39,12 @@ import { registerCricket } from './cricket.js';
 import { assert, HttpError } from './errors.js';
 async function parseProfileUpdate(
   req: FastifyRequest,
-): Promise<{ input: z.infer<typeof profileInput>; upload?: { buffer: Buffer; mime: string } }> {
-  let input: z.infer<typeof profileInput> = {};
+  schema: typeof profileInput | typeof adminProfileInput = profileInput,
+): Promise<{ input: z.infer<typeof schema>; upload?: { buffer: Buffer; mime: string } }> {
+  let input: z.infer<typeof schema> = {};
   let upload: { buffer: Buffer; mime: string } | undefined;
   if (req.isMultipart()) {
-    for await (const part of req.parts({ limits: { fields: 6, parts: 7 } })) {
+    for await (const part of req.parts({ limits: { fields: 7, parts: 8 } })) {
       if (part.type === 'file') {
         assert(
           part.fieldname === 'logo',
@@ -60,10 +62,11 @@ async function parseProfileUpdate(
             'jersey_style',
             'jersey_styles',
             'player_photos',
+            ...(schema === adminProfileInput ? ['team_name'] : []),
           ].includes(part.fieldname),
           400,
           'invalid_field',
-          'Only players, captain_position, jersey_sizes, jersey_style, player_photos and logo fields are accepted',
+          'Only players, captain_position, jersey_sizes, jersey_style, player_photos, team_name and logo fields are accepted',
         );
         let value: unknown;
         try {
@@ -71,10 +74,10 @@ async function parseProfileUpdate(
         } catch {
           throw new HttpError(400, 'invalid_players', 'Profile fields must contain valid JSON');
         }
-        input = profileInput.parse({ ...input, [part.fieldname]: value });
+        input = schema.parse({ ...input, [part.fieldname]: value });
       }
     }
-  } else input = profileInput.parse(req.body);
+  } else input = schema.parse(req.body);
   return { input, upload };
 }
 export async function buildApp(deps: {
@@ -461,7 +464,7 @@ export async function buildApp(deps: {
     { preHandler: guard.admin },
     async (req) => {
       const p = itemIds(req.params);
-      const { input, upload } = await parseProfileUpdate(req);
+      const { input, upload } = await parseProfileUpdate(req, adminProfileInput);
       const stored = upload ? await storage.put('logo', upload.buffer, upload.mime) : undefined;
       try {
         const item = await orders.adminProfile(p.id, p.item_id, {
@@ -471,6 +474,8 @@ export async function buildApp(deps: {
         await audit(db, req.actor!.id, 'order.profile.edit', 'order', p.id, {
           item_id: p.item_id,
           players: input.players?.length,
+          team_name: (input as z.infer<typeof adminProfileInput>).team_name,
+          logo_replaced: Boolean(stored),
         });
         return item;
       } catch (e) {
